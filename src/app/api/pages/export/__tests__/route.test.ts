@@ -132,6 +132,21 @@ describe("GET /api/pages/export", () => {
     expect(buf.readUInt32LE(0)).toBe(0x04034b50);
   });
 
+  it("all=1&embed=1 returns the batch zip with assetBase HTML (no absolute origin refs)", async () => {
+    const second = { ...(PAGE as object), id: 2, slug: "bob" } as never;
+    mockGetAllPages.mockResolvedValue([PAGE, second]);
+    const res = await GET(req("?all=1&embed=1"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("application/zip");
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="linkbreeze-pages.zip"',
+    );
+    const buf = Buffer.from(await res.arrayBuffer());
+    expect(buf.readUInt32LE(0)).toBe(0x04034b50);
+    // pages built with assetBase: no absolute origin refs in the HTML entries
+    expect(buf.toString("latin1")).not.toContain("http://localhost:3000");
+  });
+
   it("413 when a single export exceeds the 2 MiB cap", async () => {
     // 450 links x ~6KB descriptions ≈ 2.7 MiB of escaped text.
     mockGetActiveLinks.mockResolvedValue(
