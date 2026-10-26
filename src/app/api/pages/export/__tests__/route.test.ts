@@ -75,6 +75,23 @@ describe("GET /api/pages/export", () => {
     expect(res.status).toBe(401);
   });
 
+  it("guard ordering: 401 fires before ANY data query (E.31)", async () => {
+    // No enumeration without auth: the session guard must short-circuit
+    // before a single page/link/theme row is read, in every variant.
+    mockSession.mockResolvedValue(null);
+    for (const q of ["?id=1", "?id=1&embed=1", "?all=1", "?all=1&embed=1"]) {
+      const res = await GET(req(q));
+      expect(res.status, q).toBe(401);
+    }
+    expect(mockGetPageById).not.toHaveBeenCalled();
+    expect(mockGetAllPages).not.toHaveBeenCalled();
+    expect(mockGetActiveLinks).not.toHaveBeenCalled();
+    expect(mockGetSections).not.toHaveBeenCalled();
+    expect(mockGetActiveTheme).not.toHaveBeenCalled();
+    expect(mockGetThemeById).not.toHaveBeenCalled();
+    expect(mockGetCustomFont).not.toHaveBeenCalled();
+  });
+
   it("400 on malformed or missing id", async () => {
     for (const q of ["?id=abc", "?id=-1", "?id=0", ""]) {
       const res = await GET(req(q));
