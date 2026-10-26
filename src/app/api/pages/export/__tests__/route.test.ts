@@ -152,6 +152,29 @@ describe("GET /api/pages/export", () => {
     expect(buf.readUInt32LE(0)).toBe(0x04034b50); // PK local header
   });
 
+  it("one-page instance: ?all=1 still returns a one-entry zip (E.33)", async () => {
+    mockGetAllPages.mockResolvedValue([PAGE]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("application/zip");
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="linkbreeze-pages.zip"',
+    );
+    const buf = Buffer.from(await res.arrayBuffer());
+    expect(buf.readUInt32LE(0)).toBe(0x04034b50);
+    // exactly ONE local header — no silent fallback to a plain .html body
+    let off = 0;
+    let entries = 0;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const size = buf.readUInt32LE(off + 18);
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      entries++;
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    expect(entries).toBe(1);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
