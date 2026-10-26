@@ -143,6 +143,21 @@ docker volume rm linkbreeze-data
 
 ---
 
+## Exported page doesn't count clicks or capture emails
+
+By design. A static export is a plain `.html` file: built-in view/click
+analytics, the `/go/` redirect tracking, and email capture all need the
+LinkBreeze server, so they stay behind on your instance. What does travel:
+your theme, custom CSS, and any third-party analytics snippet (Plausible,
+Umami, etc.) configured under Settings → Integration, since those talk
+directly to your provider. Link cards in the export point straight at their
+destination URLs. Images also load from your instance via absolute URLs -
+if the export must work fully offline or after your instance goes away,
+export with `?embed=1` (`/api/pages/export?id=1&embed=1`) to bundle the
+`uploads/` folder into the zip.
+
+---
+
 ## Changes not showing on public page
 
 The public page is cached. If you changed something in the admin panel and it
