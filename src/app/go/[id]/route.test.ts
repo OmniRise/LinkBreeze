@@ -158,6 +158,17 @@ describe("GET /go/[ref] A/B split (#81)", () => {
     }
   });
 
+  it("E.26: a future-version (v:2) config degrades to plain serving (variant A, no split)", async () => {
+    // Version forward-compat: parseAbConfig rejects v:2, so the route sees
+    // no test — it must serve variant A's URL like a link with no config,
+    // never half-apply a schema this build doesn't understand.
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "url", abConfig: abConfig({ v: 2 }) }),
+    );
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.headers.get("location")).toBe("https://example.com/a");
+  });
+
   it("paused and archived tests serve variant A only", async () => {
     for (const status of ["paused", "archived"]) {
       mocks.getLinkByRef.mockResolvedValue(

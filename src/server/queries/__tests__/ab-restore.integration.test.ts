@@ -226,6 +226,15 @@ describe("[integration] A/B config restore sanitization (#81)", () => {
     expect(await getSetting("abAutoPromote")).toBeNull();
   });
 
+  it("E.26: a future-version (v:2) config in a backup is dropped, not half-applied", async () => {
+    // Valid JSON, invalid schema: the version literal must reject it on the
+    // way in exactly like malformed JSON (this build cannot honor v:2).
+    await restoreWith([
+      linkRow({ abConfig: JSON.stringify({ ...goodConfig, v: 2 }) }),
+    ]);
+    expect(await restoredConfig(501)).toBeNull();
+  });
+
   // ---- E.18: EXPORT direction + export->import->export idempotence ----
 
   it("E.18: export carries ab_config + toggle verbatim; a full round-trip is idempotent", async () => {

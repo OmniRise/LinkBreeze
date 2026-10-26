@@ -362,3 +362,21 @@ describe("scanner prefilter drift guard (#81 E.25)", () => {
     }
   });
 });
+
+describe("version forward-compat contract (#81 E.26)", () => {
+  // v is z.literal(1): any future version MUST degrade to NULL (no test)
+  // everywhere parseAbConfig is the gate — serve, actions, scanner, restore.
+  // A schema loosening (coerce/optional) would otherwise half-apply configs
+  // written for a future schema this build cannot honor.
+  const future = JSON.stringify({ ...base, v: 2 });
+  it("a v:2 config parses to NULL (never half-applies)", () => {
+    expect(parseAbConfig(future)).toBeNull();
+  });
+  it("v:0 and string-typed v degrade to NULL too", () => {
+    expect(parseAbConfig(JSON.stringify({ ...base, v: 0 }))).toBeNull();
+    expect(parseAbConfig(JSON.stringify({ ...base, v: "1" }))).toBeNull();
+  });
+  it("the current version still parses (the guard is version-specific)", () => {
+    expect(parseAbConfig(JSON.stringify({ ...base, v: 1 }))).not.toBeNull();
+  });
+});

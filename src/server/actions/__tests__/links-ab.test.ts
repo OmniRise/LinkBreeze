@@ -227,6 +227,18 @@ describe("setAbTestStatus", () => {
     expect(mocks.updateLink).not.toHaveBeenCalled();
   });
 
+  it("E.26: a future-version (v:2) config is treated as NO test — no write, no half-apply", async () => {
+    // Version forward-compat contract: parseAbConfig (z.literal(1)) rejects
+    // it, so every consumer sees "no A/B test". Actions must not write.
+    mocks.getLink.mockResolvedValue(
+      urlLink(JSON.stringify({ ...runningConfig, v: 2 })),
+    );
+    const res = await setAbTestStatus(fd({ id: "7", status: "paused" }));
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toContain("no A/B test");
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
   it("pauses a running test", async () => {
     mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
     const res = await setAbTestStatus(fd({ id: "7", status: "paused" }));

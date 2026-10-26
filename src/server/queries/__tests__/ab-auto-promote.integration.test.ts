@@ -202,4 +202,20 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     expect(cfg?.status).toBe("archived");
     expect(cfg?.winner).toBe("B");
   });
+
+  it("E.26: a future-version (v:2) config is never scanned — prefilter matches, re-parse rejects", async () => {
+    // The interesting half-apply risk: v:2 JSON still contains the LIKE
+    // prefilter fragment, so the scanner FINDS the row — its parse-level
+    // re-validation must then reject it (0 promoted, config untouched).
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    const link = seedLink({
+      abConfig: JSON.stringify({ ...running, v: 2 }),
+    });
+    await clickVariants(link.id, 150, 350); // way past every floor
+    expect(await runAbAutoPromoteScan()).toBe(0);
+    const raw = (await getLink(link.id))?.abConfig ?? null;
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw!).v).toBe(2); // untouched, not rewritten to v:1
+    expect(parseAbConfig(raw)).toBeNull();
+  });
 });
