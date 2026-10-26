@@ -127,6 +127,22 @@ const checks: Array<[string, boolean]> = [
   ["custom css kept", html.includes(".probe { outline: none; }")],
   ["footer", html.includes("© 2026 Jane Doe")],
   ["json-ld", html.includes('application/ld+json')],
+  // E.20 — structural validity of the document shell
+  ["single <html> open", (html.match(/<html[\s>]/g) ?? []).length === 1],
+  ["single </html> close", (html.match(/<\/html>/g) ?? []).length === 1],
+  ["single <head>", (html.match(/<head>/g) ?? []).length === 1],
+  ["single <body>", (html.match(/<body[\s>]/g) ?? []).length === 1],
+  ["balanced </body>", (html.match(/<\/body>/g) ?? []).length === 1],
+  ["exactly one <title>", (html.match(/<title>/g) ?? []).length === 1],
+  ["exactly one <h1>", (html.match(/<h1[\s>]/g) ?? []).length === 1],
+  ["html lang attribute", /<html lang="[a-z-]+">/.test(html)],
+  [
+    "viewport meta",
+    /<meta name="viewport" content="width=device-width, initial-scale=1[^"]*">/.test(
+      html,
+    ),
+  ],
+  ["charset meta", /<meta charset="utf-8">/.test(html)],
   ["size ok", assertExportSize(html).ok],
 ];
 let failed = 0;
