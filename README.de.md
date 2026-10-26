@@ -403,6 +403,28 @@ Leite eigene Domains auf Seiten weiter - eine Instanz, viele Identitäten. Besuc
 
 Komplette Einrichtung - DNS, Wildcard-TLS und Copy-Paste-Reverse-Proxy-Konfigurationen für Caddy, nginx und Traefik - in **[docs/custom-domains.md](docs/custom-domains.md)**.
 
+## 🔌 REST-API
+
+Verwalte Links, Profil und Analysen aus Skripten, CI-Pipelines oder Drittanbieter-Tools. Erstelle einen API-Schlüssel unter **Settings → Security → API access** (der volle Schlüssel wird nur einmal angezeigt - sicher speichern) und sende ihn im `Authorization`-Header über das HTTP-Bearer-Schema. Limit: 120 Anfragen/Minute pro Schlüssel, dazu ein IP-Schutz. Schreibende Endpunkte sind im Demo-Modus gesperrt. Jede Instanz bietet ihre eigene OpenAPI-3.1-Referenz unter `/api/v1/docs` und `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Endpunkte</summary>
+
+| Methode | Pfad | Beschreibung |
+|---------|------|--------------|
+| GET | `/api/v1/links` | Alle Links auflisten |
+| POST | `/api/v1/links` | Link erstellen |
+| PUT | `/api/v1/links/:id` | Link aktualisieren (partiell - nur gesendete Felder ändern sich) |
+| DELETE | `/api/v1/links/:id` | Link löschen |
+| PUT | `/api/v1/links/reorder` | Links neu ordnen (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Profil abrufen |
+| PUT | `/api/v1/profile` | Profil aktualisieren (partiell) |
+| GET | `/api/v1/analytics` | Aufrufe, Klicks und Top-Links (`?range=7d\|30d\|90d`) |
+
+Erfolgreiche Antworten verpacken die Nutzlast in `data`; Fehler sind `{ "error": { "code", "message" } }` mit passenden HTTP-Statuscodes (401 fehlender oder ungültiger Schlüssel, 400 Validierung, 403 Demo-Modus, 429 Limit). Link-Schreibvorgänge durchlaufen dieselbe Validierung wie die Admin-Oberfläche - inklusive URL-Schema-Allowlist.
+
+</details>
+
 ## 🎨 Theme-System
 
 11 Presets sind ab Werk dabei: **Aurora** (animiertes Flaggschiff), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** und **Frutiger Aero**.

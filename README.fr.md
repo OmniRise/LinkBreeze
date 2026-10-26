@@ -403,6 +403,28 @@ Pointez vos propres domaines vers vos pages - une instance, plusieurs identités
 
 Configuration complète - DNS, TLS wildcard et configs reverse-proxy prêtes à coller pour Caddy, nginx et Traefik - dans **[docs/custom-domains.md](docs/custom-domains.md)**.
 
+## 🔌 API REST
+
+Gérez vos liens, votre profil et vos statistiques depuis des scripts, des pipelines CI ou des outils tiers. Générez une clé API dans **Settings → Security → API access** (la clé complète est affichée une seule fois - stockez-la en sécurité), puis envoyez-la dans l'en-tête `Authorization` avec le schéma HTTP Bearer. Limite : 120 requêtes/minute par clé, plus une garde par IP. Les endpoints d'écriture sont bloqués en mode démo. Chaque instance sert sa propre référence OpenAPI 3.1 sur `/api/v1/docs` et `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Points d'entrée</summary>
+
+| Méthode | Chemin | Description |
+|---------|--------|-------------|
+| GET | `/api/v1/links` | Lister tous les liens |
+| POST | `/api/v1/links` | Créer un lien |
+| PUT | `/api/v1/links/:id` | Modifier un lien (partiel - seuls les champs envoyés changent) |
+| DELETE | `/api/v1/links/:id` | Supprimer un lien |
+| PUT | `/api/v1/links/reorder` | Réordonner les liens (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Obtenir le profil |
+| PUT | `/api/v1/profile` | Modifier le profil (partiel) |
+| GET | `/api/v1/analytics` | Vues, clics et liens populaires (`?range=7d\|30d\|90d`) |
+
+Les réponses de succès enveloppent la charge dans `data` ; les erreurs sont `{ "error": { "code", "message" } }` avec les codes HTTP correspondants (401 clé manquante ou invalide, 400 validation, 403 mode démo, 429 limite dépassée). Les écritures de liens passent par la même validation que l'interface d'administration - liste blanche des schémas d'URL incluse.
+
+</details>
+
 ## 🎨 Système de thèmes
 
 11 préréglages sont inclus d'office : **Aurora** (le thème phare animé), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** et **Frutiger Aero**.

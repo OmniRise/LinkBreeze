@@ -403,6 +403,28 @@ Point your own domains at pages — one instance, many identities. Visitors land
 
 Full setup — DNS, wildcard TLS and copy-paste reverse-proxy configs for Caddy, nginx and Traefik — in **[docs/custom-domains.md](docs/custom-domains.md)**.
 
+## 🔌 REST API
+
+Manage links, your profile and analytics from scripts, CI pipelines or third-party tools. Generate an API key in **Settings → Security → API access** (the full key is shown once - store it securely), then send it in the `Authorization` header using the HTTP Bearer scheme. Rate limit: 120 requests/minute per key, plus a per-IP guard. Mutating endpoints are blocked in demo mode. Every instance serves its own OpenAPI 3.1 reference at `/api/v1/docs` and `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Endpoints</summary>
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/links` | List all links |
+| POST | `/api/v1/links` | Create a link |
+| PUT | `/api/v1/links/:id` | Update a link (partial - only fields you send change) |
+| DELETE | `/api/v1/links/:id` | Delete a link |
+| PUT | `/api/v1/links/reorder` | Reorder links (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Get the profile |
+| PUT | `/api/v1/profile` | Update the profile (partial) |
+| GET | `/api/v1/analytics` | Views, clicks and top links (`?range=7d\|30d\|90d`) |
+
+Success responses wrap the payload in `data`; errors are `{ "error": { "code", "message" } }` with matching HTTP statuses (401 missing or invalid key, 400 validation, 403 demo mode, 429 rate limited). Link writes run the same validation as the admin UI - URL scheme allowlist included.
+
+</details>
+
 ## 🎨 Theme System
 
 11 presets are included out of the box: **Aurora** (animated flagship), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** and **Frutiger Aero**.

@@ -403,6 +403,28 @@ Aponte seus próprios domínios para páginas - uma instância, várias identida
 
 Configuração completa - DNS, TLS curinga e configurações de proxy reverso prontas para copiar para Caddy, nginx e Traefik - em **[docs/custom-domains.md](docs/custom-domains.md)**.
 
+## 🔌 API REST
+
+Gerencie links, perfil e análises a partir de scripts, pipelines de CI ou ferramentas de terceiros. Gere uma chave de API em **Settings → Security → API access** (a chave completa é exibida uma única vez - guarde-a em um local seguro) e envie-a no cabeçalho `Authorization` com o esquema HTTP Bearer. Limite: 120 requisições/minuto por chave, mais uma guarda por IP. Os endpoints de escrita são bloqueados no modo demo. Cada instância serve a própria referência OpenAPI 3.1 em `/api/v1/docs` e `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Endpoints</summary>
+
+| Método | Caminho | Descrição |
+|--------|---------|-----------|
+| GET | `/api/v1/links` | Listar todos os links |
+| POST | `/api/v1/links` | Criar um link |
+| PUT | `/api/v1/links/:id` | Atualizar um link (parcial - só os campos enviados mudam) |
+| DELETE | `/api/v1/links/:id` | Excluir um link |
+| PUT | `/api/v1/links/reorder` | Reordenar links (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Obter o perfil |
+| PUT | `/api/v1/profile` | Atualizar o perfil (parcial) |
+| GET | `/api/v1/analytics` | Visualizações, cliques e links principais (`?range=7d\|30d\|90d`) |
+
+Respostas de sucesso envolvem o payload em `data`; erros são `{ "error": { "code", "message" } }` com os status HTTP correspondentes (401 chave ausente ou inválida, 400 validação, 403 modo demo, 429 limite excedido). As gravações de links passam pela mesma validação da interface de administração - incluindo a lista permitida de esquemas de URL.
+
+</details>
+
 ## 🎨 Sistema de Temas
 
 11 predefinições estão incluídas de fábrica: **Aurora** (carro-chefe animado), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** e **Frutiger Aero**.

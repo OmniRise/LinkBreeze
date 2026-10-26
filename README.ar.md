@@ -403,6 +403,28 @@ cloudflared tunnel --url http://localhost:3000
 
 الإعداد الكامل - DNS وTLS wildcard وتكوينات وكيل عكسي جاهزة للنسخ لـ Caddy وnginx وTraefik - في **[docs/custom-domains.md](docs/custom-domains.md)**.
 
+## 🔌 واجهة REST
+
+أدر الروابط والملف الشخصي والإحصائيات من السكربتات وأنابيب CI أو الأدوات الخارجية. أنشئ مفتاح API من **Settings → Security → API access** (يُعرض المفتاح الكامل مرة واحدة فقط - احفظه في مكان آمن) وأرسله في ترويسة `Authorization` بمخطط HTTP Bearer. الحد: 120 طلباً في الدقيقة لكل مفتاح، مع حماية إضافية بعنوان IP. نقاط النهاية الكتابية محجوبة في وضع العرض التجريبي. يقدّم كل نسخة استضافة مرجع OpenAPI 3.1 خاصاً بها على `/api/v1/docs` و`/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;نقاط النهاية</summary>
+
+| الطريقة | المسار | الوصف |
+|---------|--------|-------|
+| GET | `/api/v1/links` | سرد جميع الروابط |
+| POST | `/api/v1/links` | إنشاء رابط |
+| PUT | `/api/v1/links/:id` | تحديث رابط (جزئي - تُغيَّر الحقول المرسلة فقط) |
+| DELETE | `/api/v1/links/:id` | حذف رابط |
+| PUT | `/api/v1/links/reorder` | إعادة ترتيب الروابط (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | جلب الملف الشخصي |
+| PUT | `/api/v1/profile` | تحديث الملف الشخصي (جزئي) |
+| GET | `/api/v1/analytics` | المشاهدات والنقرات والروابط الأكثر زيارة (`?range=7d\|30d\|90d`) |
+
+تغلّف الاستجابات الناجحة البيانات في `data`؛ وأخطاء الصيغة `{ "error": { "code", "message" } }` مع رموز HTTP المطابقة (401 مفتاح مفقود أو غير صالح، 400 تحقق، 403 وضع العرض التجريبي، 429 تجاوز الحد). تمر كتابة الروابط بنفس التحقق المستخدم في لوحة الإدارة - بما في ذلك قائمة مخططات URL المسموح بها.
+
+</details>
+
 ## 🎨 نظام الثيمات
 
 11 إعدادًا مسبقًا مضمَّنة افتراضيًا: **Aurora** (الواجهة المتحركة الرئيسية)، **Glassmorphism**، **Neon Cyberpunk**، **Editorial Paper**، **Terminal Mono**، **Pastel Soft**، **Brutalist**، **Retro Sunset**، **Minimal Light**، **8-Bit Retro** و **Frutiger Aero**.

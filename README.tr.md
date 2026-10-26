@@ -403,6 +403,28 @@ Kendi alan adlarını sayfalara yönlendir - tek kurulum, çok kimlik. Ziyaretç
 
 Eksiksiz kurulum - DNS, wildcard TLS ve Caddy, nginx ve Traefik için kopyala-yapıştır reverse proxy yapılandırmaları - **[docs/custom-domains.md](docs/custom-domains.md)** içinde.
 
+## 🔌 REST API
+
+Bağlantıları, profili ve analitiği betiklerden, CI boru hatlarından veya üçüncü taraf araçlardan yönetin. **Settings → Security → API access** bölümünde bir API anahtarı oluşturun (tam anahtar yalnızca bir kez gösterilir - güvenli bir yerde saklayın) ve HTTP Bearer şemasıyla `Authorization` başlığında gönderin. Sınır: anahtar başına dakikada 120 istek, ayrıca IP başına bir koruma. Yazma uç noktaları demo modunda engellenir. Her kendi örneği `/api/v1/docs` ve `/api/v1/openapi.json` adreslerinde kendi OpenAPI 3.1 referansını sunar.
+
+<details>
+<summary>🔗 &nbsp;Uç noktalar</summary>
+
+| Yöntem | Yol | Açıklama |
+|--------|-----|----------|
+| GET | `/api/v1/links` | Tüm bağlantıları listele |
+| POST | `/api/v1/links` | Bağlantı oluştur |
+| PUT | `/api/v1/links/:id` | Bağlantıyı güncelle (kısmi - yalnızca gönderilen alanlar değişir) |
+| DELETE | `/api/v1/links/:id` | Bağlantıyı sil |
+| PUT | `/api/v1/links/reorder` | Bağlantıları yeniden sırala (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Profili al |
+| PUT | `/api/v1/profile` | Profili güncelle (kısmi) |
+| GET | `/api/v1/analytics` | Görüntülenmeler, tıklamalar ve üst bağlantılar (`?range=7d\|30d\|90d`) |
+
+Başarılı yanıtlar yükü `data` içinde paketler; hatalar `{ "error": { "code", "message" } }` biçimindedir ve eşleş HTTP durumlarıyla gelir (401 anahtar eksik veya geçersiz, 400 doğrulama, 403 demo modu, 429 sınır). Bağlantı yazımları, yönetim arayüzüyle aynı doğrulamadan geçer - URL şeması izin listesi dahil.
+
+</details>
+
 ## 🎨 Tema Sistemi
 
 Kutudan çıktığı gibi 11 hazır tema gelir: **Aurora** (animasyonlu amiral gemisi), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** ve **Frutiger Aero**.

@@ -403,6 +403,28 @@ Punta i tuoi domini alle pagine - un'istanza, tante identità. I visitatori arri
 
 Setup completo - DNS, TLS wildcard e configurazioni reverse proxy copia-e-incolla per Caddy, nginx e Traefik - in **[docs/custom-domains.md](docs/custom-domains.md)**.
 
+## 🔌 API REST
+
+Gestisci link, profilo e analisi da script, pipeline CI o strumenti di terze parti. Genera una chiave API in **Settings → Security → API access** (la chiave completa viene mostrata una sola volta - conservala in un posto sicuro) e inviala nell'header `Authorization` con lo schema HTTP Bearer. Limite: 120 richieste/minuto per chiave, più una guardia per IP. Gli endpoint di scrittura sono bloccati in modalità demo. Ogni istanza serve il proprio riferimento OpenAPI 3.1 su `/api/v1/docs` e `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Endpoint</summary>
+
+| Metodo | Percorso | Descrizione |
+|--------|----------|-------------|
+| GET | `/api/v1/links` | Elenca tutti i link |
+| POST | `/api/v1/links` | Crea un link |
+| PUT | `/api/v1/links/:id` | Aggiorna un link (parziale - cambiano solo i campi inviati) |
+| DELETE | `/api/v1/links/:id` | Elimina un link |
+| PUT | `/api/v1/links/reorder` | Riordina i link (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Ottieni il profilo |
+| PUT | `/api/v1/profile` | Aggiorna il profilo (parziale) |
+| GET | `/api/v1/analytics` | Visualizzazioni, clic e link principali (`?range=7d\|30d\|90d`) |
+
+Le risposte di successo racchiudono il payload in `data`; gli errori sono `{ "error": { "code", "message" } }` con gli stati HTTP corrispondenti (401 chiave mancante o non valida, 400 validazione, 403 modalità demo, 429 limite). Le scritture dei link seguono la stessa validazione dell'interfaccia admin - lista consentita degli schemi URL inclusa.
+
+</details>
+
 ## 🎨 Sistema di Temi
 
 Sono inclusi 11 preset pronti all'uso: **Aurora** (flagship animato), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** e **Frutiger Aero**.

@@ -403,6 +403,28 @@ cloudflared tunnel --url http://localhost:3000
 
 DNS、ワイルドカードTLS、Caddy・nginx・Traefik向けのコピペリバースプロキシ設定まで、セットアップの詳細は**[docs/custom-domains.md](docs/custom-domains.md)**をご覧ください。
 
+## 🔌 REST API
+
+スクリプト、CI パイプライン、サードパーティのツールからリンク、プロフィール、分析を管理できます。**Settings → Security → API access** で API キーを作成します（完全なキーは一度だけ表示されます - 安全な場所に保管してください）。`Authorization` ヘッダーで HTTP Bearer スキームとして送信します。レート制限: キーあたり毎分 120 リクエスト（加えて IP 単位のガードあり）。書き込み系エンドポイントはデモモードではブロックされます。各インスタンスは `/api/v1/docs` と `/api/v1/openapi.json` に独自の OpenAPI 3.1 リファレンスを提供します。
+
+<details>
+<summary>🔗 &nbsp;エンドポイント</summary>
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/api/v1/links` | すべてのリンクを一覧表示 |
+| POST | `/api/v1/links` | リンクを作成 |
+| PUT | `/api/v1/links/:id` | リンクを更新（部分的 - 送信したフィールドのみ変更） |
+| DELETE | `/api/v1/links/:id` | リンクを削除 |
+| PUT | `/api/v1/links/reorder` | リンクを並べ替え（`{ "ids": [3, 1, 2] }`） |
+| GET | `/api/v1/profile` | プロフィールを取得 |
+| PUT | `/api/v1/profile` | プロフィールを更新（部分的） |
+| GET | `/api/v1/analytics` | ビュー、クリック、トップリンク（`?range=7d\|30d\|90d`） |
+
+成功レスポンスはペイロードを `data` でラップします。エラーは `{ "error": { "code", "message" } }` で、対応する HTTP ステータス（401 キーなし・無効、400 検証、403 デモモード、429 レート制限）が返ります。リンクの書き込みは管理画面と同じ検証（URL スキームの許可リストを含む）を通ります。
+
+</details>
+
 ## 🎨 テーマシステム
 
 プリセット11種類を標準搭載:**Aurora**(アニメーションする旗艦テーマ)、**Glassmorphism**、**Neon Cyberpunk**、**Editorial Paper**、**Terminal Mono**、**Pastel Soft**、**Brutalist**、**Retro Sunset**、**Minimal Light**、**8-Bit Retro**、**Frutiger Aero**。

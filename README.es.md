@@ -403,6 +403,28 @@ Apunta tus propios dominios a tus páginas - una instancia, muchas identidades. 
 
 Configuración completa - DNS, TLS comodín y configuraciones de proxy inverso listas para copiar para Caddy, nginx y Traefik - en **[docs/custom-domains.md](docs/custom-domains.md)**.
 
+## 🔌 API REST
+
+Gestiona enlaces, perfil y analíticas desde scripts, pipelines de CI o herramientas de terceros. Genera una clave API en **Settings → Security → API access** (la clave completa se muestra una sola vez - guárdala en un lugar seguro), y envíala en la cabecera `Authorization` con el esquema HTTP Bearer. Límite: 120 peticiones/minuto por clave, más una guarda por IP. Los endpoints de escritura están bloqueados en modo demo. Cada instancia sirve su propia referencia OpenAPI 3.1 en `/api/v1/docs` y `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Endpoints</summary>
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/v1/links` | Listar todos los enlaces |
+| POST | `/api/v1/links` | Crear un enlace |
+| PUT | `/api/v1/links/:id` | Actualizar un enlace (parcial - solo cambian los campos enviados) |
+| DELETE | `/api/v1/links/:id` | Eliminar un enlace |
+| PUT | `/api/v1/links/reorder` | Reordenar enlaces (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Obtener el perfil |
+| PUT | `/api/v1/profile` | Actualizar el perfil (parcial) |
+| GET | `/api/v1/analytics` | Vistas, clics y enlaces principales (`?range=7d\|30d\|90d`) |
+
+Las respuestas exitosas envuelven la carga en `data`; los errores son `{ "error": { "code", "message" } }` con los estados HTTP correspondientes (401 clave ausente o inválida, 400 validación, 403 modo demo, 429 límite excedido). Las escrituras de enlaces pasan por la misma validación que la interfaz de administración - incluida la lista permitida de esquemas de URL.
+
+</details>
+
 ## 🎨 Sistema de temas
 
 Se incluyen 11 preajustes de serie: **Aurora** (el buque insignia animado), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** y **Frutiger Aero**.

@@ -403,6 +403,28 @@ cloudflared tunnel --url http://localhost:3000
 
 完整设置 - DNS、泛域名 TLS 以及 Caddy、nginx、Traefik 的即拷即用反向代理配置 - 见 **[docs/custom-domains.md](docs/custom-domains.md)**。
 
+## 🔌 REST API
+
+从脚本、CI 流水线或第三方工具管理链接、个人资料和统计数据。在 **Settings → Security → API access** 中创建 API 密钥（完整密钥只显示一次 - 请妥善保管），并在 `Authorization` 请求头中以 HTTP Bearer 方式发送。速率限制：每个密钥每分钟 120 次请求，另有按 IP 的防护。写入类接口在演示模式下被阻止。每个实例都在 `/api/v1/docs` 和 `/api/v1/openapi.json` 提供自己的 OpenAPI 3.1 参考文档。
+
+<details>
+<summary>🔗 &nbsp;接口列表</summary>
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/links` | 列出所有链接 |
+| POST | `/api/v1/links` | 创建链接 |
+| PUT | `/api/v1/links/:id` | 更新链接（部分 - 只有发送的字段会更改） |
+| DELETE | `/api/v1/links/:id` | 删除链接 |
+| PUT | `/api/v1/links/reorder` | 重新排序链接（`{ "ids": [3, 1, 2] }`） |
+| GET | `/api/v1/profile` | 获取个人资料 |
+| PUT | `/api/v1/profile` | 更新个人资料（部分） |
+| GET | `/api/v1/analytics` | 浏览量、点击量和热门链接（`?range=7d\|30d\|90d`） |
+
+成功响应将数据包装在 `data` 中；错误为 `{ "error": { "code", "message" } }` 并带有对应的 HTTP 状态码（401 密钥缺失或无效、400 校验、403 演示模式、429 超出限流）。链接写入经过与管理界面相同的校验 - 包括 URL 协议白名单。
+
+</details>
+
 ## 🎨 主题系统
 
 开箱即用包含 11 个预设：**Aurora**（动画旗舰）、**Glassmorphism**、**Neon Cyberpunk**、**Editorial Paper**、**Terminal Mono**、**Pastel Soft**、**Brutalist**、**Retro Sunset**、**Minimal Light**、**8-Bit Retro** 和 **Frutiger Aero**。
