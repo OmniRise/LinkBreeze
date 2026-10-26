@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 7f3b24d510f3 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 3c0456bad181 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -621,6 +621,33 @@ const it: Messages = {
   },
 
   settings: {
+    notifications: {
+      title: "Notifiche webhook",
+      description: "Ricevi avvisi su Discord, Slack, Telegram o ntfy quando una pagina raggiunge traguardi di clic o visualizzazioni. Un webhook per pagina.",
+      url: "URL del webhook",
+      provider: "Provider",
+      providerDiscord: "Discord",
+      providerSlack: "Slack",
+      providerTelegram: "Telegram",
+      providerNtfy: "ntfy",
+      enabled: "Attivato",
+      clicksThreshold: "Soglia clic",
+      viewsThreshold: "Soglia visualizzazioni",
+      thresholdHint: "Notifica ogni N clic o visualizzazioni. Lascia vuoto per disattivare quella notifica.",
+      saving: "Salvataggio…",
+      saved: "Salvato",
+      sendTest: "Invia notifica di prova",
+      testing: "Invio…",
+      testOk: "Notifica di prova consegnata.",
+      testFailed: "Consegna di prova non riuscita:",
+      deliveryLog: "Consegne recenti",
+      deliveryEmpty: "Nessuna consegna ancora.",
+      statusSuccess: "Consegnata",
+      statusFailed: "Non riuscita",
+      statusPending: "In attesa",
+      attempt: "Tentativi: {count}",
+      delete: "Rimuovi webhook",
+    },
     title: "Impostazioni",
     qrTitle: "Codice QR",
     qrCardDesc: "Personalizza e scarica il QR per /{slug}. Inquadralo per aprire la tua pagina pubblica — usalo su stampa o schermi.",

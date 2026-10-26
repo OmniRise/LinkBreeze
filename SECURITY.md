@@ -197,6 +197,13 @@ GDPR Article 33 (72 hours to the supervisory authority).
    `docker-compose.with-backup.yml` sidecar and follow the 3-2-1 rule.
 5. **Restrict network access** — Do not expose the SQLite port. Only expose the
    LinkBreeze HTTP port through a reverse proxy.
+6. **Treat webhook URLs as sensitive** — Webhook notification URLs
+   (Settings -> Integration) embed an auth token for Discord/Slack and are
+   stored in the database. The server POSTs milestone notifications to them
+   (http/https only; the URL is owner-configured in an admin-only surface,
+   so server-side fetching is trusted-by-owner configuration — revisit if a
+   multi-user admin/user split ever lands). Do not paste webhook URLs into
+   logs, screenshots, or issue reports; rotate a URL you have exposed.
 
 ## Accessibility
 

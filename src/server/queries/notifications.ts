@@ -38,6 +38,18 @@ export async function getNotificationConfig(
   return rows[0] ?? null;
 }
 
+/** The (single) webhook config for a page, for the settings card. */
+export async function getNotificationConfigByPage(
+  pageId: number,
+): Promise<NotificationConfigRow | null> {
+  const rows = await db
+    .select()
+    .from(notificationConfigs)
+    .where(eq(notificationConfigs.pageId, pageId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function createNotificationConfig(
   input: NotificationConfigInput,
 ): Promise<NotificationConfigRow> {
@@ -54,6 +66,11 @@ export async function updateNotificationConfig(
 
 export async function deleteNotificationConfig(id: number): Promise<void> {
   await db.delete(notificationConfigs).where(eq(notificationConfigs.id, id));
+}
+
+/** Remove the page's config (delivery-log rows cascade via FK). */
+export async function deleteNotificationConfigForPage(pageId: number): Promise<void> {
+  await db.delete(notificationConfigs).where(eq(notificationConfigs.pageId, pageId));
 }
 
 /** Last N delivery attempts for one config, newest first (settings UI). */
