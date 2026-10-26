@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
-import { getLinkByRef, recordClick } from "@/server/queries";
+import { getLinkByRef, recordClick, getLinkStats } from "@/server/queries";
 import { serializeAbConfig } from "@/lib/ab-test";
 
 type Session = {
@@ -67,6 +67,7 @@ beforeEach(async () => {
   const scratch = seedLink({ url: "https://example.com/warmup" });
   await getLinkByRef(String(scratch.id));
   await recordClick(scratch.id, "perf-warmup", null);
+  await getLinkStats(scratch.id, "30d"); // E.14: warm the detail-page path too
 });
 
 describe("click-path query count (#81 E.5)", () => {
@@ -137,5 +138,41 @@ describe("click-path query count (#81 E.5)", () => {
     // Warm measured total = 7 (getLinkByRef 1 + recordClick 6). Exact pin:
     // history/link growth must not move it, and an N+1 fails it immediately.
     expect(grown).toBe(7);
+  });
+
+  it("E.14: getLinkStats costs the same with a test as without, flat vs history", async () => {
+    // The #81 variants GROUP BY runs unconditionally, so a link WITH a
+    // running config must cost exactly what a plain link costs (no
+    // config-dependent branch), and click-history size must not move it.
+    const plain = seedLink({ url: "https://example.com/stats-plain" });
+    const tested = seedLink({
+      url: "https://example.com/stats-tested",
+      abConfig: runningConfig,
+    });
+
+    const plainCount = await countQueries(async () => {
+      const s = await getLinkStats(plain.id, "30d");
+      expect(s).not.toBeNull();
+    });
+    const testedCount = await countQueries(async () => {
+      const s = await getLinkStats(tested.id, "30d");
+      expect(s?.variants).toEqual({ a: 0, b: 0 });
+    });
+
+    expect(plainCount).toBeGreaterThanOrEqual(1); // sanity: hook saw queries
+    expect(testedCount).toBe(plainCount); // equality — the #81 promise
+    // Warm measured = 5 (link row + total + per-day + top-referrers + the
+    // unconditional variants GROUP BY; the day series is computed in memory).
+    expect(testedCount).toBe(5);
+
+    // Flat vs history: 200 labeled clicks must not move the count.
+    for (let i = 0; i < 200; i++) {
+      await recordClick(tested.id, `stats-hist-${i}`, null, "click", i % 2 ? "A" : "B");
+    }
+    const grownCount = await countQueries(async () => {
+      const s = await getLinkStats(tested.id, "30d");
+      expect((s?.variants.a ?? 0) + (s?.variants.b ?? 0)).toBe(200); // all labeled
+    });
+    expect(grownCount).toBe(testedCount);
   });
 });
