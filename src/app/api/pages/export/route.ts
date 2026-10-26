@@ -118,6 +118,10 @@ function zipResponse(zip: Buffer, filename: string): NextResponse {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
+      // User-content-shaped response (admin-authored titles travel inside
+      // the HTML): match the uploads route's nosniff posture, not the
+      // plain-CSV precedent.
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
@@ -227,6 +231,7 @@ export async function GET(request: NextRequest) {
       "Content-Type": "text/html; charset=utf-8",
       "Content-Disposition": `attachment; filename="${exportFilename(page.slug)}"`,
       "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
