@@ -958,8 +958,6 @@ const en = {
     abStatusRunning: "Running",
     abStatusPaused: "Paused",
     abStatusArchived: "Archived",
-    abVariantCol: "Variant",
-    abClicksCol: "Clicks",
     abShareCol: "Share",
     abLiftB: "Lift B vs A",
     abSignificant: "Statistically significant (95%)",

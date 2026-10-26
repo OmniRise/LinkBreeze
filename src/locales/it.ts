@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: d5614308e1b1 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: d2bf0d650c11 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -950,8 +950,6 @@ const it: Messages = {
     abStatusRunning: "In corso",
     abStatusPaused: "In pausa",
     abStatusArchived: "Archiviato",
-    abVariantCol: "Variante",
-    abClicksCol: "Clic",
     abShareCol: "Quota",
     abLiftB: "Differenza B vs A",
     abSignificant: "Statisticamente significativa (95%)",
