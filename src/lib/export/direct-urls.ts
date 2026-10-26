@@ -52,6 +52,21 @@ export function applyDirectUrls(
 }
 
 /**
+ * Neutralize dangerous URL schemes in href attributes (E.3). The write-time
+ * schema already rejects these, but an export "may be shared" — so the
+ * export layer refuses to emit javascript:/data:/vbscript: navigation
+ * targets even if a hostile value reaches it through a bad import or a
+ * hand-edited backup. src= attributes are untouched (images never execute
+ * those schemes) and mailto:/tel:/http(s) are unaffected.
+ */
+export function sanitizeDangerousHrefs(html: string): string {
+  return html.replace(
+    /(href=")\s*(?:javascript|data|vbscript):/gi,
+    '$1#',
+  );
+}
+
+/**
  * Rewrite site-relative upload URLs in composed HTML to the self-contained
  * `assetBase/<filename>` form (E.2). Covers every surface — the builder's
  * own absolutized URLs plus card icons/images emitted verbatim by the

@@ -42,7 +42,11 @@ import {
 import { resolveIcon, isLucideIconName } from "@/lib/icon-registry";
 import { imageAdjustmentStyle } from "@/lib/image-adjustments";
 import { EXPORT_CSS } from "@/lib/export/export-css";
-import { applyDirectUrls, rewriteUploadPaths } from "@/lib/export/direct-urls";
+import {
+  applyDirectUrls,
+  rewriteUploadPaths,
+  sanitizeDangerousHrefs,
+} from "@/lib/export/direct-urls";
 import { absolutizeAsset } from "@/lib/export/url-rewrite";
 
 /** Marker comment so exported files are identifiable. */
@@ -433,7 +437,11 @@ export function buildStaticExport(input: ExportInput): string {
   const themeStyleBlock = buildThemeStyleBlock(themeInput, {
     customFonts: input.customFonts,
     fontFaceCss: input.fontFaceCss,
-  });
+    // E.3 defense-in-depth: a hostile theme value (bad import, hand-edited
+    // backup) must never terminate the <style> element. CSS treats `\/` as
+    // an escaped slash inside strings/identifiers, so `</` → `<\/` keeps
+    // valid markup and mangles nothing that schema-valid values contain.
+  }).replace(/<\//g, "<\\/");
 
   const groups = groupLinksBySection(links, sections);
   const delays = sectionStaggerDelays(groups);
@@ -522,6 +530,8 @@ ${page.customCss ? `<style>${page.customCss}</style>` : ""}
 </main>`;
 
   let directHtml = applyDirectUrls(bodyHtml, links);
+  // E.3: no javascript:/data:/vbscript: navigation targets ever ship.
+  directHtml = sanitizeDangerousHrefs(directHtml);
   // Self-contained zip variant (E.2): site-relative upload URLs → uploads/.
   if (assetBase !== undefined) directHtml = rewriteUploadPaths(directHtml, assetBase);
 
