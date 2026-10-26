@@ -100,4 +100,27 @@ describe("per-variant click attribution (#81)", () => {
     // the variant-labeled open added nothing).
     expect(row?.clicksCount).toBe(4);
   });
+
+  it("E.22: the variants breakdown is RANGE-scoped like the total (old clicks excluded from both)", async () => {
+    // The #81 variants GROUP BY carries the same range filter as the total —
+    // the breakdown must partition the RANGE total, never all history.
+    const link = seedLink({
+      abConfig: JSON.stringify({ v: 1, status: "running", labelA: null, labelB: null, urlB: "https://example.com/b", weightA: 50, weightB: 50, winner: null }),
+    });
+    await recordClick(link.id, "old-1", null, "click", "A");
+    await recordClick(link.id, "old-2", null, "click", "B");
+    await recordClick(link.id, "old-3", null, "click", "B");
+    // Backdate them far outside any selectable range (direct row UPDATE —
+    // recordClick stamps now; the boundary is what's under test).
+    await db
+      .update(analyticsClicks)
+      .set({ createdAt: "2020-01-01 00:00:00" })
+      .where(eq(analyticsClicks.linkId, link.id));
+    // One fresh in-range click.
+    await recordClick(link.id, "fresh-1", null, "click", "A");
+
+    const stats = await getLinkStats(link.id, "30d");
+    expect(stats!.totalClicks).toBe(1); // old three excluded
+    expect(stats!.variants).toEqual({ a: 1, b: 0 }); // breakdown matches the RANGE total
+  });
 });
