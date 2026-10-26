@@ -17,6 +17,7 @@ import {
   PUT as updateSectionRoute,
   DELETE as deleteSectionRoute,
 } from "@/app/api/v1/sections/[id]/route";
+import { PUT as reorderSectionsRoute } from "@/app/api/v1/sections/reorder/route";
 import { createApiKey } from "@/server/api-keys";
 
 let KEY = "";
@@ -263,5 +264,77 @@ describe("DELETE /api/v1/sections/:id", () => {
       req(`/api/v1/sections/${s.id}`, { method: "DELETE" }),
       { params: Promise.resolve({ id: String(s.id) }) },
     );
+  });
+});
+
+describe("PUT /api/v1/sections/reorder (E.12 parity)", () => {
+  it("applies the new order (array index → orderIndex) and reads back in it", async () => {
+    const r1 = await createVia("Reorder One", otherPageId);
+    const r2 = await createVia("Reorder Two", otherPageId);
+    const r3 = await createVia("Reorder Three", otherPageId);
+
+    const res = await reorderSectionsRoute(
+      req("/api/v1/sections/reorder", {
+        method: "PUT",
+        body: { ids: [r3.id, r1.id, r2.id] },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ reordered: 3 });
+
+    const after = await listSections(
+      req(`/api/v1/sections?pageId=${otherPageId}`),
+    );
+    const titles = (await after.json()).data.map((s: { title: string }) => s.title);
+    // Display order = requested ids order (scoped to these three; an older
+    // fixture on the same page keeps its own orderIndex).
+    expect(titles.filter((t: string) => t.startsWith("Reorder"))).toEqual([
+      "Reorder Three",
+      "Reorder One",
+      "Reorder Two",
+    ]);
+  });
+
+  it("mirrors the links/reorder validation exactly (shape-only rejects)", async () => {
+    for (const body of [
+      {},
+      { ids: [] },
+      { ids: [1, 1] },
+      { ids: ["1", "2"] },
+      { ids: [1.5] },
+      { ids: [0] },
+      { ids: [-1] },
+      { ids: "nope" },
+      { ids: Array.from({ length: 1001 }, (_, i) => i + 1) },
+    ]) {
+      const res = await reorderSectionsRoute(
+        req("/api/v1/sections/reorder", { method: "PUT", body }),
+      );
+      expect(res.status, JSON.stringify(body).slice(0, 60)).toBe(400);
+      expect((await res.json()).error.code).toBe("validation");
+    }
+  });
+
+  it("401s without a key and 403s in demo mode", async () => {
+    const noKey = await reorderSectionsRoute(
+      new NextRequest("http://localhost:3000/api/v1/sections/reorder", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: [1] }),
+      }),
+    );
+    expect(noKey.status).toBe(401);
+
+    process.env.DEMO_MODE = "true";
+    const demo = await reorderSectionsRoute(
+      req("/api/v1/sections/reorder", { method: "PUT", body: { ids: [1] } }),
+    );
+    expect(demo.status).toBe(403);
+  });
+
+  it("exports ONLY PUT (drift + 405 surface)", async () => {
+    const mod = await import("@/app/api/v1/sections/reorder/route");
+    const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
+    expect(Object.keys(mod).filter((k) => METHODS.has(k))).toEqual(["PUT"]);
   });
 });

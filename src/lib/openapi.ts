@@ -221,6 +221,19 @@ export function buildOpenApiDocument(): Json {
           description:
             "Partial, data-exact: only the fields you send change. id and pageId are not settable here.",
         },
+        SectionReorder: {
+          type: "object",
+          required: ["ids"],
+          properties: {
+            ids: {
+              type: "array",
+              items: { type: "integer" },
+              minItems: 1,
+              maxItems: 1000,
+              description: "Section ids in their new display order (unique, positive).",
+            },
+          },
+        },
         SocialLink: {
           type: "object",
           required: ["platform", "url"],
@@ -638,6 +651,37 @@ export function buildOpenApiDocument(): Json {
               },
             },
             "404": errorResponse("Page not found"),
+            ...standardErrors,
+          },
+        },
+      },
+      "/api/v1/sections/reorder": {
+        put: {
+          tags: ["sections"],
+          summary: "Reorder sections",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/SectionReorder" } },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Reordered",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      data: {
+                        type: "object",
+                        properties: { reordered: { type: "integer" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             ...standardErrors,
           },
         },
