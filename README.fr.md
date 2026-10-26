@@ -71,7 +71,7 @@
 - **🖼️ Miniatures de liens** - Ajoutez des images à vos liens pour des cartes d'aperçu visuelles
 - **⏰ Programmation des liens** - Programmez l'apparition ou la disparition automatique des liens avec des contrôles de date et d'heure
 - **🏷️ Slugs de redirection personnalisés** - Des liens courts `/go/your-name` stables et partageables qui survivent à une suppression puis recréation
-- **🧪 Tests A/B** - Répartissez le trafic d'un lien entre deux destinations avec une attribution par visiteur qui reste stable d'une visite à l'autre, une analytique par variante, un pourcentage de lift et la promotion du gagnant en un clic
+- **🧪 Tests A/B** - Répartissez le trafic d'un lien entre deux destinations avec une attribution par visiteur qui reste stable d'une visite à l'autre, une analytique par variante, un pourcentage de lift et la promotion du gagnant en un clic ([guide](docs/ab-testing.md))
 - **📈 Statistiques externes** - Injectez Plausible, Umami, Matomo ou Google Analytics d'un simple copier-coller
 - **🖼️ Images d'aperçu social (OG)** - Cartes de partage générées automatiquement à partir du thème de votre page, ou téléversez la vôtre avec un contrôle du recadrage, de la position et du zoom
 - **✏️ CSS personnalisé** - Ajustez votre page au pixel près avec une injection de CSS brut

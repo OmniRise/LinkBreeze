@@ -71,7 +71,7 @@
 - **🖼️ Link-Miniaturansichten** - Bilder zu deinen Links hinzufügen für visuelle Vorschaukarten
 - **⏰ Link-Planung** - Plane, dass Links automatisch erscheinen oder verschwinden, mit Datum- und Uhrzeitsteuerung
 - **🏷️ Eigene Weiterleitungs-Slugs** - Stabile, teilbare `/go/your-name`-Kurzlinks, die Löschen-und-Neu-Anlegen überstehen
-- **🧪 A/B-Tests** - Aufteilung des Link-Traffics zwischen zwei Zielen mit Besucher-Zuweisung, die über Besuche hinweg gleich bleibt, Varianten-Analytik, Lift-Prozent und Ein-Klick-Siegernennung
+- **🧪 A/B-Tests** - Aufteilung des Link-Traffics zwischen zwei Zielen mit Besucher-Zuweisung, die über Besuche hinweg gleich bleibt, Varianten-Analytik, Lift-Prozent und Ein-Klick-Siegernennung ([Anleitung](docs/ab-testing.md))
 - **📈 Externe Analysen** - Plausible, Umami, Matomo oder Google Analytics mit einem einzigen Einfügen einbinden
 - **🖼️ Social-Vorschaubilder (OG)** - Sharecards werden automatisch aus dem Theme deiner Seite gerendert, oder lade ein eigenes Bild hoch mit Kontrolle über Zuschnitt, Position und Zoom
 - **✏️ Eigenes CSS** - Feintune deine Seite mit direkter CSS-Injektion

@@ -71,7 +71,7 @@
 - **🖼️ Anteprime dei Link** - Aggiungi immagini ai tuoi link per schede di anteprima visive
 - **⏰ Programmazione dei Link** - Pianifica l'apparizione o la scomparsa automatica dei link con controlli data/ora
 - **🏷️ Slug di Reindirizzamento Personalizzati** - Short link stabili e condivisibili tipo `/go/tuo-nome` che sopravvivono a eliminazioni e ricreazioni
-- **🧪 Test A/B** - Dividi il traffico di un link tra due destinazioni con assegnazione per visitatore stabile tra le visite, analitica per variante, percentuale di lift e promozione del vincitore con un clic
+- **🧪 Test A/B** - Dividi il traffico di un link tra due destinazioni con assegnazione per visitatore stabile tra le visite, analitica per variante, percentuale di lift e promozione del vincitore con un clic ([guida](docs/ab-testing.md))
 - **📈 Analytics Esterni** - Inietta Plausible, Umami, Matomo o Google Analytics con un semplice incolla
 - **🖼️ Immagini di Anteprima Social (OG)** - Card di condivisione generate automaticamente dal tema della tua pagina, oppure carica le tue con controllo di adattamento, posizione e zoom
 - **✏️ CSS Personalizzato** - Rifinisci la tua pagina con iniezione di CSS grezzo
