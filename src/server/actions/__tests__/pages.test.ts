@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   demoBlock: vi.fn((): string | null => null),
-  getSession: vi.fn(async (): Promise<{ userId: number; username: string; exp: number; pv: number } | null> => ({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1 })),
+  getSession: vi.fn(async (): Promise<{ userId: number; username: string; exp: number; pv: number; role?: string } | null> => ({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" })),
   revalidatePath: vi.fn(),
   createPage: vi.fn(async () => ({ id: 5 })),
   updatePage: vi.fn(async () => undefined),
   deletePage: vi.fn(async () => undefined),
-  getDefaultPage: vi.fn(async () => ({ id: 1, slug: "home" })),
+  getDefaultPage: vi.fn(async () => ({ id: 1, slug: "home", userId: 1 })),
   getAllPages: vi.fn(async (): Promise<{ id: number; slug: string }[]> => []),
-  getPageById: vi.fn(async () => ({ id: 1, slug: "home" })),
+  getPageById: vi.fn(async () => ({ id: 1, slug: "home", userId: 1 })),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -35,7 +35,7 @@ function fd(data: Record<string, string>): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.demoBlock.mockReturnValue(null);
-  mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1 });
+  mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" });
 });
 
 describe("createPageAction", () => {

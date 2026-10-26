@@ -135,6 +135,10 @@ export function notFoundError(message = "Not found"): ActionError {
   return { success: false, error: message, errorCode: ErrorCode.NOT_FOUND };
 }
 
+export function forbiddenError(message = "Forbidden"): ActionError {
+  return { success: false, error: message, errorCode: ErrorCode.FORBIDDEN };
+}
+
 export function conflictError(message: string): ActionError {
   return { success: false, error: message, errorCode: ErrorCode.CONFLICT };
 }

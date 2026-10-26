@@ -152,6 +152,8 @@ export interface CreatePageInput {
   slug: string;
   title?: string;
   bio?: string;
+  /** #124: owning account. Absent/null = legacy unowned page (admin-managed). */
+  userId?: number | null;
 }
 
 export async function createPage(data: CreatePageInput): Promise<PageRow> {
@@ -168,6 +170,7 @@ export async function createPage(data: CreatePageInput): Promise<PageRow> {
       orderIndex: nextOrder,
       isDefault: false,
       isPublished: true,
+      userId: data.userId ?? null,
     })
     .returning();
   return inserted[0];
@@ -755,8 +758,12 @@ export async function getUserByUsername(username: string): Promise<UserRow | nul
 export async function createUser(
   username: string,
   passwordHash: string,
+  opts: { role?: "admin" | "owner" } = {},
 ): Promise<UserRow> {
-  const created = await db.insert(users).values({ username, passwordHash }).returning();
+  const created = await db
+    .insert(users)
+    .values({ username, passwordHash, role: opts.role ?? "owner" })
+    .returning();
   return created[0];
 }
 
@@ -798,6 +805,46 @@ export async function setUserTotp(
   fields: { totpSecret: string | null; totpEnabled: boolean; recoveryCodes: string | null },
 ): Promise<void> {
   await db.update(users).set(fields).where(eq(users.id, userId));
+}
+
+// ─── Accounts (#124 multi-user) ──────────────────────────────────────────────
+/** All accounts, oldest first (bootstrap admin is id 1 and stays first). */
+export async function listUsers(): Promise<UserRow[]> {
+  return db.select().from(users).orderBy(asc(users.id));
+}
+
+export async function updateUserStatus(userId: number, status: "active" | "disabled"): Promise<void> {
+  await db.update(users).set({ status }).where(eq(users.id, userId));
+}
+
+export async function updateUserRole(userId: number, role: "admin" | "owner"): Promise<void> {
+  await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+/** Stamp last_login_at on a successful sign-in (local or OIDC). */
+export async function touchLastLogin(userId: number): Promise<void> {
+  await db.update(users).set({ lastLoginAt: sql`(datetime('now'))` }).where(eq(users.id, userId));
+}
+
+/**
+ * Delete an account. The account's page is NOT deleted (content is preserved);
+ * the caller decides whether to release the slug (set to a tombstone) or leave
+ * it owned by nobody (userId NULL). Returns the number of rows deleted.
+ */
+export async function deleteUser(userId: number): Promise<number> {
+  const res = await db.delete(users).where(eq(users.id, userId)).returning({ id: users.id });
+  return res.length;
+}
+
+/** Reassign a page's owner (used when creating an account's page / relinking). */
+export async function setPageOwner(pageId: number, userId: number | null): Promise<void> {
+  await db.update(pages).set({ userId }).where(eq(pages.id, pageId));
+}
+
+/** The page owned by a given user, if any. */
+export async function getPageByOwner(userId: number): Promise<PageRow | null> {
+  const rows = await db.select().from(pages).where(eq(pages.userId, userId)).limit(1);
+  return rows[0] ?? null;
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

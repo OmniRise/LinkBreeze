@@ -12,6 +12,10 @@ describe("createToken + verifyToken round-trip", () => {
     username: "admin",
     exp: Date.now() + 60_000, // 1 min in the future
     pv: 1,
+    // #124: verifyToken normalizes a missing role to "admin" (never demote a
+    // pre-multi-user session). The round-trip therefore yields role "admin",
+    // so the strict toEqual below must include it.
+    role: "admin",
   };
 
   it("creates a token with two dot-separated parts", () => {

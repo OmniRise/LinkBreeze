@@ -16,9 +16,12 @@ import {
   updateLink as updateLinkQuery,
   deleteLink as deleteLinkQuery,
   getAllLinks,
+  getPageById,
+  getLink,
   reorderLinks as reorderLinksQuery,
   isSlugTaken,
 } from "@/server/queries";
+import { canAccessPage } from "@/lib/ownership";
 import {
   normalizeSlug,
   slugError,
@@ -30,6 +33,7 @@ import {
   validationError,
   unauthorizedError,
   notFoundError,
+  forbiddenError,
   ErrorCode,
   logError,
 } from "@/lib/errors";
@@ -37,6 +41,37 @@ import {
 async function requireAuth(): Promise<boolean> {
   const session = await getSession();
   return !!session;
+}
+
+/**
+ * #124 page-ownership gate for link mutations. Resolves the target page
+ * (explicit pageId, else the link's own page via getLink) and asserts the
+ * session may act on it. Admins pass for any page; owners only for their own.
+ * Pass linkId when the mutation targets an existing link so the page is derived
+ * from that link rather than a client-supplied pageId.
+ */
+async function assertLinkPageAccess(
+  session: { userId: number; role?: string },
+  opts: { pageId?: number; linkId?: number },
+): Promise<ActionResult | null> {
+  let pageId = opts.pageId;
+  if (pageId == null && opts.linkId != null) {
+    const link = await getLink(opts.linkId);
+    if (!link) return notFoundError("Link not found");
+    pageId = link.pageId;
+  }
+  if (pageId == null) {
+    // No page specified — fall back to the default page (matches query-layer
+    // defaulting for createLink with no pageId).
+    const { getDefaultPage } = await import("@/server/queries");
+    pageId = (await getDefaultPage()).id;
+  }
+  const page = await getPageById(pageId);
+  if (!page) return notFoundError("Page not found");
+  if (!canAccessPage(session, page)) {
+    return forbiddenError("You do not have access to this page");
+  }
+  return null;
 }
 
 /**
@@ -303,6 +338,12 @@ export async function createLink(formData: FormData): Promise<ActionResult> {
     return validationError(parsed.error.issues[0]?.message ?? "Invalid input");
   }
 
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only add links to their own page.
+  const access = await assertLinkPageAccess(session, { pageId: parsed.data.pageId });
+  if (access) return access;
+
   const d = parsed.data;
 
   // #96 custom /go/ slug: validate + availability before any write.
@@ -398,6 +439,12 @@ export async function updateLink(formData: FormData): Promise<ActionResult> {
     return validationError("Missing link id");
   }
 
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only edit links on their own page.
+  const access = await assertLinkPageAccess(session, { linkId: Number(parsed.data.id) });
+  if (access) return access;
+
   const d = parsed.data;
 
   // #96 custom /go/ slug: validate + availability (excluding this link's own
@@ -474,6 +521,11 @@ export async function deleteLink(formData: FormData): Promise<ActionResult> {
   const id = Number(idStr);
   if (Number.isNaN(id)) return validationError("Invalid link id");
 
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const access = await assertLinkPageAccess(session, { linkId: id });
+  if (access) return access;
+
   try {
     await deleteLinkQuery(id);
     revalidatePath("/links");
@@ -498,6 +550,11 @@ export async function toggleLink(id: number): Promise<ActionResult> {
   const link = all.find((l) => l.id === id);
   if (!link) return notFoundError("Link not found");
 
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const access = await assertLinkPageAccess(session, { pageId: link.pageId });
+  if (access) return access;
+
   try {
     await updateLinkQuery(id, { isActive: !link.isActive });
     revalidatePath("/links");
@@ -520,6 +577,15 @@ export async function reorderLinks(orderedIds: number[]): Promise<ActionResult> 
 
   if (!Array.isArray(orderedIds) || orderedIds.some((n) => typeof n !== "number")) {
     return validationError("Invalid order payload");
+  }
+
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  if (orderedIds.length > 0) {
+    // #124: reorder is a bulk write — gate on the first id's page. All ids in a
+    // single reorder gesture belong to one page's list in the UI.
+    const access = await assertLinkPageAccess(session, { linkId: orderedIds[0] });
+    if (access) return access;
   }
 
   try {
@@ -546,6 +612,11 @@ export async function createDivider(pageId?: number): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
   if (!(await requireAuth())) return unauthorizedError();
+
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const access = await assertLinkPageAccess(session, { pageId });
+  if (access) return access;
 
   try {
     await createLinkQuery({

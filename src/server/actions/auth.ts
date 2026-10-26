@@ -86,9 +86,19 @@ export async function login(formData: FormData): Promise<ActionResult> {
     return { success: false, error: "Invalid username or password", errorCode: ErrorCode.UNAUTHORIZED };
   }
 
+  // #124 multi-user: a disabled account cannot sign in at all. Checked after
+  // the (constant-time) password verification so this does not leak whether a
+  // username exists.
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
     return { success: false, error: "Invalid username or password", errorCode: ErrorCode.UNAUTHORIZED };
+  }
+  if (user.status === "disabled") {
+    return {
+      success: false,
+      error: "This account has been disabled. Contact your administrator.",
+      errorCode: ErrorCode.FORBIDDEN,
+    };
   }
 
   // #76 transparent migration: a legacy bcrypt hash that just verified is
@@ -170,7 +180,9 @@ export async function setup(formData: FormData): Promise<ActionResult> {
 
   try {
     const passwordHash = await hashPassword(password);
-    const user = await createUser(username.trim(), passwordHash);
+    // The bootstrap user is the instance's first admin — they must be able to
+    // manage accounts and global settings. createUser defaults to "owner".
+    const user = await createUser(username.trim(), passwordHash, { role: "admin" });
     await createSession(user.id, user.username);
     return { success: true };
   } catch (err) {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   demoBlock: vi.fn((): string | null => null),
-  getSession: vi.fn(async (): Promise<{ userId: number; username: string; exp: number; pv: number } | null> => ({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1 })),
+  getSession: vi.fn(async (): Promise<{ userId: number; username: string; exp: number; pv: number; role?: string } | null> => ({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" })),
   revalidatePath: vi.fn(),
   createLink: vi.fn(async () => 1),
   updateLink: vi.fn(async () => undefined),
@@ -53,6 +53,12 @@ vi.mock("@/server/queries", () => ({
   reorderLinks: mocks.reorderLinks,
   getAllLinks: vi.fn(async () => []),
   isSlugTaken: mocks.isSlugTaken,
+  // #124: the page-ownership gate (assertLinkPageAccess) resolves the target
+  // page via getLink -> getPageById before mutating. Return a link on page 1
+  // and a page owned by userId 1 so the default admin session is authorized.
+  getLink: vi.fn(async () => ({ id: 1, pageId: 1 })),
+  getPageById: vi.fn(async () => ({ id: 1, slug: "home", userId: 1 })),
+  getDefaultPage: vi.fn(async () => ({ id: 1, slug: "home", userId: 1 })),
 }));
 
 import { createLink, updateLink, deleteLink, createDivider } from "@/server/actions/links";
@@ -66,7 +72,7 @@ function makeFormData(data: Record<string, string>): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.demoBlock.mockReturnValue(null);
-  mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1 });
+  mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" });
 });
 
 describe("createLink", () => {

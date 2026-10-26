@@ -14,6 +14,12 @@ export interface SessionPayload {
   exp: number;
   /** Password version — bumped on password change to invalidate old sessions */
   pv: number;
+  /**
+   * #124 multi-user: role claim. Absent on tokens minted before multi-user —
+   * verifyToken normalizes it to "admin" so the bootstrapped admin is never
+   * demoted. See src/lib/ownership.ts.
+   */
+  role?: string;
 }
 
 const DEFAULT_SECRET = "linkbreeze-dev-secret-key-change-me-in-production-please";
@@ -80,6 +86,10 @@ export function verifyToken(token: string): SessionPayload | null {
     // Tokens minted before the pv field existed (pv=undefined) are treated as
     // version 0 — they will be re-issued with a proper pv on next login.
     if (payload.pv === undefined) payload.pv = 0;
+    // #124: tokens minted before multi-user carry no role. Treat them as admin
+    // (never silently demote the bootstrapped admin); the value is normalized
+    // so downstream checks can rely on a concrete string.
+    if (payload.role !== "owner") payload.role = "admin";
     return payload;
   } catch {
     return null;

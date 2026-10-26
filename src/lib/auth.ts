@@ -55,6 +55,7 @@ export async function getSession(): Promise<SessionPayload | null> {
       username: "demo",
       exp: Date.now() + 86400000,
       pv: 0,
+      role: "admin",
     };
   }
 
@@ -83,12 +84,16 @@ export async function getSession(): Promise<SessionPayload | null> {
  */
 export async function createSession(userId: number, username: string): Promise<void> {
   const pv = Number(await getSetting("sessionVersion")) || 0;
+  // #124: stamp the role claim from the DB so admin-only actions can trust it.
+  const { getUserById } = await import("@/server/queries");
+  const role = (await getUserById(userId))?.role ?? "admin";
   const store = await cookies();
   const payload: SessionPayload = {
     userId,
     username,
     exp: Date.now() + SESSION_MAX_AGE * 1000,
     pv,
+    role,
   };
   const token = createToken(payload);
   const secure = await isHttps();
