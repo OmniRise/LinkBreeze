@@ -1,0 +1,225 @@
+import { describe, it, expect } from "vitest";
+import {
+  buildStaticExport,
+  type ExportInput,
+  type ExportPageInput,
+} from "@/lib/export/build-static-export";
+import type { LinkRow } from "@/server/queries";
+
+// Fixture helpers — LinkRow is a full drizzle row; the builder reads a
+// handful of fields, so partials get cast once here.
+const makeLink = (over: Record<string, unknown>): LinkRow =>
+  ({
+    id: 1,
+    pageId: 1,
+    sectionId: null,
+    orderIndex: 0,
+    type: "url",
+    title: "My Site",
+    description: null,
+    url: "https://example.com",
+    icon: null,
+    iconUrl: null,
+    customIconUrl: null,
+    iconMode: "auto",
+    autoIcon: true,
+    imageUrl: null,
+    isHighlighted: false,
+    isActive: true,
+    scheduleStart: null,
+    scheduleEnd: null,
+    clicksCount: 0,
+    cardStyle: "compact",
+    popupText: null,
+    ctaLabel: null,
+    redirectSlug: null,
+    createdAt: "2026-01-01 00:00:00",
+    ...over,
+  }) as unknown as LinkRow;
+
+const basePage: ExportPageInput = {
+  slug: "jane",
+  title: "Jane Doe",
+  bio: "Designer & maker",
+  seoTitle: "Jane - links",
+  seoDescription: "All my links",
+  badgeText: null,
+  socialLinks: JSON.stringify([
+    { platform: "github", url: "https://github.com/jane" },
+  ]),
+  avatarUrl: "/api/uploads/avatar-1.png",
+  bannerUrl: null,
+  footerText: "© Jane",
+  customCss: null,
+  analyticsScript: null,
+};
+
+const baseInput: ExportInput = {
+  page: basePage,
+  links: [
+    makeLink({ id: 1, title: "Portfolio", url: "https://janedoe.design" }),
+    makeLink({ id: 2, title: "Email me", url: "mailto:jane@example.com" }),
+  ],
+  sections: [],
+  theme: {
+    primaryColor: "#533fd6",
+    textColor: "#eceafe",
+    linkStyle: "glass",
+    animationType: "lift",
+    backgroundType: "gradient",
+    backgroundValue: "#0a0820,#1a1040",
+  },
+  baseUrl: "https://links.example.com",
+};
+
+describe("buildStaticExport", () => {
+  it("emits a complete standalone document with theme tokens inlined", () => {
+    const html = buildStaticExport(baseInput);
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(html).toContain("<title>Jane - links</title>");
+    expect(html).toContain('content="All my links"');
+    // Theme CSS custom properties are inlined so the look survives offline.
+    expect(html).toContain("--lb-accent: #533fd6;");
+    expect(html).toContain("--lb-text: #eceafe;");
+    // Curated .lb-* CSS subset rides along.
+    expect(html).toContain(".lb-link-card:hover");
+    expect(html).toContain("@keyframes aurora-rise");
+    // JSON-LD structured data, same shape as the live page.
+    expect(html).toContain('application/ld+json');
+  });
+
+  it("rewrites card hrefs to direct destinations (no /go/, no beacons)", () => {
+    const html = buildStaticExport(baseInput);
+    expect(html).toContain('href="https://janedoe.design"');
+    expect(html).not.toContain("/go/");
+    expect(html).not.toContain("sendBeacon");
+    expect(html).not.toContain("/api/track");
+    // mailto links keep working too.
+    expect(html).toContain('href="mailto:jane@example.com"');
+    // External links still open safely in a new tab.
+    expect(html).toContain('target="_blank" rel="noopener noreferrer nofollow"');
+  });
+
+  it("absolutizes media URLs against the export origin", () => {
+    const html = buildStaticExport(baseInput);
+    expect(html).toContain('src="https://links.example.com/api/uploads/avatar-1.png"');
+  });
+
+  it("renders profile header, socials and footer text", () => {
+    const html = buildStaticExport(baseInput);
+    expect(html).toContain("Jane Doe");
+    expect(html).toContain("Designer &amp; maker");
+    expect(html).toContain('aria-label="GitHub"');
+    expect(html).toContain("© Jane");
+    // Excluded server-dependent surfaces never render.
+    expect(html).not.toContain("Privacy");
+    expect(html).not.toContain("email-capture");
+  });
+
+  it("exports an empty page as valid minimal HTML", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, socialLinks: null, avatarUrl: null, footerText: null },
+      links: [],
+      sections: [],
+    });
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(html).toContain("No links yet.");
+    expect(html).toContain("</html>");
+    expect(html).not.toContain("<img");
+  });
+
+  it("renders section headers between grouped links", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [
+        makeLink({ id: 1, sectionId: 7 }),
+        makeLink({ id: 2, sectionId: null }),
+      ],
+      sections: [{ id: 7, title: "Work", icon: "💼", orderIndex: 0 }],
+    });
+    expect(html).toContain("Work");
+    expect(html).toContain("💼");
+  });
+
+  it("renders dividers via the shared divider builder", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [makeLink({ id: 9, type: "divider", title: "Break" })],
+    });
+    expect(html).toContain('role="separator"');
+  });
+
+  it("escapes hostile titles/descriptions (no script leak)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      page: {
+        ...basePage,
+        title: '<script>alert("x")</script>',
+        bio: '"><img src=x onerror=alert(1)>',
+      },
+      links: [
+        makeLink({
+          id: 1,
+          title: '<script>alert(1)</script>',
+          description: '"><script>bad()</script>',
+        }),
+      ],
+    });
+    // No raw script tag from user text (only the sanctioned JSON-LD block
+    // and nothing else uses <script>).
+    expect(html).not.toContain('<script>alert');
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("keeps operator-provided analytics + custom CSS verbatim", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      page: {
+        ...basePage,
+        analyticsScript:
+          '<script async src="https://plausible.io/js/script.js"></script>',
+        customCss: ".custom-thing { color: red; }",
+      },
+    });
+    expect(html).toContain('src="https://plausible.io/js/script.js"');
+    expect(html).toContain(".custom-thing { color: red; }");
+  });
+
+  it("renders popup dialogs for text/location links", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [
+        makeLink({
+          id: 5,
+          type: "text",
+          title: "About me",
+          popupText: "Hello **world**",
+          ctaLabel: "More",
+          url: "https://example.com/about",
+        }),
+      ],
+    });
+    expect(html).toContain('<dialog id="lb-popup-5"');
+    expect(html).toContain("showModal()");
+    // CTA rides the direct URL too.
+    expect(html).toContain('href="https://example.com/about"');
+    expect(html).not.toContain("/go/");
+  });
+
+  it("falls back to a plain link card for embeds (iframes don't travel)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [
+        makeLink({
+          id: 6,
+          type: "embed",
+          title: "My video",
+          url: "https://www.youtube.com/watch?v=abc123",
+        }),
+      ],
+    });
+    expect(html).not.toContain("<iframe");
+    expect(html).toContain('href="https://www.youtube.com/watch?v=abc123"');
+  });
+});
