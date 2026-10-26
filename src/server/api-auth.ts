@@ -66,13 +66,14 @@ export function apiError(
   });
 }
 
-/** Canonical v1 success response: `{ "data": ... }`. */
+/** Canonical v1 success response: `{ "data": ... }` (paginated endpoints add
+ *  `{ meta }` alongside — see E.3). */
 export function apiOk(
   data: unknown,
-  init?: { status?: number; headers?: Record<string, string> },
+  init?: { status?: number; headers?: Record<string, string>; meta?: Record<string, unknown> },
 ): NextResponse {
   return NextResponse.json(
-    { data },
+    init?.meta ? { data, meta: init.meta } : { data },
     {
       status: init?.status ?? 200,
       headers: { "Cache-Control": "no-store", ...(init?.headers ?? {}) },

@@ -11,12 +11,19 @@ import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { apiGate, apiOk, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
-import { getAllLinks, createLink, getDefaultPage } from "@/server/queries";
+import {
+  getAllLinks,
+  listLinksKeyset,
+  createLink,
+  getDefaultPage,
+} from "@/server/queries";
 import { linkSchema } from "@/lib/validation/link";
 import {
   resolveApiRedirectSlug,
   resolveApiIconFields,
   normalizeApiPopupFields,
+  parseListParams,
+  encodeListCursor,
 } from "@/server/api-links";
 import { extractDomain } from "@/lib/favicon";
 import { fetchOgData } from "@/lib/og-fetcher";
@@ -35,13 +42,62 @@ function zodDetails(
   }));
 }
 
+/** E.3 sparse fieldsets: keep id + the requested columns, drop the rest. */
+function projectRow(
+  row: Record<string, unknown>,
+  fields?: string[],
+): Record<string, unknown> {
+  if (!fields) return row;
+  const out: Record<string, unknown> = { id: row.id };
+  for (const f of fields) {
+    if (f !== "id") out[f] = row[f] ?? null;
+  }
+  return out;
+}
+
 export async function GET(request: NextRequest) {
   const gate = await apiGate(request);
   if (!gate.ok) return gate.response;
 
+  // E.3: ?limit / ?cursor → keyset page with { data, meta }; ?fields → sparse
+  // rows. No params → the original full-list { data } (unchanged contract).
+  const parsedParams = parseListParams(new URL(request.url).searchParams);
+  if (!parsedParams.ok) {
+    return apiError(ErrorCode.VALIDATION, parsedParams.message, 400, {
+      ...(parsedParams.path
+        ? { details: [{ path: parsedParams.path, message: parsedParams.message }] }
+        : {}),
+      headers: gate.rateHeaders,
+    });
+  }
+  const { paginated, limit, after, fields } = parsedParams.value;
+
   try {
-    const links = await getAllLinks();
-    return apiOk(links, { headers: gate.rateHeaders });
+    if (!paginated) {
+      const all = await getAllLinks();
+      return apiOk(
+        all.map((r) => projectRow(r as unknown as Record<string, unknown>, fields)),
+        { headers: gate.rateHeaders },
+      );
+    }
+
+    // Fetch one extra row to learn whether a next page exists without a
+    // second COUNT query.
+    const rows = await listLinksKeyset({ limit: limit + 1, after });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    return apiOk(
+      page.map((r) => projectRow(r as unknown as Record<string, unknown>, fields)),
+      {
+        headers: gate.rateHeaders,
+        meta: {
+          count: page.length,
+          nextCursor:
+            hasMore && last ? encodeListCursor(last.orderIndex, last.id) : null,
+        },
+      },
+    );
   } catch (err) {
     logError("api/v1/links GET", err);
     return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);

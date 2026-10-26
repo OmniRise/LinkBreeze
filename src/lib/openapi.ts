@@ -250,16 +250,51 @@ export function buildOpenApiDocument(): Json {
       "/api/v1/links": {
         get: {
           tags: ["links"],
-          summary: "List all links (all pages, display order)",
+          summary: "List links (full list by default; cursor-paginated with ?limit)",
+          description:
+            "Without parameters: the full array in `data` (legacy contract). " +
+            "With `limit` and/or `cursor`: one keyset page — `data` plus " +
+            "`meta: { count, nextCursor }` (nextCursor is an opaque string or null " +
+            "on the last page; the walk order is display order). `fields` returns " +
+            "sparse rows (id is always included).",
+          parameters: [
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", minimum: 1, maximum: 100, default: 100 },
+              description: "Page size; activating pagination switches the shape to { data, meta }.",
+            },
+            {
+              name: "cursor",
+              in: "query",
+              schema: { type: "string" },
+              description: "Opaque cursor from a previous meta.nextCursor (defaults to limit=100 when used alone).",
+            },
+            {
+              name: "fields",
+              in: "query",
+              schema: { type: "string" },
+              description:
+                "Comma-separated sparse fieldset, e.g. `fields=title,url,clicksCount` " +
+                "(id always included; unknown names are a 400).",
+            },
+          ],
           responses: {
             "200": {
-              description: "All links",
+              description: "All links (no params) or one page (with limit/cursor)",
               content: {
                 "application/json": {
                   schema: {
                     type: "object",
                     properties: {
                       data: { type: "array", items: { $ref: "#/components/schemas/Link" } },
+                      meta: {
+                        type: "object",
+                        properties: {
+                          count: { type: "integer" },
+                          nextCursor: { type: ["string", "null"] },
+                        },
+                      },
                     },
                   },
                 },

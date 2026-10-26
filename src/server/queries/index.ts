@@ -293,6 +293,37 @@ export async function getAllLinks(pageId?: number): Promise<LinkRow[]> {
     .orderBy(asc(links.orderIndex), asc(links.id));
 }
 
+/**
+ * E.3 keyset pagination for GET /api/v1/links — walks the SAME total order
+ * as getAllLinks ((orderIndex, id)) with a portable keyset predicate (no
+ * row-value syntax, works on sql.js + better-sqlite3 alike). Fetches
+ * `limit` rows strictly AFTER the cursor tuple.
+ */
+export async function listLinksKeyset(opts: {
+  limit: number;
+  after?: { orderIndex: number; id: number };
+}): Promise<LinkRow[]> {
+  const { limit, after } = opts;
+  if (after) {
+    return db
+      .select()
+      .from(links)
+      .where(
+        or(
+          gt(links.orderIndex, after.orderIndex),
+          and(eq(links.orderIndex, after.orderIndex), gt(links.id, after.id)),
+        ),
+      )
+      .orderBy(asc(links.orderIndex), asc(links.id))
+      .limit(limit);
+  }
+  return db
+    .select()
+    .from(links)
+    .orderBy(asc(links.orderIndex), asc(links.id))
+    .limit(limit);
+}
+
 export async function createLink(
   data: Pick<LinkRow, "title" | "url"> &
     Partial<

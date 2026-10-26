@@ -111,3 +111,118 @@ export function normalizeApiPopupFields(d: {
   }
   return { url: d.url, ctaLabel: null };
 }
+
+// ─── E.3 list pagination + sparse fieldsets (GET /api/v1/links) ──────────────
+
+export const MAX_LIST_LIMIT = 100;
+export const DEFAULT_LIST_LIMIT = 100;
+
+/** Columns a client may request via `fields=` (links table has no secrets;
+ *  the allowlist keeps the contract explicit and versionable). `id` is always
+ *  returned so rows stay addressable. */
+export const LINK_FIELDS = [
+  "id",
+  "pageId",
+  "sectionId",
+  "orderIndex",
+  "type",
+  "title",
+  "description",
+  "url",
+  "icon",
+  "iconUrl",
+  "customIconUrl",
+  "iconMode",
+  "autoIcon",
+  "imageUrl",
+  "isHighlighted",
+  "isActive",
+  "scheduleStart",
+  "scheduleEnd",
+  "clicksCount",
+  "cardStyle",
+  "popupText",
+  "ctaLabel",
+  "redirectSlug",
+  "createdAt",
+] as const;
+
+export interface ListParams {
+  /** Pagination requested (limit/cursor present) — controls {data, meta} vs legacy {data}. */
+  paginated: boolean;
+  limit: number;
+  after?: { orderIndex: number; id: number };
+  fields?: string[];
+}
+
+/** Opaque keyset cursor over (orderIndex, id) — base64url JSON. */
+export function encodeListCursor(orderIndex: number, id: number): string {
+  return Buffer.from(JSON.stringify({ o: orderIndex, i: id })).toString(
+    "base64url",
+  );
+}
+
+/**
+ * Parse GET /links query params: `limit` (1..MAX), `cursor` (opaque),
+ * `fields` (CSV allowlist). Returns a typed error for any malformed input —
+ * the route converts it to the standard 400 envelope.
+ */
+export function parseListParams(sp: URLSearchParams): {
+  ok: true;
+  value: ListParams;
+} | ApiWriteError {
+  const paginated = sp.has("limit") || sp.has("cursor");
+
+  let limit = DEFAULT_LIST_LIMIT;
+  if (sp.has("limit")) {
+    const raw = sp.get("limit") ?? "";
+    if (!/^\d{1,4}$/.test(raw)) {
+      return validation("limit must be an integer between 1 and 100", "limit");
+    }
+    limit = Number(raw);
+    if (limit < 1 || limit > MAX_LIST_LIMIT) {
+      return validation("limit must be an integer between 1 and 100", "limit");
+    }
+  }
+
+  let after: { orderIndex: number; id: number } | undefined;
+  if (sp.has("cursor")) {
+    const raw = sp.get("cursor") ?? "";
+    try {
+      const parsed: unknown = JSON.parse(
+        Buffer.from(raw, "base64url").toString("utf8"),
+      );
+      const o = (parsed as { o?: unknown }).o;
+      const i = (parsed as { i?: unknown }).i;
+      const oOk = typeof o === "number" && Number.isInteger(o) && o >= 0;
+      const iOk = typeof i === "number" && Number.isInteger(i) && i >= 1;
+      if (!oOk || !iOk) throw new Error("shape");
+      after = { orderIndex: o as number, id: i as number };
+    } catch {
+      return validation("cursor is not a valid pagination cursor", "cursor");
+    }
+  }
+
+  let fields: string[] | undefined;
+  if (sp.has("fields")) {
+    const raw = (sp.get("fields") ?? "").trim();
+    if (!raw) return validation("fields must name at least one field", "fields");
+    fields = [...new Set(raw.split(",").map((f) => f.trim()))];
+    const unknown = fields.filter(
+      (f) => !(LINK_FIELDS as readonly string[]).includes(f),
+    );
+    if (unknown.length > 0) {
+      return {
+        ok: false,
+        status: 400,
+        message: `Unknown field(s): ${unknown.join(", ")}`,
+        path: "fields",
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    value: { paginated, limit, after, fields },
+  };
+}
