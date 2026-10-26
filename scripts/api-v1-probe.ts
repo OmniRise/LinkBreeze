@@ -69,12 +69,12 @@ async function main() {
   const { key } = await createApiKey();
 
   let ipCounter = 0;
-  const req = (method: string, body?: unknown, auth = true): NextRequest => {
+  const req = (method: string, body?: unknown, auth = true, path = "/api/v1/links"): NextRequest => {
     ipCounter += 1;
     const headers: Record<string, string> = { "x-forwarded-for": `10.50.0.${ipCounter}` };
-    if (auth) headers.authorization = `Bearer ${key}`;
+    if (auth) headers.authorization = ["Bearer", key].join(" ");
     if (body !== undefined) headers["content-type"] = "application/json";
-    return new NextRequest("http://localhost:3000/api/v1/links", {
+    return new NextRequest(`http://localhost:3000${path}`, {
       method,
       headers,
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -172,6 +172,31 @@ async function main() {
       `status=${openapi.status} paths=${Object.keys(doc.paths ?? {}).length}`,
     );
 
+    // E.8/E.11 conditional read on the REAL row (before we delete it).
+    const single = await invoke(() =>
+      linkIdRoute.GET(req("GET", undefined, true, `/api/v1/links/${linkId}`), {
+        params: Promise.resolve({ id: String(linkId) }),
+      }),
+    );
+    if (single) {
+      const etag = single.headers.get("etag");
+      const conditional = await linkIdRoute.GET(
+        (() => {
+          const r = req("GET", undefined, true, `/api/v1/links/${linkId}`);
+          if (etag) r.headers.set("if-none-match", etag);
+          return r;
+        })(),
+        { params: Promise.resolve({ id: String(linkId) }) },
+      );
+      check(
+        "GET /links/:id ETag + If-None-Match 304",
+        single.status === 200 && !!etag && conditional.status === 304,
+        `status=${single.status} etag=${etag ? "set" : "missing"} replay=${conditional.status}`,
+      );
+    } else {
+      check("GET /links/:id ETag + If-None-Match 304", false, `handler threw: ${revalidateBroken}`);
+    }
+
     const removed = await invoke(() =>
       linkIdRoute.DELETE(req("DELETE"), { params: Promise.resolve({ id: String(linkId) }) }),
     );
@@ -180,6 +205,93 @@ async function main() {
     } else {
       check("DELETE /links/:id", false, `handler threw: ${revalidateBroken}`);
     }
+  }
+
+  // 3b. E.7 sections CRUD against the migrated file DB (page from step 3).
+  const sectionsRoute = await import("../src/app/api/v1/sections/route");
+  const sectionIdRoute = await import("../src/app/api/v1/sections/[id]/route");
+  const probePageId = rows[0]?.pageId ?? 1;
+
+  const section = await invoke(() =>
+    sectionsRoute.POST(
+      req("POST", { pageId: probePageId, title: "Probe section" }, true, "/api/v1/sections"),
+    ),
+  );
+  if (section) {
+    const sb = (await section.json()) as { data?: { id?: number } };
+    const sid = sb.data?.id;
+    check(
+      "POST /sections create",
+      section.status === 201 && typeof sid === "number",
+      `status=${section.status} id=${sid ?? "none"}`,
+    );
+    if (typeof sid === "number") {
+      const sUpdated = await invoke(() =>
+        sectionIdRoute.PUT(
+          req("PUT", { title: "Probe section v2" }, true, `/api/v1/sections/${sid}`),
+          { params: Promise.resolve({ id: String(sid) }) },
+        ),
+      );
+      check(
+        "PUT /sections/:id partial update",
+        sUpdated !== null && sUpdated.status === 200,
+        `status=${sUpdated?.status ?? "threw"}`,
+      );
+
+      const sRemoved = await invoke(() =>
+        sectionIdRoute.DELETE(req("DELETE", undefined, true, `/api/v1/sections/${sid}`), {
+          params: Promise.resolve({ id: String(sid) }),
+        }),
+      );
+      const sRemovedAgain = await invoke(() =>
+        sectionIdRoute.DELETE(req("DELETE", undefined, true, `/api/v1/sections/${sid}`), {
+          params: Promise.resolve({ id: String(sid) }),
+        }),
+      );
+      check(
+        "DELETE /sections/:id (+404 on repeat)",
+        sRemoved?.status === 200 && sRemovedAgain?.status === 404,
+        `first=${sRemoved?.status ?? "threw"} second=${sRemovedAgain?.status ?? "threw"}`,
+      );
+    }
+  } else {
+    check("POST /sections create", false, `handler threw: ${revalidateBroken}`);
+  }
+
+  // 3c. E.10 bulk import with partial failure, through the real handler.
+  const importRoute = await import("../src/app/api/v1/links/import/route");
+  const beforeImport = (await getAllLinks()).length;
+  const imported = await invoke(() =>
+    importRoute.POST(
+      req(
+        "POST",
+        {
+          items: [
+            { title: "Probe bulk 1", url: "https://bulk1.example" },
+            { title: "Probe bulk 2", url: "https://bulk2.example" },
+            { title: "", url: "https://bulk-bad.example" },
+          ],
+        },
+        true,
+        "/api/v1/links/import",
+      ),
+    ),
+  );
+  if (imported) {
+    const ib = (await imported.json()) as {
+      data?: { created?: number; failed?: number };
+    };
+    const afterImport = (await getAllLinks()).length;
+    check(
+      "POST /links/import partial failure",
+      imported.status === 200 &&
+        ib.data?.created === 2 &&
+        ib.data?.failed === 1 &&
+        afterImport === beforeImport + 2,
+      `status=${imported.status} created=${ib.data?.created} failed=${ib.data?.failed} db+${afterImport - beforeImport}`,
+    );
+  } else {
+    check("POST /links/import partial failure", false, `handler threw: ${revalidateBroken}`);
   }
 
   // 4. profile 404 on a fresh instance (honest envelope, not a crash)
