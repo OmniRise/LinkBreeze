@@ -17,6 +17,7 @@ import {
 } from "@/lib/errors";
 import { normalizeSlug, slugError } from "@/lib/link-slug";
 import { isAllowedLinkUrl } from "@/lib/link-url";
+import { parseAbConfig, serializeAbConfig } from "@/lib/ab-test";
 import { parseCustomFontId } from "@/lib/custom-fonts";
 import {
   type ProfileRow,
@@ -65,6 +66,12 @@ const linkRowSchema = z.object({
   // invalid entries become null and duplicates collapse first-wins, because
   // the column's UNIQUE index would otherwise reject the whole restore.
   redirectSlug: z.string().nullable().optional(),
+  // #81: optional so pre-A/B backups restore cleanly. Sanitized below —
+  // malformed JSON, invalid weights, or a non-allowlisted variant B URL
+  // drops the config to null (link keeps working, test data in archived
+  // click rows is untouched; an archived test stays archived, never
+  // resurrected into a live split).
+  abConfig: z.string().nullable().optional(),
   createdAt: z.string().optional(),
 });
 
@@ -284,6 +291,25 @@ export async function applyBackupPayload(
       return link;
     });
   }
+
+  // #81 A/B configs: never reject a restore over a bad config — drop to
+  // null instead. parseAbConfig validates JSON shape + weights (sum 100);
+  // variant B's URL additionally goes through the SAME isAllowedLinkUrl
+  // allowlist as the primary save path (repo security rule: every writer).
+  // Archived tests restore as archived — a finished test can never come
+  // back as a live split (serving only splits on status === "running").
+  parsed.links = parsed.links.map((link) => {
+    const raw = link.abConfig ?? null;
+    // Only URL-type links may carry a test (#81 scope) — a converted link
+    // loses its config on restore.
+    if (link.type !== "url") return { ...link, abConfig: null };
+    const config = parseAbConfig(raw);
+    if (!config) return { ...link, abConfig: null };
+    if (!isAllowedLinkUrl("url", config.urlB)) {
+      return { ...link, abConfig: null };
+    }
+    return { ...link, abConfig: serializeAbConfig(config) };
+  });
 
   // Custom fonts (#82): optional array (older backups have none). Rows only —
   // the files live in the uploads volume. A malformed array rejects the

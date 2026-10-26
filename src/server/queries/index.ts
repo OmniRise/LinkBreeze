@@ -23,6 +23,7 @@ import {
   asc,
   desc,
   isNull,
+  isNotNull,
   sql,
 } from "drizzle-orm";
 
@@ -379,6 +380,7 @@ export async function updateLink(
       | "popupText"
       | "ctaLabel"
       | "redirectSlug"
+      | "abConfig"
     >
   >,
 ): Promise<void> {
@@ -857,6 +859,7 @@ export async function recordClick(
   visitorHash: string,
   referrer: string | null,
   eventType: "click" | "open" = "click",
+  variant: "A" | "B" | null = null,
 ): Promise<void> {
   // Wrap in a transaction so the analytics insert and the denormalized
   // clicksCount increment can't drift apart if one fails.
@@ -866,6 +869,7 @@ export async function recordClick(
       visitorHash,
       referrer: referrer ?? null,
       eventType,
+      variant,
     }).run();
     // Popup opens are analytics-only: the denormalized counter stays a pure
     // outbound-click count (#93) so the links table never inflates CTR.
@@ -902,6 +906,9 @@ export interface LinkStats {
   totalClicks: number;
   clicksPerDay: Array<{ date: string; clicks: number }>;
   topReferrers: BreakdownEntry[];
+  /** #81: range-scoped per-variant click counts. NULL variant rows (links
+   *  without a test, popup opens, pre-#81 history) are not represented. */
+  variants: { a: number; b: number };
 }
 
 /** Number of day-buckets to render for a range. */
@@ -1165,7 +1172,21 @@ export async function getLinkStats(linkId: number, range: AnalyticsRange = "30d"
     .limit(8);
   const topReferrers = cleanReferrers(refRows);
 
-  return { link, totalClicks, clicksPerDay, topReferrers };
+  // #81: per-variant counts for the A/B breakdown (detail page only, not the
+  // hot redirect path). Only rows with a variant label are counted, so links
+  // without a test pay nothing extra in the UI beyond an empty breakdown.
+  const variantRows = await db
+    .select({ variant: analyticsClicks.variant, count: sql<number>`count(*)` })
+    .from(analyticsClicks)
+    .where(and(eq(analyticsClicks.linkId, linkId), gt(analyticsClicks.createdAt, since), eq(analyticsClicks.eventType, "click"), isNotNull(analyticsClicks.variant)))
+    .groupBy(analyticsClicks.variant);
+  const variants = { a: 0, b: 0 };
+  for (const r of variantRows) {
+    if (r.variant === "A") variants.a = Number(r.count);
+    else if (r.variant === "B") variants.b = Number(r.count);
+  }
+
+  return { link, totalClicks, clicksPerDay, topReferrers, variants };
 }
 
 export async function getLink(id: number): Promise<LinkRow | null> {

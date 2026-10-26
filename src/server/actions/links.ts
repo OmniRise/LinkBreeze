@@ -18,7 +18,15 @@ import {
   getAllLinks,
   reorderLinks as reorderLinksQuery,
   isSlugTaken,
+  getLink,
 } from "@/server/queries";
+import {
+  abConfigSchema,
+  parseAbConfig,
+  serializeAbConfig,
+  type AbConfig,
+  type AbStatus,
+} from "@/lib/ab-test";
 import {
   normalizeSlug,
   slugError,
@@ -592,4 +600,213 @@ export async function checkSlugAvailability(
   return taken
     ? { success: true, available: false, error: "This slug is already in use" }
     : { success: true, available: true };
+}
+
+// ─── #81 A/B testing ─────────────────────────────────────────────────────────
+
+const abWeightsSchema = z.object({
+  weightA: z.coerce.number().int().min(1).max(99),
+});
+
+/**
+ * #81 — enable or update the A/B test on a URL-type link.
+ *
+ * Variant A is the link's own url (untouched); this action stores variant
+ * B's destination, labels and integer weight (B = 100 - A). Re-saving an
+ * existing test keeps its lifecycle status and winner — only pause/resume
+ * and promote change those. Editing an ARCHIVED test reopens it as paused
+ * (never silently restarts a finished test's split).
+ */
+export async function setAbTest(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  if (link.type !== "url") {
+    return validationError("A/B tests are only available for URL links");
+  }
+
+  const rawWeightA = formData.get("weightA");
+  const w = abWeightsSchema.safeParse({ weightA: rawWeightA ?? 50 });
+  if (!w.success) {
+    return validationError("Weight A must be a whole number between 1 and 99");
+  }
+  const weightA = w.data.weightA;
+  const weightB = 100 - weightA;
+
+  const urlB = String(formData.get("urlB") ?? "").trim();
+  if (!urlB) return validationError("Variant B needs a destination URL");
+  // SAME validator as the primary add-link path (repo security rule).
+  if (!isAllowedLinkUrl("url", urlB)) {
+    return validationError("Variant B must be an http(s) URL");
+  }
+
+  const labelA = String(formData.get("labelA") ?? "").trim() || null;
+  const labelB = String(formData.get("labelB") ?? "").trim() || null;
+
+  const existing = parseAbConfig(link.abConfig ?? null);
+  const status: AbStatus = existing
+    ? existing.status === "archived"
+      ? "paused"
+      : existing.status
+    : "running";
+
+  const config: AbConfig = {
+    v: 1,
+    status,
+    labelA,
+    labelB,
+    urlB,
+    weightA,
+    weightB,
+    winner: existing?.winner ?? null,
+  };
+  const validated = abConfigSchema.safeParse(config);
+  if (!validated.success) {
+    return validationError("Invalid A/B configuration");
+  }
+
+  try {
+    await updateLinkQuery(id, { abConfig: serializeAbConfig(validated.data) });
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("setAbTest", err, { id });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/** #81 — pause (revert to A, keep data) or resume a running test. */
+export async function setAbTestStatus(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+  const status = String(formData.get("status") ?? "");
+  if (status !== "running" && status !== "paused") {
+    return validationError("Invalid status");
+  }
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  const existing = parseAbConfig(link.abConfig ?? null);
+  if (!existing) return validationError("This link has no A/B test");
+  if (existing.status === "archived") {
+    return validationError("An archived test cannot be restarted — set a new test instead");
+  }
+
+  try {
+    await updateLinkQuery(id, {
+      abConfig: serializeAbConfig({ ...existing, status }),
+    });
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("setAbTestStatus", err, { id, status });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/**
+ * #81 — promote a variant to the permanent destination and archive the
+ * test. Promoting A pins the current url; promoting B copies urlB into
+ * links.url (the short URL/QR keep working — they point at /go/:id).
+ * Labels, weights, urlB and all variant-labeled click rows stay as history.
+ */
+export async function promoteAbVariant(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+  const winner = String(formData.get("winner") ?? "");
+  if (winner !== "A" && winner !== "B") {
+    return validationError("Winner must be A or B");
+  }
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  const existing = parseAbConfig(link.abConfig ?? null);
+  if (!existing) return validationError("This link has no A/B test");
+
+  try {
+    if (winner === "B") {
+      // Re-check the allowlist at promote time too — the config may predate
+      // a validator tightening or come from a restored backup.
+      if (!isAllowedLinkUrl("url", existing.urlB)) {
+        return validationError("Variant B is no longer an allowed destination");
+      }
+      await updateLinkQuery(id, {
+        url: existing.urlB,
+        abConfig: serializeAbConfig({ ...existing, status: "archived", winner }),
+      });
+    } else {
+      await updateLinkQuery(id, {
+        abConfig: serializeAbConfig({ ...existing, status: "archived", winner }),
+      });
+    }
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("promoteAbVariant", err, { id, winner });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/** #81 — remove the test entirely (config -> NULL). Click history keeps its
+ *  variant labels; they just no longer render as an active/archived test. */
+export async function removeAbTest(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  if (!parseAbConfig(link.abConfig ?? null)) {
+    return validationError("This link has no A/B test");
+  }
+
+  try {
+    await updateLinkQuery(id, { abConfig: null });
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("removeAbTest", err, { id });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
 }

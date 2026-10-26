@@ -167,6 +167,11 @@ export const links = sqliteTable("links", {
   // (validation in src/lib/link-slug.ts). NULL = numeric-id form only.
   // Pure numbers are rejected so /go/<ref> never has two meanings.
   redirectSlug: text("redirect_slug").unique(),
+  // #81 A/B testing: JSON config (see src/lib/ab-test.ts for the shape +
+  // zod schema). NULL = no test. Variant A is this row's `url`; the config
+  // carries variant B's destination, labels, integer weights (sum 100),
+  // lifecycle status (running | paused | archived) and the promoted winner.
+  abConfig: text("ab_config"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
@@ -285,6 +290,10 @@ export const analyticsClicks = sqliteTable("analytics_clicks", {
   // #93: distinguish popup opens from real outbound clicks. Existing rows
   // and all classic navigation clicks stay 'click' (the default).
   eventType: text("event_type").notNull().default("click"), // click | open
+  // #81: which A/B variant a click landed on ('A' | 'B'). NULL = the link
+  // had no test active for this click (or predates the column). Permanent
+  // history: promote-to-winner archives the test but never rewrites rows.
+  variant: text("variant"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 

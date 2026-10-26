@@ -6,6 +6,13 @@ import { isBot } from "@/lib/bot-detect";
 import { getSession } from "@/lib/auth";
 import { getLinkByRef, getPageById, recordClick } from "@/server/queries";
 import { maybeRunScheduledBackup } from "@/server/backup-scheduler";
+import {
+  parseAbConfig,
+  isAbActive,
+  assignVariant,
+  resolveVariantUrl,
+  type AbVariant,
+} from "@/lib/ab-test";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,11 +58,45 @@ export async function GET(
 
   const linkId = link.id;
 
+  // #81 A/B test: parse the config once; only a RUNNING test splits traffic.
+  // Only URL-type links may split (a restored backup could carry ab_config
+  // on a converted link — see restore sanitization; belt and braces here).
+  const abConfig = link.type === "url" ? parseAbConfig(link.abConfig ?? null) : null;
+  // Assignment is deterministic (visitor hash + link id), needs no JS and no
+  // cookie, and the same visitor keeps the same variant across visits. Bots,
+  // rate-limited and non-recording visitors still get a fair split — the
+  // variant is computed for EVERYONE, only the analytics write is gated.
+  const abActive = isAbActive(abConfig);
+  let variant: AbVariant | null = null;
+  let targetUrl = link.url;
+  if (abActive && abConfig) {
+    try {
+      const h0 = await headers();
+      const ip0 =
+        (h0.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
+        (h0.get("x-real-ip") || "").toString() ||
+        "0.0.0.0";
+      variant = assignVariant(
+        getVisitorHash(ip0, (h0.get("user-agent") || "").toString()),
+        linkId,
+        abConfig.weightA,
+        abConfig.weightB,
+      );
+      targetUrl = resolveVariantUrl(abConfig, variant, link.url);
+    } catch {
+      // Never let assignment break the redirect — fall back to A.
+      variant = null;
+      targetUrl = link.url;
+    }
+  }
+
   // Defense-in-depth: only redirect to http(s) URLs. The create/update
   // validators already block javascript:/data: schemes, but a stale or
   // tampered DB row could bypass that. Never 302 to a non-http protocol.
+  // Checks the CHOSEN target (variant B included) — a config smuggled in
+  // via a hand-edited DB or an old backup still cannot escape http(s).
   try {
-    const parsed = new URL(link.url);
+    const parsed = new URL(targetUrl);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return NextResponse.json({ error: "Invalid link URL" }, { status: 400 });
     }
@@ -90,7 +131,8 @@ export async function GET(
         const referrer = stripReferrer(
           (h.get("referer") || h.get("referrer") || "").toString(),
         );
-        await recordClick(linkId, visitorHash, referrer);
+        // #81: attribute the click to its variant (null = no running test).
+        await recordClick(linkId, visitorHash, referrer, "click", variant);
         // #83: opportunistic scheduled-backup trigger (throttled inside the
         // scheduler; must never delay the redirect — fire-and-forget).
         maybeRunScheduledBackup();
@@ -105,7 +147,7 @@ export async function GET(
     console.error("[/go/:id] failed to record click", err);
   }
 
-  return NextResponse.redirect(link.url, {
+  return NextResponse.redirect(targetUrl, {
     status: 302,
     headers: { "Cache-Control": "no-store" },
   });

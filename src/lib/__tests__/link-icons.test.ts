@@ -148,6 +148,7 @@ describe("buildLinkCardHtml icon modes (#91)", () => {
       cardStyle: "compact",
       popupText: null,
       ctaLabel: null,
+      abConfig: null,
       redirectSlug: null,
       createdAt: "2026-01-01 00:00:00",
     } as const;
@@ -184,6 +185,7 @@ describe("buildLinkCardHtml icon modes (#91)", () => {
       cardStyle: "compact",
       popupText: null,
       ctaLabel: null,
+      abConfig: null,
       redirectSlug: null,
       createdAt: "2026-01-01 00:00:00",
     };
@@ -216,6 +218,7 @@ describe("buildLinkCardHtml icon modes (#91)", () => {
       cardStyle: "compact",
       popupText: null,
       ctaLabel: null,
+      abConfig: null,
       redirectSlug: null,
       createdAt: "2026-01-01 00:00:00",
     };

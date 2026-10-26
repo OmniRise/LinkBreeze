@@ -48,13 +48,17 @@ export async function GET(request: NextRequest) {
         referrer: analyticsClicks.referrer,
         title: links.title,
         url: links.url,
+        // #81: which A/B variant the click landed on ("" = no test active).
+        variant: analyticsClicks.variant,
       })
       .from(analyticsClicks)
       .leftJoin(links, eq(links.id, analyticsClicks.linkId))
       .where(gt(analyticsClicks.createdAt, since));
-    header = ["timestamp", "visitor_hash", "referrer", "link_title", "link_url"];
+    header = ["timestamp", "visitor_hash", "referrer", "link_title", "link_url", "variant"];
     lines = rows.map((r) =>
-      [r.createdAt, r.visitorHash, r.referrer, r.title, r.url].map(csvCell).join(","),
+      [r.createdAt, r.visitorHash, r.referrer, r.title, r.url, r.variant ?? ""]
+        .map(csvCell)
+        .join(","),
     );
   }
 
