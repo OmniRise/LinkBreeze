@@ -176,3 +176,94 @@ describe("route exports surface", () => {
     ).toEqual(["POST"]);
   });
 });
+
+describe("E.13 import edge battery", () => {
+  it("same-batch duplicate redirectSlug: first wins, second is a per-item conflict", async () => {
+    const res = await importRoute(
+      req({
+        items: [
+          { title: "Slug first", url: "https://slug-a.example", redirectSlug: "batch-edge-slug" },
+          { title: "Slug second", url: "https://slug-b.example", redirectSlug: "batch-edge-slug" },
+        ],
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()).data;
+    expect(body.created).toBe(1);
+    expect(body.failed).toBe(1);
+    expect(body.results[0]).toMatchObject({ index: 0, status: "created" });
+    expect(body.results[1].status).toBe("error");
+    expect(body.results[1].error.code).toBe("validation");
+    expect(body.results[1].error.details?.[0]?.path).toBe("redirectSlug");
+
+    // The winner actually holds the slug.
+    const winner = db
+      .select()
+      .from(schema.links)
+      .all()
+      .find((r) => r.id === body.results[0].id)!;
+    expect(winner.redirectSlug).toBe("batch-edge-slug");
+  });
+
+  it("iconMode custom is rejected per-item (upload stays UI-only)", async () => {
+    const before = linkCount();
+    const res = await importRoute(
+      req({
+        items: [
+          { title: "Custom icon try", url: "https://custom-icon.example", iconMode: "custom" },
+        ],
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()).data;
+    expect(body.created).toBe(0);
+    expect(body.failed).toBe(1);
+    expect(body.results[0].error.code).toBe("validation");
+    expect(body.results[0].error.message.length).toBeGreaterThan(0);
+    expect(linkCount()).toBe(before); // rejected before any insert
+  });
+
+  it("accepts exactly 100 items (the cap)", async () => {
+    const before = linkCount();
+    const items = Array.from({ length: 100 }, (_, i) => validItem(1000 + i));
+    const res = await importRoute(req({ items }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()).data;
+    expect(body.created).toBe(100);
+    expect(body.failed).toBe(0);
+    expect(body.results).toHaveLength(100);
+    expect(linkCount()).toBe(before + 100);
+  });
+
+  it("deeply nested junk: unknown keys stripped, wrong-typed title and array entries error", async () => {
+    const before = linkCount();
+    const res = await importRoute(
+      req({
+        items: [
+          {
+            title: "Nested junk",
+            url: "https://nested-junk.example",
+            junk: { a: { b: { c: [1, { d: 2 }, { e: { f: "deep" } }] } } },
+          },
+          { title: { a: { b: { c: 1 } } }, url: "https://wrong-type.example" },
+          [[1, 2, 3]],
+        ],
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()).data;
+    expect(body.created).toBe(1);
+    expect(body.failed).toBe(2);
+
+    const winner = db
+      .select()
+      .from(schema.links)
+      .all()
+      .find((r) => r.id === body.results[0].id)!;
+    expect(winner.title).toBe("Nested junk");
+    expect("junk" in winner).toBe(false); // zod stripped it at the boundary
+    expect(body.results[1].error.code).toBe("validation");
+    expect(body.results[2].error.message).toContain("JSON object");
+    expect(linkCount()).toBe(before + 1);
+  });
+});
