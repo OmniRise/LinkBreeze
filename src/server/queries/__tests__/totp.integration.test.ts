@@ -95,7 +95,10 @@ describe("TOTP integration", () => {
     expect(verifyTrustToken(tok, userId, secret, ua)).toBe(true); // token math still matches stale secret…
     // …but login() gates on totpEnabled && totpSecret, so it can never be used.
     expect(disabled!.totpEnabled && disabled!.totpSecret).toBeFalsy();
-  });
+    // Argon2 re-hashes make this lifecycle ~4s alone; on this box (sibling
+    // agents contending CPU) it flaked at the default 5000ms — measured
+    // 5.18s TOTAL even in isolation. 15s still fails a genuine hang.
+  }, 15000);
 
   it("secret encrypted at rest is never the plaintext in the DB", async () => {
     const secret = generateSecret();

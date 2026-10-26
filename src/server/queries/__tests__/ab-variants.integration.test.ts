@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
-import { recordClick, getLinkStats } from "@/server/queries";
+import { recordClick, getLinkStats, getLink } from "@/server/queries";
 import { analyticsClicks } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -75,5 +75,29 @@ describe("per-variant click attribution (#81)", () => {
     expect(stats!.link.url).toBe("https://example.com/b");
     expect(stats!.variants).toEqual({ a: 1, b: 1 });
     expect(countVariantRows(link.id).map((r) => r.variant).sort()).toEqual(["A", "B"]);
+  });
+
+  it("count integrity: variant labels never inflate or double-count clicks", async () => {
+    // E.7 security pass: one row per click either way; the denormalized
+    // links.clicksCount bumps exactly once per CLICK (variant or not) and
+    // opens never reach it; the variant breakdown partitions the total.
+    const link = seedLink({
+      abConfig: JSON.stringify({ v: 1, status: "running", labelA: null, labelB: null, urlB: "https://example.com/b", weightA: 50, weightB: 50, winner: null }),
+    });
+    await recordClick(link.id, "ci-1", null, "click", "A");
+    await recordClick(link.id, "ci-2", null, "click", "B");
+    await recordClick(link.id, "ci-3", null, "click", "B");
+    await recordClick(link.id, "ci-4", null); // untagged click (no test path)
+    await recordClick(link.id, "ci-5", null, "open", "B"); // open never counts
+
+    const stats = await getLinkStats(link.id, "30d");
+    const row = await getLink(link.id);
+    // Row total (opens excluded by the clicks-only stats) = tagged + untagged.
+    expect(stats!.totalClicks).toBe(4);
+    expect(stats!.variants.a + stats!.variants.b).toBe(3); // tagged subset
+    expect(stats!.variants).toEqual({ a: 1, b: 2 });
+    // Denormalized counter matches the row total exactly (4 clicks, +1 each,
+    // the variant-labeled open added nothing).
+    expect(row?.clicksCount).toBe(4);
   });
 });

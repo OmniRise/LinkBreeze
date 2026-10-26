@@ -220,6 +220,13 @@ describe("setAbTest", () => {
 });
 
 describe("setAbTestStatus", () => {
+  it("rejects unauthenticated", async () => {
+    mocks.getSession.mockResolvedValue(null);
+    const res = await setAbTestStatus(fd({ id: "7", status: "paused" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
   it("pauses a running test", async () => {
     mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
     const res = await setAbTestStatus(fd({ id: "7", status: "paused" }));
@@ -258,6 +265,13 @@ describe("setAbTestStatus", () => {
 });
 
 describe("promoteAbVariant", () => {
+  it("rejects unauthenticated", async () => {
+    mocks.getSession.mockResolvedValue(null);
+    const res = await promoteAbVariant(fd({ id: "7", winner: "B" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
   it("promoting A archives with winner A and leaves the URL alone", async () => {
     mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
     const res = await promoteAbVariant(fd({ id: "7", winner: "A" }));
@@ -338,6 +352,13 @@ describe("setAbAutoPromote (#81 E.1)", () => {
 });
 
 describe("removeAbTest", () => {
+  it("rejects unauthenticated", async () => {
+    mocks.getSession.mockResolvedValue(null);
+    const res = await removeAbTest(fd({ id: "7" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
   it("clears the config to null", async () => {
     mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
     const res = await removeAbTest(fd({ id: "7" }));
