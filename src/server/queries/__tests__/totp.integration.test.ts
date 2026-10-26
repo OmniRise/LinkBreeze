@@ -40,7 +40,10 @@ describe("TOTP integration", () => {
     expect(user!.recoveryCodes).toBeNull();
   });
 
-  it("full lifecycle: enroll → activate → verify code → disable", async () => {
+  // bcrypt(12) × 10 recovery codes ≈ 3-4s on modest hardware — the default
+  // 5s budget flakes whenever parallel workers load the box (flaky-test
+  // hunt, BURN-BACKLOG-4 E.5). 30s keeps real hangs detectable.
+  it("full lifecycle: enroll → activate → verify code → disable", { timeout: 30_000 }, async () => {
     // 1. startTotpSetup equivalent: store an encrypted, INACTIVE secret
     const secret = generateSecret();
     await setUserTotp(userId, {
