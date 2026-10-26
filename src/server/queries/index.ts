@@ -14,6 +14,7 @@ import {
   subscribers,
 } from "@/db/schema";
 import { PRESETS } from "@/lib/theme-presets";
+import { emitPageMilestones } from "@/server/notifications/emit";
 import {
   eq,
   and,
@@ -850,6 +851,9 @@ export async function recordPageview(
     pageId: pageId ?? null,
   });
   await pruneAnalyticsIfDue();
+  // #13: milestone webhooks — emit is throw-safe and delivery is
+  // fire-and-forget, so the page render never waits on the network.
+  if (pageId !== undefined) await emitPageMilestones(pageId);
 }
 
 export async function recordClick(
@@ -879,6 +883,13 @@ export async function recordClick(
   // Same opportunistic prune as pageviews, so click-heavy pages (e.g. a page
   // embedded somewhere that skips the pageview beacon) don't retain forever.
   await pruneAnalyticsIfDue();
+  // #13: milestone webhooks — emit is throw-safe, delivery fire-and-forget.
+  const linkRows = await db
+    .select({ pageId: links.pageId })
+    .from(links)
+    .where(eq(links.id, linkId))
+    .limit(1);
+  if (linkRows[0]) await emitPageMilestones(linkRows[0].pageId);
 }
 
 // AnalyticsRange is re-exported from the shared analytics-range module so there
