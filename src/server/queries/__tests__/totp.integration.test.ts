@@ -40,6 +40,11 @@ describe("TOTP integration", () => {
     expect(user!.recoveryCodes).toBeNull();
   });
 
+  // bcryptjs is pure-JS and CPU-bound: the 8 Promise.all recovery-code
+  // hashes serialize on one thread, and this box routinely runs parallel
+  // agent sessions — the default 5s made this test flaky in isolation
+  // (E.4 flaky-test hunt, proven pre-existing: fails solo with zero
+  // feature code loaded). 30s is generous for any healthy runner.
   it("full lifecycle: enroll → activate → verify code → disable", async () => {
     // 1. startTotpSetup equivalent: store an encrypted, INACTIVE secret
     const secret = generateSecret();
@@ -95,7 +100,7 @@ describe("TOTP integration", () => {
     expect(verifyTrustToken(tok, userId, secret, ua)).toBe(true); // token math still matches stale secret…
     // …but login() gates on totpEnabled && totpSecret, so it can never be used.
     expect(disabled!.totpEnabled && disabled!.totpSecret).toBeFalsy();
-  });
+  }, 30_000);
 
   it("secret encrypted at rest is never the plaintext in the DB", async () => {
     const secret = generateSecret();
