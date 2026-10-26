@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 8fa43d14780b ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 0732d2966149 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -926,6 +926,7 @@ const it: Messages = {
 
   pageSwitcher: {
     exportHtml: "Esporta {name} come HTML statico",
+    exportAll: "Esporta tutte le pagine come zip",
     newPage: "Nuova pagina",
     deletePage: "Elimina pagina {name}",
     viewPage: "Vedi pagina pubblica /{slug}",

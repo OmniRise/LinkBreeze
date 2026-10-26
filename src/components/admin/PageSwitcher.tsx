@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, FileText, Star, Globe, Trash2, Download } from "lucide-react";
+import { ChevronDown, Plus, FileText, Star, Globe, Trash2, Download, Archive } from "lucide-react";
 import type { PageRow } from "@/server/queries";
 import { updatePageAction } from "@/server/actions/pages";
 import { DeletePageDialog } from "@/components/admin/delete-page-dialog";
@@ -189,6 +189,17 @@ export function PageSwitcher({ pages, variant = "full" }: PageSwitcherProps) {
             </p>
           ) : null}
           <div className="mt-1 border-t border-border pt-1">
+            {/* File download, not page navigation: <Link> would prefetch an
+                attachment endpoint; a plain anchor lets the browser handle
+                Content-Disposition natively. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a
+              href="/api/pages/export?all=1"
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
+              <Archive className="size-3.5" />
+              {t("exportAll")}
+            </a>
             <Link
               href="/pages/new"
               className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"

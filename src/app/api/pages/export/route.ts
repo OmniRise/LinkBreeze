@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
   getPageById,
+  getAllPages,
   getActiveLinks,
   getSectionsByPage,
   getActiveTheme,
@@ -10,8 +11,9 @@ import {
 } from "@/server/queries";
 import { pickRequestHost } from "@/lib/host-routing";
 import { buildStaticExport } from "@/lib/export/build-static-export";
-import { assertExportSize } from "@/lib/export/size";
+import { assertExportSize, EXPORT_MAX_BYTES } from "@/lib/export/size";
 import { exportFilename } from "@/lib/export/filename";
+import { createZip, dedupeNames } from "@/lib/export/zip";
 import { parseCustomFontId, buildFontFaceCss } from "@/lib/custom-fonts";
 import type { ThemeInput } from "@/lib/theme-tokens";
 
@@ -20,9 +22,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * Static HTML export (#80): downloads one page as a single self-contained
- * .html file. Admin-only (session cookie), read-only — so no demoGuard,
- * the demo can show the feature. Auth + size conventions mirror
- * /api/analytics/export.
+ * .html file, or every page as one zip (?all=1). Admin-only (session
+ * cookie), read-only — so no demoGuard, the demo can show the feature.
+ * Auth + size conventions mirror /api/analytics/export.
  */
 
 function getOrigin(request: NextRequest): string {
@@ -41,12 +43,102 @@ function getOrigin(request: NextRequest): string {
   return `${proto}://${host}`;
 }
 
+/** Resolve "custom:<id>" font refs exactly like the public page. */
+async function resolveFontOptions(theme: ThemeInput): Promise<{
+  fontFaceCss?: string;
+  customFonts?: Map<number, { family: string }>;
+}> {
+  const customFontIds = [
+    parseCustomFontId(theme.fontFamily),
+    parseCustomFontId(theme.cardFontFamily),
+  ].filter((parsed): parsed is number => parsed !== null);
+  if (customFontIds.length === 0) return {};
+  const rows = await Promise.all(
+    [...new Set(customFontIds)].map((fontId) => getCustomFontById(fontId)),
+  );
+  const found = rows.filter((row): row is NonNullable<typeof row> => row !== null);
+  if (found.length === 0) return {};
+  return {
+    fontFaceCss: found.map((row) => buildFontFaceCss(row)).join("\n"),
+    customFonts: new Map(found.map((row) => [row.id, { family: row.family }])),
+  };
+}
+
+/** Build one page's export HTML (shared by the single and batch paths). */
+async function buildPageHtml(
+  page: NonNullable<Awaited<ReturnType<typeof getPageById>>>,
+  fallbackTheme: ThemeInput | null,
+  origin: string,
+): Promise<string> {
+  const pageTheme = page.themeId ? await getThemeById(page.themeId) : null;
+  const theme: ThemeInput = pageTheme ?? fallbackTheme ?? {};
+  const [links, sections, fontOptions] = await Promise.all([
+    getActiveLinks(page.id),
+    getSectionsByPage(page.id),
+    resolveFontOptions(theme),
+  ]);
+  return buildStaticExport({
+    page,
+    links,
+    sections,
+    theme,
+    baseUrl: origin,
+    ...fontOptions,
+  });
+}
+
+function sizeError(bytes: number): NextResponse {
+  return NextResponse.json(
+    {
+      error: `Export exceeds the ${Math.round(EXPORT_MAX_BYTES / (1024 * 1024))} MiB limit`,
+      bytes,
+    },
+    { status: 413 },
+  );
+}
+
 export async function GET(request: NextRequest) {
   if (!(await getSession())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const idParam = new URL(request.url).searchParams.get("id");
+  const sp = new URL(request.url).searchParams;
+  const origin = getOrigin(request);
+
+  // ── Batch export: every page as one zip (?all=1, E.1) ────────────────────
+  if (sp.get("all") === "1") {
+    const [pages, fallbackTheme] = await Promise.all([
+      getAllPages(),
+      getActiveTheme(),
+    ]);
+    if (pages.length === 0) {
+      return NextResponse.json({ error: "No pages to export" }, { status: 404 });
+    }
+    const htmls: string[] = [];
+    for (const page of pages) {
+      htmls.push(await buildPageHtml(page, fallbackTheme, origin));
+    }
+    const totalBytes = htmls.reduce(
+      (sum, html) => sum + new TextEncoder().encode(html).length,
+      0,
+    );
+    if (totalBytes > EXPORT_MAX_BYTES) return sizeError(totalBytes);
+
+    const names = dedupeNames(pages.map((page) => exportFilename(page.slug)));
+    const zip = createZip(
+      htmls.map((html, i) => ({ name: names[i], content: html })),
+    );
+    return new NextResponse(new Uint8Array(zip), {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": 'attachment; filename="linkbreeze-pages.zip"',
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  // ── Single-page export ───────────────────────────────────────────────────
+  const idParam = sp.get("id");
   const id = Number(idParam);
   if (!idParam || !Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "Invalid page id" }, { status: 400 });
@@ -58,54 +150,11 @@ export async function GET(request: NextRequest) {
   }
 
   // Same theme resolution as the public page: page theme → active fallback.
-  const [pageTheme, fallbackTheme, links, sections] = await Promise.all([
-    page.themeId ? getThemeById(page.themeId) : Promise.resolve(null),
-    getActiveTheme(),
-    getActiveLinks(page.id),
-    getSectionsByPage(page.id),
-  ]);
-  const theme: ThemeInput = pageTheme ?? fallbackTheme ?? {};
-
-  // Uploaded fonts (#82): resolve "custom:<id>" refs exactly like the
-  // public page (missing rows → resolver falls back to the default font).
-  const customFontIds = [
-    parseCustomFontId(theme.fontFamily),
-    parseCustomFontId(theme.cardFontFamily),
-  ].filter((parsed): parsed is number => parsed !== null);
-  let fontFaceCss: string | undefined;
-  let customFontLookup: Map<number, { family: string }> | undefined;
-  if (customFontIds.length > 0) {
-    const rows = await Promise.all(
-      [...new Set(customFontIds)].map((fontId) => getCustomFontById(fontId)),
-    );
-    const found = rows.filter((row): row is NonNullable<typeof row> => row !== null);
-    if (found.length > 0) {
-      fontFaceCss = found.map((row) => buildFontFaceCss(row)).join("\n");
-      customFontLookup = new Map(found.map((row) => [row.id, { family: row.family }]));
-    }
-  }
-
-  const origin = getOrigin(request);
-  const html = buildStaticExport({
-    page,
-    links,
-    sections,
-    theme,
-    baseUrl: origin,
-    fontFaceCss,
-    customFonts: customFontLookup,
-  });
+  const fallbackTheme = await getActiveTheme();
+  const html = await buildPageHtml(page, fallbackTheme, origin);
 
   const size = assertExportSize(html);
-  if (!size.ok) {
-    return NextResponse.json(
-      {
-        error: `Export exceeds the ${Math.round(size.max / (1024 * 1024))} MiB limit`,
-        bytes: size.bytes,
-      },
-      { status: 413 },
-    );
-  }
+  if (!size.ok) return sizeError(size.bytes);
 
   return new NextResponse(html, {
     headers: {
