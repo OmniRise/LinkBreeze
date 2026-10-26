@@ -297,6 +297,38 @@ export const subscribers = sqliteTable("subscribers", {
   consentText: text("consent_text"),
 });
 
+// ─── Webhook notifications (#13) ──────────────────────
+// Per-page webhook configs. A NULL threshold = that metric is off for the
+// config. Delivery attempts (including failures) land in
+// notification_deliveries, which also provides milestone dedupe via
+// (config_id, dedupe_key).
+export const notificationConfigs = sqliteTable("notification_configs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pageId: integer("page_id")
+    .notNull()
+    .references(() => pages.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  provider: text("provider").notNull().default("discord"), // discord | slack | telegram | ntfy
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  clicksThreshold: integer("clicks_threshold"),
+  viewsThreshold: integer("views_threshold"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
+export const notificationDeliveries = sqliteTable("notification_deliveries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  configId: integer("config_id")
+    .notNull()
+    .references(() => notificationConfigs.id, { onDelete: "cascade" }),
+  dedupeKey: text("dedupe_key").notNull(),
+  provider: text("provider").notNull(),
+  status: text("status").notNull().default("failed"), // pending | success | failed
+  httpStatus: integer("http_status"),
+  attempt: integer("attempt").notNull().default(1),
+  error: text("error"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
 // ─── Meta (internal) ──────────────────────────────────
 export const meta = sqliteTable("_meta", {
   key: text("key").primaryKey(),
