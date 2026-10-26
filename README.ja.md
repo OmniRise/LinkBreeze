@@ -425,6 +425,46 @@ DNS、ワイルドカードTLS、Caddy・nginx・Traefik向けのコピペリバ
 
 </details>
 
+<details>
+<summary>📦 &nbsp;API 実例集 (curl)</summary>
+
+```bash
+# 初回セットアップ
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# リンク一覧：全件、またはフィールドを絞った分ページ
+# （--oauth2-bearer が Bearer 認証ヘッダーを送信します）
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# リンク作成（201 は作成された行と id を返します）
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# 部分更新：送信したフィールドのみが変更されます（null でクリア）
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# 並べ替え後、メトリクスを取得
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+`meta.nextCursor`（`?cursor=` で渡す）を辿れば全ページを取得できます。機械可読の完全な契約は `$BASE/openapi.json` にあります。
+
+</details>
+
 ## 🎨 テーマシステム
 
 プリセット11種類を標準搭載:**Aurora**(アニメーションする旗艦テーマ)、**Glassmorphism**、**Neon Cyberpunk**、**Editorial Paper**、**Terminal Mono**、**Pastel Soft**、**Brutalist**、**Retro Sunset**、**Minimal Light**、**8-Bit Retro**、**Frutiger Aero**。

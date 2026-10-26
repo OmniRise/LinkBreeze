@@ -425,6 +425,46 @@ cloudflared tunnel --url http://localhost:3000
 
 </details>
 
+<details>
+<summary>📦 &nbsp;أمثلة واجهة REST (curl)</summary>
+
+```bash
+# إعداد مرة واحدة
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# سرد الروابط: القائمة الكاملة أو صفحة مُرقّمة بحقول مختصرة
+# (--oauth2-bearer يرسل ترويسة Bearer نيابة عنك)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# إنشاء رابط (201 يعيد الصف المنشأ مع المعرّف)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# تحديث جزئي: تُغيَّر فقط الحقول المرسلة (null تمسح)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# إعادة ترتيب الروابط ثم قراءة مقياس
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+اتبع `meta.nextCursor` (أعده كـ `?cursor=`) لاجتياز كل الصفحات. العقد الكامل القابل للقراءة الآلية على `$BASE/openapi.json`.
+
+</details>
+
 ## 🎨 نظام الثيمات
 
 11 إعدادًا مسبقًا مضمَّنة افتراضيًا: **Aurora** (الواجهة المتحركة الرئيسية)، **Glassmorphism**، **Neon Cyberpunk**، **Editorial Paper**، **Terminal Mono**، **Pastel Soft**، **Brutalist**، **Retro Sunset**، **Minimal Light**، **8-Bit Retro** و **Frutiger Aero**.

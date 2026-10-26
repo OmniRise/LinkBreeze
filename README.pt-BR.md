@@ -425,6 +425,46 @@ Respostas de sucesso envolvem o payload em `data`; erros são `{ "error": { "cod
 
 </details>
 
+<details>
+<summary>📦 &nbsp;Receitas da API (curl)</summary>
+
+```bash
+# Configuração única
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# Listar links: lista completa ou uma página paginada com campos reduzidos
+# (--oauth2-bearer envia o cabeçalho Bearer para você)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Criar um link (201 devolve a linha criada, com o id)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Atualização parcial: só os campos enviados mudam (null limpa)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Reordenar links e ler uma métrica
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+Siga `meta.nextCursor` (devolva como `?cursor=`) para percorrer todas as páginas. O contrato completo legível por máquina está em `$BASE/openapi.json`.
+
+</details>
+
 ## 🎨 Sistema de Temas
 
 11 predefinições estão incluídas de fábrica: **Aurora** (carro-chefe animado), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** e **Frutiger Aero**.

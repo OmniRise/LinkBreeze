@@ -425,6 +425,46 @@ Başarılı yanıtlar yükü `data` içinde paketler; hatalar `{ "error": { "cod
 
 </details>
 
+<details>
+<summary>📦 &nbsp;API örnekleri (curl)</summary>
+
+```bash
+# Tek seferlik kurulum
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# Bağlantıları listele: tam liste veya azaltılmış alanlı sayfalı sayfa
+# (--oauth2-bearer Bearer başlığını sizin gönderir)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Bağlantı oluştur (201, oluşturulan satırı ve id'yi döner)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Kısmi güncelleme: yalnızca gönderilen alanlar değişir (null temizler)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Bağlantıları yeniden sırala, sonra bir metriği oku
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+Tüm sayfaları dolaşmak için `meta.nextCursor` değerini (`?cursor=` olarak) geri gönderin. Makineyle okunabilir tam sözleşme `$BASE/openapi.json` adresinde.
+
+</details>
+
 ## 🎨 Tema Sistemi
 
 Kutudan çıktığı gibi 11 hazır tema gelir: **Aurora** (animasyonlu amiral gemisi), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** ve **Frutiger Aero**.

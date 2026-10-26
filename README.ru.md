@@ -425,6 +425,46 @@ cloudflared tunnel --url http://localhost:3000
 
 </details>
 
+<details>
+<summary>📦 &nbsp;Кулинарная книга API (curl)</summary>
+
+```bash
+# Однократная настройка
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# Список ссылок: полный или страница с сокращёнными полями
+# (--oauth2-bearer сам отправляет Bearer-заголовок)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Создать ссылку (201 возвращает созданную строку с id)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Частичное обновление: меняются только переданные поля (null очищает)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Изменить порядок ссылок, затем прочитать метрику
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+Следуйте `meta.nextCursor` (передавайте обратно как `?cursor=`), чтобы пройти все страницы. Полная машиночитаемая спецификация — `$BASE/openapi.json`.
+
+</details>
+
 ## 🎨 Система тем
 
 Из коробки доступны 11 пресетов: **Aurora** (анимированный флагман), **Glassmorphism**, **Neon Cyberpunk**, **Editorial Paper**, **Terminal Mono**, **Pastel Soft**, **Brutalist**, **Retro Sunset**, **Minimal Light**, **8-Bit Retro** и **Frutiger Aero**.

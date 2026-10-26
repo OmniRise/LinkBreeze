@@ -425,6 +425,46 @@ cloudflared tunnel --url http://localhost:3000
 
 </details>
 
+<details>
+<summary>📦 &nbsp;API 实例（curl）</summary>
+
+```bash
+# 一次性设置
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# 列出链接：完整列表，或带精简字段的分页
+# （--oauth2-bearer 会为你发送 Bearer 认证头）
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# 创建链接（201 返回创建的行及其 id）
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# 部分更新：只有发送的字段会更改（null 清空）
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# 重新排序链接，然后读取指标
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+跟随 `meta.nextCursor`（以 `?cursor=` 传回）即可遍历所有页面。完整的机器可读契约在 `$BASE/openapi.json`。
+
+</details>
+
 ## 🎨 主题系统
 
 开箱即用包含 11 个预设：**Aurora**（动画旗舰）、**Glassmorphism**、**Neon Cyberpunk**、**Editorial Paper**、**Terminal Mono**、**Pastel Soft**、**Brutalist**、**Retro Sunset**、**Minimal Light**、**8-Bit Retro** 和 **Frutiger Aero**。
