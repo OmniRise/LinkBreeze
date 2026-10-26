@@ -9,6 +9,7 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 ## Now
 
 - **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance, each with their own public page, plus sign-in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID, ...) alongside local accounts.
+- **A/B testing for links** (#81) - variant split, per-variant analytics, promote-to-winner.
 
 ## Next
 
@@ -18,7 +19,6 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 ## Later
 
-- **A/B testing for links** (#81) - variant split, per-variant analytics, promote-to-winner.
 - **Export a page as static HTML** (#80).
 - **Public REST API** (#4) - programmatic link management for power users and integrations.
 - **Guided visitor flows** - optional multi-step "choose your path" screens on a public page, fully server-rendered, no JavaScript required.
