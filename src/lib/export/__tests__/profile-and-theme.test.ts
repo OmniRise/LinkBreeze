@@ -232,3 +232,32 @@ describe("keyframes completeness (theme-tokens ↔ EXPORT_CSS drift guard)", () 
     }
   });
 });
+
+describe("reduced-motion parity (E.26)", () => {
+  it("the prefers-reduced-motion gate ships in EXPORT_CSS", () => {
+    expect(EXPORT_CSS).toContain("@media (prefers-reduced-motion:reduce){");
+    // every animated surface the export can render is gated
+    for (const selector of [
+      ".aurora-blob",
+      ".aurora-rise",
+      ".lb-reveal",
+      ".lb-float",
+      ".lb-text-anim",
+      ".lb-tw-text",
+      ".lb-tw-caret",
+      ".lb-link-card",
+      ".lb-social-icon",
+      ".lb-popup-dialog[open]",
+    ]) {
+      expect(EXPORT_CSS, `gate missing ${selector}`).toContain(selector);
+    }
+    expect(EXPORT_CSS).toContain("animation:none!important");
+  });
+
+  it("the gate actually reaches the composed document", () => {
+    const html = buildStaticExport(
+      base({ theme: { animationType: "lift", noise: true } }),
+    );
+    expect(html).toContain("@media (prefers-reduced-motion:reduce){");
+  });
+});
