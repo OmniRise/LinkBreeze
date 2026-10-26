@@ -423,6 +423,21 @@ Tema motoru, CSS özel özelliklerine (`--lb-*`) dayalı bir token sistemidir - 
 
 </details>
 
+## 📦 Statik HTML Dışa Aktarım
+
+Sayfa değiştiriciden herhangi bir sayfayı tek bir bağımsız `.html` dosyası olarak - veya tüm sayfaları bir zip olarak - indirin ve LinkBreeze çalışmadığı herhangi bir yerde barındırın.
+
+<details>
+<summary>🌐 &nbsp;Dışa aktardığınız sayfayı her yerde barındırma</summary>
+
+- **Dosyayı alın** - sayfa değiştiricinin indirme simgesi bir sayfayı dışa aktarır; "Tüm sayfaları zip olarak dışa aktar" tüm örneği paketler. Tamamen çevrimdışı bir kopya için `?embed=1` ekleyin (`/api/pages/export?id=1&embed=1`) - `uploads/` klasörü de dahil edilir
+- **Nerede barındırılır** - GitHub Pages, Netlify, Cloudflare Pages veya herhangi bir statik dosya sunucusu; hızlı yerel kontrol için `python3 -m http.server` yeterlidir
+- **Yanınızda gidenler** - temanız, özel CSS ve üçüncü taraf analitik parçaları çalışmaya devam eder ve her bağlantı doğrudan hedefine gider
+- **Evde kalanlar** - yerleşik görüntülenme ve tıklama analitiği ve e-posta toplama örneğinizi gerektirir; `?embed=1` olmadan görseller örneğinizden mutlak URL'lerle yüklenir - erişilebilir tutun ya da `?embed=1` ile dışa aktarın
+- **Boyut** - 50 bağlantılı bir sayfa ~107 KB ham (~8 KB gzip) olarak dışa aktarılır; sınır 2 MiB (`?embed=1` ile 25 MiB)
+
+</details>
+
 ## 📖 Belgeler ve Bağlantılar
 
 [Katkıda Bulunma](CONTRIBUTING.md) · [Güvenlik Politikası](SECURITY.md) · [Değişiklik Günlüğü](CHANGELOG.md) · [Sorun Giderme](TROUBLESHOOTING.md) · [Özel Alan Adları](docs/custom-domains.md) · [Mimari Kararlar](docs/adr/) · [Yapılandırma başvurusu](.env.example)

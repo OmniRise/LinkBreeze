@@ -423,6 +423,21 @@ The theme engine is a CSS custom property (`--lb-*`) token system - every color,
 
 </details>
 
+## 📦 Static Export
+
+Download any page from the page switcher as a single self-contained `.html` file - or all pages as a zip - and host it anywhere, with no LinkBreeze instance required.
+
+<details>
+<summary>🌐 &nbsp;Hosting your exported page anywhere</summary>
+
+- **Get the file** - the page switcher's download icon exports one page; "Export all pages as a zip" bundles the whole instance. Append `?embed=1` (`/api/pages/export?id=1&embed=1`) to also include the `uploads/` folder for a fully offline copy
+- **Where to host** - GitHub Pages, Netlify, Cloudflare Pages, or any static file server; `python3 -m http.server` works for a quick local check
+- **What travels** - your theme, custom CSS and third-party analytics snippets keep working, and every link points straight at its destination
+- **What stays home** - built-in view/click analytics and email capture need your instance; without `?embed=1`, images load from your instance via absolute URLs, so keep it reachable or export with `?embed=1`
+- **Size** - a 50-link page exports at ~107 KB raw (~8 KB gzipped), capped at 2 MiB (25 MiB with `?embed=1`)
+
+</details>
+
 ## 📖 Docs & Links
 
 [Contributing](CONTRIBUTING.md) · [Security Policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Architecture Decisions](docs/adr/) · [Configuration reference](.env.example)

@@ -423,6 +423,21 @@ Die Theme-Engine ist ein Token-System auf Basis von CSS-Custom-Properties (`--lb
 
 </details>
 
+## 📦 Statischer Export
+
+Laden Sie jede Seite im Seiten-Umschalter als eine eigenständige `.html`-Datei herunter - oder alle Seiten als ZIP - und hosten Sie sie überall, ganz ohne laufende LinkBreeze-Instanz.
+
+<details>
+<summary>🌐 &nbsp;Ihre exportierte Seite überall hosten</summary>
+
+- **Datei holen** - Das Download-Symbol im Seiten-Umschalter exportiert eine Seite; „Alle Seiten als ZIP exportieren" paketiert die gesamte Instanz. Hängen Sie `?embed=1` an (`/api/pages/export?id=1&embed=1`), um auch den `uploads/`-Ordner für eine komplett offline-fähige Kopie einzuschließen
+- **Wo hosten** - GitHub Pages, Netlify, Cloudflare Pages oder jeder statische Dateiserver; `python3 -m http.server` eignet sich für einen schnellen Lokaltest
+- **Was mitreist** - Ihr Theme, eigenes CSS und Drittanbieter-Analytics-Snippets funktionieren weiter, und jeder Link zeigt direkt auf sein Ziel
+- **Was zu Hause bleibt** - Die integrierte Aufruf- und Klick-Analytics sowie die E-Mail-Erfassung brauchen Ihre Instanz; ohne `?embed=1` laden Bilder über absolute URLs von Ihrer Instanz - halten Sie sie erreichbar oder exportieren Sie mit `?embed=1`
+- **Größe** - Eine Seite mit 50 Links exportiert mit ~107 KB roh (~8 KB gzip), Limit 2 MiB (25 MiB mit `?embed=1`)
+
+</details>
+
 ## 📖 Dokumentation & Links
 
 [Mitmachen](CONTRIBUTING.md) · [Sicherheitsrichtlinie](SECURITY.md) · [Changelog](CHANGELOG.md) · [Fehlerbehebung](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Architekturentscheidungen](docs/adr/) · [Konfigurationsreferenz](.env.example)

@@ -423,6 +423,21 @@ Il motore dei temi è un sistema di token basato su custom property CSS (`--lb-*
 
 </details>
 
+## 📦 Esportazione statica
+
+Scarica qualsiasi pagina dal selettore pagine come un unico file `.html` autonomo - o tutte le pagine come zip - e ospitala ovunque, senza bisogno di un'istanza LinkBreeze in esecuzione.
+
+<details>
+<summary>🌐 &nbsp;Ospitare la pagina esportata ovunque</summary>
+
+- **Ottieni il file** - l'icona di download del selettore pagine esporta una pagina; "Esporta tutte le pagine come zip" raggruppa l'intera istanza. Aggiungi `?embed=1` (`/api/pages/export?id=1&embed=1`) per includere anche la cartella `uploads/` e avere una copia completamente offline
+- **Dove ospitare** - GitHub Pages, Netlify, Cloudflare Pages o qualsiasi server di file statici; `python3 -m http.server` va bene per un rapido controllo locale
+- **Cosa viaggia** - il tuo tema, il CSS personalizzato e gli snippet analytics di terze parti continuano a funzionare, e ogni link punta direttamente alla destinazione
+- **Cosa resta a casa** - le statistiche integrate di visualizzazioni/click e la raccolta email richiedono la tua istanza; senza `?embed=1` le immagini si caricano dalla tua istanza tramite URL assoluti, quindi tienila raggiungibile o esporta con `?embed=1`
+- **Dimensione** - una pagina con 50 link si esporta a ~107 KB grezzi (~8 KB gzip), con limite di 2 MiB (25 MiB con `?embed=1`)
+
+</details>
+
 ## 📖 Documentazione e Link
 
 [Contribuire](CONTRIBUTING.md) · [Politica di Sicurezza](SECURITY.md) · [Changelog](CHANGELOG.md) · [Risoluzione dei Problemi](TROUBLESHOOTING.md) · [Domini Personalizzati](docs/custom-domains.md) · [Decisioni Architetturali](docs/adr/) · [Riferimento Configurazione](.env.example)

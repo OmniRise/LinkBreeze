@@ -423,6 +423,21 @@ cloudflared tunnel --url http://localhost:3000
 
 </details>
 
+## 📦 静态导出
+
+在页面切换器中将任意页面下载为单个独立的 `.html` 文件 - 或将所有页面打包为 zip - 托管在任何地方，无需运行 LinkBreeze 实例。
+
+<details>
+<summary>🌐 &nbsp;在任何地方托管导出的页面</summary>
+
+- **获取文件** - 页面切换器的下载图标导出单个页面；"将所有页面导出为 zip" 打包整个实例。加上 `?embed=1`（`/api/pages/export?id=1&embed=1`）可一并包含 `uploads/` 文件夹，得到完全离线的副本
+- **托管位置** - GitHub Pages、Netlify、Cloudflare Pages 或任意静态文件服务器；`python3 -m http.server` 可用于本地快速检查
+- **随行内容** - 你的主题、自定义 CSS 和第三方统计代码照常工作，每个链接都直接指向目标地址
+- **留在本机的部分** - 内置的浏览/点击统计和邮件收集需要你的实例；不加 `?embed=1` 时，图片通过绝对 URL 从你的实例加载，请保持其可访问，或使用 `?embed=1` 导出
+- **体积** - 50 个链接的页面导出约 107 KB 原始大小（gzip 后约 8 KB），上限 2 MiB（加 `?embed=1` 为 25 MiB）
+
+</details>
+
 ## 📖 文档与链接
 
 [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md) · [故障排查](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [架构决策](docs/adr/) · [配置参考](.env.example)
