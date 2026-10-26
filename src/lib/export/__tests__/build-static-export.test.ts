@@ -233,3 +233,50 @@ describe("buildStaticExport", () => {
     expect(html).not.toContain("/api/uploads/");
   });
 });
+
+describe("popup mechanics in exports (E.27)", () => {
+  const popupInput: ExportInput = {
+    ...baseInput,
+    links: [
+      makeLink({
+        id: 4,
+        type: "text",
+        title: "About me",
+        popupText: "Hello there",
+        ctaLabel: "Go",
+        url: "https://example.com/about",
+      }),
+    ],
+  };
+
+  it("opens without external JS: inline onclick calls showModal()", () => {
+    const html = buildStaticExport(popupInput);
+    // trigger button (shared builder) carries the self-contained handler
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain("aria-controls=\"lb-popup-4\"");
+    expect(html).toMatch(/onclick="[^"]*getElementById\('lb-popup-4'\)/);
+    expect(html).toMatch(/onclick="[^"]*showModal\(\)/);
+  });
+
+  it("closes without external JS: backdrop + × inline handlers ship", () => {
+    const html = buildStaticExport(popupInput);
+    expect(html).toMatch(/<dialog id="lb-popup-4"[^>]*onclick="[^"]*close\('x'\)/);
+    expect(html).toMatch(/class="lb-popup-close"[^>]*onclick="[^"]*close\('x'\)/);
+  });
+
+  it("strips every beacon (click + popup-open) while the handler still works", () => {
+    const html = buildStaticExport(popupInput);
+    // applyDirectUrls removes ALL sendBeacon calls — click and open — so a
+    // static host sees zero /api/track requests (no dead-end noise).
+    expect(html).not.toContain("sendBeacon");
+    expect(html).not.toContain("/api/track");
+    // the popup handler survives beacon removal and still opens the dialog
+    expect(html).toMatch(/onclick="[^"]*getElementById\('lb-popup-4'\)/);
+    expect(html).toContain("d.showModal()");
+  });
+
+  it("popup CTA still points at the direct destination", () => {
+    const html = buildStaticExport(popupInput);
+    expect(html).toContain('href="https://example.com/about"');
+  });
+});
