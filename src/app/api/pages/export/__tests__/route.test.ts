@@ -88,6 +88,18 @@ describe("GET /api/pages/export", () => {
     expect(res.status).toBe(404);
   });
 
+  it("exports an UNPUBLISHED page too — admin-scoped, not public-scoped", async () => {
+    // The public route 404s unpublished pages; the export route must not,
+    // or admins could never snapshot drafts before publishing.
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      isPublished: false,
+    } as never);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    expect((await res.text()).startsWith("<!DOCTYPE html>")).toBe(true);
+  });
+
   it("200 single-page .html with attachment headers", async () => {
     const res = await GET(req("?id=1"));
     expect(res.status).toBe(200);
