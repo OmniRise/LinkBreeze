@@ -11,6 +11,7 @@ import {
   type ExportInput,
 } from "../src/lib/export/build-static-export";
 import { assertExportSize } from "../src/lib/export/size";
+import { createZip, dedupeNames, type ZipEntry } from "../src/lib/export/zip";
 import type { LinkRow } from "../src/server/queries";
 
 const makeLink = (over: Record<string, unknown>): LinkRow =>
@@ -137,5 +138,38 @@ console.log(`\nbytes: ${Buffer.byteLength(html, "utf-8")}`);
 console.log("wrote /tmp/sample-export.html");
 if (failed > 0) {
   console.error(`${failed} check(s) failed`);
+  process.exit(1);
+}
+
+// ── E.1/E.2 paths: batch zip + embed HTML ────────────────────────────────
+const embedHtml = buildStaticExport({ ...input, assetBase: "uploads" });
+const embedChecks: Array<[string, boolean]> = [
+  ["embed: relative uploads avatar", embedHtml.includes('src="uploads/avatar-probe.png"')],
+  ["embed: no absolute origin refs", !embedHtml.includes("https://links.example.com")],
+  ["embed: no /api/uploads refs", !embedHtml.includes("/api/uploads/")],
+];
+const names = dedupeNames(["@janedoe.html", "@janedoe.html", "blog.html"]);
+const zip: ZipEntry[] = [
+  { name: names[0], content: embedHtml },
+  { name: names[1], content: "<!DOCTYPE html><html><body>dup slug</body></html>" },
+  { name: names[2], content: "<!DOCTYPE html><html><body>second page</body></html>" },
+  // synthetic binary upload entry (probe has no uploads volume)
+  { name: "uploads/avatar-probe.png", content: Buffer.from([0x89, 0x50, 0x4e, 0x47]) },
+];
+const zipBuf = createZip(zip);
+writeFileSync("/tmp/sample-export.zip", zipBuf);
+embedChecks.push(
+  ["zip: PK signature", zipBuf.readUInt32LE(0) === 0x04034b50],
+  ["zip: deduped entry names", names[1] === "@janedoe-2.html"],
+  ["zip: 4 entries", zip.length === 4],
+);
+let zipFailed = 0;
+for (const [name, ok] of embedChecks) {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}`);
+  if (!ok) zipFailed++;
+}
+console.log("wrote /tmp/sample-export.zip", zipBuf.length, "bytes");
+if (zipFailed > 0) {
+  console.error(`${zipFailed} zip/embed check(s) failed`);
   process.exit(1);
 }
