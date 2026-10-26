@@ -17,6 +17,7 @@ import { parseQrStyle } from "@/lib/qr-style";
 import { getSession } from "@/lib/auth";
 import { getUserById } from "@/server/queries";
 import { getApiKeyRecord } from "@/server/api-keys";
+import { getApiUsage } from "@/lib/api-usage";
 import { QrCard } from "./qr-card";
 import { ApiKeyCard } from "./api-key-card";
 import { GeneralTab, IntegrationTab, AppearanceTab, CustomCssCard } from "./settings-tab-forms";
@@ -224,7 +225,7 @@ export default async function SettingsPage({
             <div className="flex flex-col gap-4">
               <ChangePasswordForm />
               <TwoFactorCard enabled={await getTotpEnabled()} />
-              <ApiKeyCard record={apiKeyRecord} />
+              <ApiKeyCard record={apiKeyRecord} usage={getApiUsage()} />
             </div>
           ),
           data: (

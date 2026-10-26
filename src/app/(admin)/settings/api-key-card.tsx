@@ -23,6 +23,13 @@ export interface ApiKeyCardRecord {
   lastUsedAt: string | null;
 }
 
+/** E.4 in-process usage counters (see src/lib/api-usage.ts). */
+export interface ApiKeyCardUsage {
+  calls: number;
+  authFails: number;
+  rateLimited: number;
+}
+
 /**
  * #4 — API key management (Settings → Security). The plaintext key exists
  * exactly once, in this card's transient state right after generation; a
@@ -30,8 +37,10 @@ export interface ApiKeyCardRecord {
  */
 export function ApiKeyCard({
   record,
+  usage,
 }: {
   record: ApiKeyCardRecord | null;
+  usage?: ApiKeyCardUsage;
 }) {
   const t = useTranslations("settings.security.apiKey");
   const tErr = useTranslations("errors");
@@ -155,6 +164,17 @@ export function ApiKeyCard({
         )}
 
         <p className="text-sm text-muted-foreground">{t("docsHint")}</p>
+
+        {/* E.4: in-process activity counters (honest process-lifetime scope). */}
+        {usage && usage.calls > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {t("usageToday", {
+              calls: usage.calls,
+              authFails: usage.authFails,
+              rateLimited: usage.rateLimited,
+            })}
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={handleGenerate} disabled={pending}>

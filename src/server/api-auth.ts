@@ -22,6 +22,7 @@ import {
 } from "@/lib/api-key";
 import { getApiKeyRecord, recordApiKeyUsed } from "@/server/api-keys";
 import { rateLimit, type RateLimitResult } from "@/lib/rate-limit";
+import { recordApiUsage } from "@/lib/api-usage";
 import { demoBlock } from "@/lib/demo";
 import { ErrorCode } from "@/lib/errors";
 
@@ -145,12 +146,14 @@ export async function apiGate(
     API_IP_RATE_LIMIT.windowMs,
   );
   if (!ipRl.ok) {
+    recordApiUsage("rateLimited");
     return { ok: false, response: rateLimitedResponse(ipRl) };
   }
 
   // 3. Bearer parse (malformed header → same 401 as unknown key).
   const presented = parseBearerToken(request.headers.get("authorization"));
   if (!presented || !isApiKeyShaped(presented)) {
+    recordApiUsage("authFails");
     return {
       ok: false,
       response: apiError(
@@ -172,6 +175,7 @@ export async function apiGate(
     record.prevHash !== null &&
     apiKeyMatches(presented, record.prevHash);
   if (!record || (!presentedHashMatch && !prevLiveMatch)) {
+    recordApiUsage("authFails");
     return {
       ok: false,
       response: apiError(
@@ -191,6 +195,7 @@ export async function apiGate(
   );
   const headers = rateHeaders(keyRl, API_KEY_RATE_LIMIT.limit);
   if (!keyRl.ok) {
+    recordApiUsage("rateLimited");
     const res = rateLimitedResponse(keyRl);
     for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
     return { ok: false, response: res };
@@ -203,6 +208,7 @@ export async function apiGate(
   if (mutating) {
     const demo = demoBlock();
     if (demo) {
+      recordApiUsage("demoBlocked");
       return {
         ok: false,
         response: apiError(ErrorCode.DEMO, demo, 403),
@@ -210,6 +216,7 @@ export async function apiGate(
     }
   }
 
+  recordApiUsage("accepted");
   return { ok: true, ctx: { keyHash: record.hash }, rateHeaders: headers };
 }
 
