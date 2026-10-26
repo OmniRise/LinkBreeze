@@ -21,6 +21,7 @@ vi.mock("@/server/api-keys", () => ({
 }));
 
 import { apiGate, API_KEY_RATE_LIMIT, API_IP_RATE_LIMIT } from "@/server/api-auth";
+import { getApiUsage, resetApiUsage } from "@/lib/api-usage";
 
 const KEY = generateApiKey();
 const RECORD = {
@@ -278,5 +279,33 @@ describe("apiGate — rate limiting", () => {
     expect(mocks.getApiKeyRecord.mock.calls.length).toBeLessThanOrEqual(
       API_IP_RATE_LIMIT.limit,
     );
+  });
+});
+
+describe("apiGate — E.4 usage-counter wiring", () => {
+  it("an accepted call increments the in-process counter", async () => {
+    resetApiUsage();
+    // Fresh key: the rate-limit describe above intentionally exhausted the
+    // shared KEY's per-key bucket (that bucket map is module-level state).
+    const fresh = generateApiKey();
+    mocks.getApiKeyRecord.mockResolvedValue({
+      ...RECORD,
+      hash: hashApiKey(fresh.key),
+    });
+    const gate = await apiGate(
+      makeRequest({ authorization: `Bearer ${fresh.key}` }),
+    );
+    expect(gate.ok).toBe(true);
+    const usage = getApiUsage();
+    expect(usage.calls).toBe(1);
+    expect(usage.accepted).toBe(1);
+  });
+
+  it("missing-key requests are counted as authFails", async () => {
+    resetApiUsage();
+    const gate = await apiGate(makeRequest({}));
+    expect(gate.ok).toBe(false);
+    expect(getApiUsage().calls).toBe(1);
+    expect(getApiUsage().authFails).toBe(1);
   });
 });

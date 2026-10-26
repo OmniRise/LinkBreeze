@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeAll } from "vitest";
 import "../../../../server/queries/__tests__/integration-setup";
 import { seedPage, seedLink, db } from "../../../../server/queries/__tests__/integration-setup";
 import * as schema from "@/db/schema";
+import { inArray } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -133,6 +134,43 @@ describe("GET /api/v1/links — cursor pagination", () => {
       const body = await res.json();
       expect(body.error.code).toBe("validation");
     }
+  });
+});
+
+describe("GET /api/v1/links — keyset tie-breaking (E.5 debt)", () => {
+  it("rows sharing an orderIndex are walked by id — no skip, no duplicate", async () => {
+    // Two links deliberately tied at orderIndex=0 (id ascending), one after.
+    seedLink({ title: "Tie A", url: "https://tie-a.example", pageId, orderIndex: 0 });
+    seedLink({ title: "Tie B", url: "https://tie-b.example", pageId, orderIndex: 0 });
+    seedLink({ title: "After tie", url: "https://after-tie.example", pageId, orderIndex: 1 });
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const query = cursor
+        ? `?limit=2&cursor=${encodeURIComponent(cursor)}`
+        : "?limit=2";
+      const res = await listLinks(get(query));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      seen.push(...body.data.map((l: { title: string }) => l.title));
+      cursor = body.meta.nextCursor;
+    } while (cursor);
+
+    const tied = seen.filter((t) => t === "Tie A" || t === "Tie B");
+    expect(tied).toHaveLength(2); // neither skipped nor duplicated
+    const idxA = seen.indexOf("Tie A");
+    const idxB = seen.indexOf("Tie B");
+    expect(idxB).toBeGreaterThan(-1);
+    expect(idxA === -1 || idxA < idxB).toBe(true); // id order within the tie
+
+    // Shared-harness hygiene: remove the fixtures so later describes still
+    // see exactly the original 5 links.
+    db.delete(schema.links)
+      .where(
+        inArray(schema.links.title, ["Tie A", "Tie B", "After tie"]),
+      )
+      .run();
   });
 });
 
