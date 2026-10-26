@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, FileText, Star, Globe, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, FileText, Star, Globe, Trash2, Download } from "lucide-react";
 import type { PageRow } from "@/server/queries";
 import { updatePageAction } from "@/server/actions/pages";
 import { DeletePageDialog } from "@/components/admin/delete-page-dialog";
@@ -164,6 +164,14 @@ export function PageSwitcher({ pages, variant = "full" }: PageSwitcherProps) {
                   </button>
                 </>
               )}
+              <a
+                href={`/api/pages/export?id=${page.id}`}
+                className="mr-2 shrink-0 text-muted-foreground transition-colors hover:text-lavender"
+                aria-label={t("exportHtml", { name: page.title || page.slug })}
+                title={t("exportHtml", { name: page.title || page.slug })}
+              >
+                <Download className="size-3.5" />
+              </a>
               <a
                 href={`/${page.slug}`}
                 target="_blank"

@@ -933,6 +933,7 @@ const en = {
   },
 
   pageSwitcher: {
+    exportHtml: "Export {name} as static HTML",
     newPage: "New page",
     deletePage: "Delete page {name}",
     viewPage: "View public page /{slug}",
