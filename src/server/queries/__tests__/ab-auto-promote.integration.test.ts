@@ -5,12 +5,12 @@
  * Toggle gating (settings KV), throttle behavior, promotion semantics and the
  * allowlist defense are exercised end to end through runAbAutoPromoteScan().
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
 import { recordClick, updateSetting, getLink } from "@/server/queries";
 import { analyticsClicks, links } from "@/db/schema";
-import { runAbAutoPromoteScan, _resetAbAutoPromoteThrottle, AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
+import { runAbAutoPromoteScan, maybeAutoPromoteAbTests, _resetAbAutoPromoteThrottle, AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
 import { parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
 
 const running: AbConfig = {
@@ -144,5 +144,44 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     await clickVariants(link.id, 50, 150);
     expect(await runAbAutoPromoteScan()).toBe(1);
     expect(parseAbConfig((await getLink(link.id))?.abConfig ?? null)?.status).toBe("archived");
+  });
+
+  it("E.20: maybeAutoPromoteAbTests' module throttle suppresses a second call; reset re-arms it", async () => {
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+
+    // The fire-and-forget entry point must never throw synchronously
+    // (it swallows scan errors into console.error by design).
+    expect(() => maybeAutoPromoteAbTests()).not.toThrow();
+    _resetAbAutoPromoteThrottle(); // the assertion above consumed the first slot
+
+    const first = await seedRunningTest();
+    await clickVariants(first.id, 50, 150);
+    maybeAutoPromoteAbTests(); // starts the scan + arms the 10-min throttle
+    await vi.waitFor(
+      async () => {
+        expect(parseAbConfig((await getLink(first.id))?.abConfig ?? null)?.status).toBe("archived");
+      },
+      { timeout: 3000 },
+    );
+
+    // Second promotable link, second call IMMEDIATELY — the throttle (armed
+    // by the call above) must suppress the scan, so this one survives.
+    const second = await seedRunningTest();
+    await clickVariants(second.id, 50, 150);
+    expect(() => maybeAutoPromoteAbTests()).not.toThrow();
+    await new Promise((r) => setTimeout(r, 300)); // give a would-be scan time
+    expect(
+      parseAbConfig((await getLink(second.id))?.abConfig ?? null)?.status,
+    ).toBe("running");
+
+    // Re-arming the throttle re-enables the scanner.
+    _resetAbAutoPromoteThrottle();
+    maybeAutoPromoteAbTests();
+    await vi.waitFor(
+      async () => {
+        expect(parseAbConfig((await getLink(second.id))?.abConfig ?? null)?.status).toBe("archived");
+      },
+      { timeout: 3000 },
+    );
   });
 });
