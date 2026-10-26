@@ -61,10 +61,12 @@ export function logError(
   const stack = err instanceof Error ? err.stack : undefined;
 
   // Extract a safe subset of meta — strip anything that looks sensitive.
+  // Covers auth material specifically: authorization/bearer headers and API
+  // keys ride request context in meta sometimes; they must never be logged.
   const safeMeta: Record<string, unknown> = {};
   if (meta) {
     for (const [key, value] of Object.entries(meta)) {
-      if (/password|secret|token|key|hash|cookie/i.test(key)) continue;
+      if (/password|secret|token|key|hash|cookie|authorization|bearer/i.test(key)) continue;
       safeMeta[key] = value;
     }
   }

@@ -10,26 +10,14 @@ import {
   unauthorizedError,
 } from "@/lib/errors";
 import { updateProfile as updateProfileQuery, type SocialLink } from "@/server/queries";
-import { safeMediaUrl } from "@/lib/theme-schema";
-import { SUPPORTED_PLATFORMS } from "@/lib/social-icons";
+import {
+  profileCoreShape,
+  socialEntrySchema,
+} from "@/lib/validation/profile";
 
-
-const platformEnum = z.enum(SUPPORTED_PLATFORMS as [string, ...string[]]);
-
-const socialEntrySchema = z.object({
-  platform: platformEnum,
-  url: z.string().min(1).max(2048),
-});
 
 const profileSchema = z.object({
-  displayName: z.string().min(1, "Display name is required").max(80),
-  bio: z.string().max(300).optional().default(""),
-  badgeText: z.string().max(40).optional().nullable(),
-  // safeMediaUrl: scheme allowlist (http(s)/site-relative) — the avatar is
-  // rendered in <img src> on the public page and the admin pickers; keeps
-  // "javascript:"/"data:" URIs out at the write boundary (CodeQL
-  // js/xss-through-dom remediation at the validation boundary).
-  avatarUrl: safeMediaUrl.optional().nullable(),
+  ...profileCoreShape,
   socialLinks: z
     .string()
     .optional()
