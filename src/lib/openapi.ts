@@ -376,6 +376,43 @@ export function buildOpenApiDocument(): Json {
         },
       },
       "/api/v1/links/{id}": {
+        get: {
+          tags: ["links"],
+          summary: "Get one link by id",
+          description: "Conditional: carries an ETag; send it back as If-None-Match for a 304 while unchanged.",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "integer", minimum: 1 },
+            },
+            {
+              name: "If-None-Match",
+              in: "header",
+              schema: { type: "string" },
+              description: "Previous ETag → 304 Not Modified (empty body).",
+            },
+          ],
+          responses: {
+            "200": {
+              description: "The link. Carries an ETag header.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: { data: { $ref: "#/components/schemas/Link" } },
+                  },
+                },
+              },
+            },
+            "304": {
+              description: "If-None-Match matched the current ETag; empty body.",
+            },
+            "404": errorResponse("Link not found"),
+            ...standardErrors,
+          },
+        },
         put: {
           tags: ["links"],
           summary: "Partially update a link",

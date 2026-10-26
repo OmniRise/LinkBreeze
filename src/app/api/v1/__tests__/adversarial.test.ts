@@ -121,7 +121,7 @@ describe("method routing", () => {
     expect(exportedMethods(reorderModule)).toEqual(["PUT"]);
 
     const idModule = await import("@/app/api/v1/links/[id]/route");
-    expect(exportedMethods(idModule)).toEqual(["DELETE", "PUT"]);
+    expect(exportedMethods(idModule)).toEqual(["DELETE", "GET", "PUT"]);
   });
 });
 

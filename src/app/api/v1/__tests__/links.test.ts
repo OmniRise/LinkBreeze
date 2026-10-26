@@ -25,6 +25,7 @@ vi.mock("@/lib/og-fetcher", () => ({
 
 import { GET as listLinks, POST as createLinkRoute } from "@/app/api/v1/links/route";
 import {
+  GET as getLinkRoute,
   PUT as updateLinkRoute,
   DELETE as deleteLinkRoute,
 } from "@/app/api/v1/links/[id]/route";
@@ -333,5 +334,97 @@ describe("PUT /api/v1/links/reorder", () => {
       req("/api/v1/links/reorder", { method: "PUT", body: { ids: ["1", "2"] } }),
     );
     expect(strings.status).toBe(400);
+  });
+});
+
+describe("GET /api/v1/links/:id (E.11 single-link read)", () => {
+  it("returns the link with an ETag and answers a replay with 304", async () => {
+    const seed = seedLink({ title: "Single read", url: "https://single.example", pageId });
+
+    const first = await getLinkRoute(
+      req(`/api/v1/links/${seed.id}`),
+      idParams(seed.id),
+    );
+    expect(first.status).toBe(200);
+    const body = await first.json();
+    expect(body.data.id).toBe(seed.id);
+    expect(body.data.title).toBe("Single read");
+    const etag = first.headers.get("etag");
+    expect(etag).toMatch(/^"[0-9a-f]{32}"$/);
+
+    const replay = await getLinkRoute(
+      req(`/api/v1/links/${seed.id}`, {}),
+      idParams(seed.id),
+    );
+    // fresh request without the validator → 200 again
+    expect(replay.status).toBe(200);
+
+    const conditional = await getLinkRoute(
+      req(`/api/v1/links/${seed.id}`, { ip: "10.21.0.9" }),
+      idParams(seed.id),
+    );
+    expect(conditional.status).toBe(200);
+  });
+
+  it("If-None-Match roundtrip → 304; PUT invalidates it", async () => {
+    const seed = seedLink({ title: "Conditional one", url: "https://cond.example", pageId });
+
+    const first = await getLinkRoute(
+      req(`/api/v1/links/${seed.id}`),
+      idParams(seed.id),
+    );
+    const etag = first.headers.get("etag")!;
+
+    const replayReq = new NextRequest(
+      `http://localhost:3000/api/v1/links/${seed.id}`,
+      {
+        headers: {
+          authorization: ["Bearer", KEY].join(" "),
+          "if-none-match": etag,
+          "x-forwarded-for": "10.22.0.1",
+        },
+      },
+    );
+    const notModified = await getLinkRoute(replayReq, idParams(seed.id));
+    expect(notModified.status).toBe(304);
+    expect(notModified.headers.get("etag")).toBe(etag);
+    expect(await notModified.text()).toBe("");
+
+    const patched = await updateLinkRoute(
+      req(`/api/v1/links/${seed.id}`, { method: "PUT", body: { title: "Renamed" } }),
+      idParams(seed.id),
+    );
+    expect(patched.status).toBe(200);
+
+    const afterChange = await getLinkRoute(
+      req(`/api/v1/links/${seed.id}`, { ip: "10.22.0.7" }),
+      idParams(seed.id),
+    );
+    expect(afterChange.status).toBe(200);
+    expect(afterChange.headers.get("etag")).not.toBe(etag);
+    expect((await afterChange.json()).data.title).toBe("Renamed");
+  });
+
+  it("404s unknown ids, 400s hostile ids, 401s without a key", async () => {
+    const missing = await getLinkRoute(
+      req("/api/v1/links/424242"),
+      idParams(424242),
+    );
+    expect(missing.status).toBe(404);
+    expect((await missing.json()).error.code).toBe("not_found");
+
+    for (const hostile of ["abc", "-1", "1.5", "9999999999", "..%2F", "0"]) {
+      const res = await getLinkRoute(
+        req(`/api/v1/links/${hostile}`),
+        idParams(hostile),
+      );
+      expect(res.status, hostile).toBe(400);
+    }
+
+    const noKey = await getLinkRoute(
+      req("/api/v1/links/1", { auth: false }),
+      idParams(1),
+    );
+    expect(noKey.status).toBe(401);
   });
 });

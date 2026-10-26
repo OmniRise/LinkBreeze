@@ -11,7 +11,14 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { apiGate, apiOk, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
+import {
+  apiGate,
+  apiOk,
+  apiOkConditional,
+  apiError,
+  parseJsonBody,
+  ErrorCode,
+} from "@/server/api-auth";
 import { getLink, updateLink, deleteLink } from "@/server/queries";
 import { linkSchema } from "@/lib/validation/link";
 import { resolveApiRedirectSlug, resolveApiIconFields } from "@/server/api-links";
@@ -27,6 +34,38 @@ function parseId(raw: string): number | null {
   if (!/^\d{1,9}$/.test(raw)) return null;
   const id = Number(raw);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+/**
+ * #4 E.11 — GET one link by id: same gate, 404 envelope, conditional
+ * (ETag/If-None-Match → 304) per decision #13.
+ */
+export async function GET(request: NextRequest, { params }: Params) {
+  const gate = await apiGate(request);
+  if (!gate.ok) return gate.response;
+
+  const { id: rawId } = await params;
+  const id = parseId(rawId);
+  if (id === null) {
+    return apiError(ErrorCode.VALIDATION, "Invalid link id.", 400, {
+      headers: gate.rateHeaders,
+    });
+  }
+
+  try {
+    const link = await getLink(id);
+    if (!link) {
+      return apiError(ErrorCode.NOT_FOUND, "Link not found.", 404, {
+        headers: gate.rateHeaders,
+      });
+    }
+    return apiOkConditional({ data: link }, request, {
+      headers: gate.rateHeaders,
+    });
+  } catch (err) {
+    logError("api/v1/links GET", err, { id });
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+  }
 }
 
 /** The schema-known fields of an existing row, as a merge candidate. */
