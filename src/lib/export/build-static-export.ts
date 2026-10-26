@@ -42,7 +42,7 @@ import {
 import { resolveIcon, isLucideIconName } from "@/lib/icon-registry";
 import { imageAdjustmentStyle } from "@/lib/image-adjustments";
 import { EXPORT_CSS } from "@/lib/export/export-css";
-import { applyDirectUrls } from "@/lib/export/direct-urls";
+import { applyDirectUrls, rewriteUploadPaths } from "@/lib/export/direct-urls";
 import { absolutizeAsset } from "@/lib/export/url-rewrite";
 
 /** Marker comment so exported files are identifiable. */
@@ -103,6 +103,12 @@ export interface ExportInput {
   theme: ThemeInput;
   /** Origin used to absolutize media URLs (e.g. https://links.example.com). */
   baseUrl: string;
+  /**
+   * Self-contained zip variant (E.2): site-relative uploads are rewritten
+   * to `assetBase/<filename>` (e.g. "uploads") instead of absolute origin
+   * URLs, so the unzipped export works fully offline.
+   */
+  assetBase?: string;
   /** Optional uploaded-font @font-face CSS (from buildFontFaceCss). */
   fontFaceCss?: string;
   /** Uploaded-font lookup for "custom:<id>" font refs. */
@@ -385,13 +391,14 @@ function videoBackgroundHtml(
 
 export function buildStaticExport(input: ExportInput): string {
   const { page, links, sections, theme, baseUrl } = input;
+  const { assetBase } = input;
 
   // Absolutize every media URL — the file renders off-origin.
-  const avatarUrl = absolutizeAsset(page.avatarUrl, baseUrl);
-  const bannerUrl = absolutizeAsset(page.bannerUrl, baseUrl);
+  const avatarUrl = absolutizeAsset(page.avatarUrl, baseUrl, assetBase);
+  const bannerUrl = absolutizeAsset(page.bannerUrl, baseUrl, assetBase);
   const themeInput: ThemeInput = {
     ...theme,
-    backgroundImageUrl: absolutizeAsset(theme.backgroundImageUrl, baseUrl),
+    backgroundImageUrl: absolutizeAsset(theme.backgroundImageUrl, baseUrl, assetBase),
   };
 
   // Per-page background overrides (mirror of page.tsx composition).
@@ -514,7 +521,9 @@ ${page.customCss ? `<style>${page.customCss}</style>` : ""}
   <script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>
 </main>`;
 
-  const directHtml = applyDirectUrls(bodyHtml, links);
+  let directHtml = applyDirectUrls(bodyHtml, links);
+  // Self-contained zip variant (E.2): site-relative upload URLs → uploads/.
+  if (assetBase !== undefined) directHtml = rewriteUploadPaths(directHtml, assetBase);
 
   return `<!DOCTYPE html>
 <html lang="en">

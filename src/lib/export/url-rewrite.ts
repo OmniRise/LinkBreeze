@@ -10,9 +10,42 @@
 export function absolutizeAsset(
   url: string | null | undefined,
   baseUrl: string,
+  assetBase?: string,
 ): string {
   if (!url) return "";
   if (/^https?:\/\//i.test(url)) return url;
+  // Self-contained zip variant (E.2): site-relative uploads become
+  // `assetBase/<filename>` so the unzipped folder works offline. Upload
+  // URLs are flat (/api/uploads/<file>), so the last path segment wins.
+  if (assetBase !== undefined) {
+    const file = url.split("/").filter(Boolean).pop() ?? "";
+    return file ? `${assetBase.replace(/\/+$/, "")}/${file}` : "";
+  }
   const base = baseUrl.replace(/\/+$/, "");
   return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+/**
+ * Names of upload files referenced by an export's asset URLs (E.2) —
+ * the zip layer reads these from the uploads volume. Only flat
+ * `assetBase/<filename>` URLs are collected (the output of
+ * absolutizeAsset with assetBase set); external URLs never match.
+ */
+export function collectUploadNames(
+  html: string,
+  assetBase = "uploads",
+): string[] {
+  // Boundary: the assetBase must start a URL (start of string, or after a
+  // quote/paren/whitespace/=) — a substring inside an EXTERNAL url
+  // (https://cdn.example/uploads/x.png) must not be collected.
+  const re = new RegExp(
+    `(?:^|["'(=\\s])${assetBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/([A-Za-z0-9._-]+)`,
+    "g",
+  );
+  const names = new Set<string>();
+  for (const match of html.matchAll(re)) {
+    const name = match[1];
+    if (name && name !== "." && name !== "..") names.add(name);
+  }
+  return [...names];
 }

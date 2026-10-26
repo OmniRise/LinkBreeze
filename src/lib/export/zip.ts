@@ -15,7 +15,8 @@ import { crc32 } from "node:zlib";
 export interface ZipEntry {
   /** File name inside the archive (no directories needed for our use). */
   name: string;
-  content: string;
+  /** Text (UTF-8 encoded) or raw binary content. */
+  content: string | Buffer;
 }
 
 /** Fixed epoch for deterministic archives in tests (2026-01-01 00:00:00 UTC). */
@@ -114,7 +115,9 @@ export function createZip(entries: ZipEntry[]): Buffer {
 
   for (const entry of entries) {
     const nameBytes = Buffer.from(entry.name, "utf8");
-    const data = Buffer.from(entry.content, "utf8");
+    const data = Buffer.isBuffer(entry.content)
+      ? entry.content
+      : Buffer.from(entry.content, "utf8");
     const crc = crc32(data);
     const header = localHeader(nameBytes, crc, data.length, DOS_EPOCH.date, DOS_EPOCH.time);
     locals.push(header, data);

@@ -222,4 +222,14 @@ describe("buildStaticExport", () => {
     expect(html).not.toContain("<iframe");
     expect(html).toContain('href="https://www.youtube.com/watch?v=abc123"');
   });
+
+  it("rewrites uploads to the flat asset base in embed mode (E.2)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      assetBase: "uploads",
+    });
+    expect(html).toContain('src="uploads/avatar-1.png"');
+    expect(html).not.toContain("links.example.com");
+    expect(html).not.toContain("/api/uploads/");
+  });
 });

@@ -50,3 +50,24 @@ export function applyDirectUrls(
   }
   return out;
 }
+
+/**
+ * Rewrite site-relative upload URLs in composed HTML to the self-contained
+ * `assetBase/<filename>` form (E.2). Covers every surface — the builder's
+ * own absolutized URLs plus card icons/images emitted verbatim by the
+ * shared card builder (which never sees assetBase). Also matches inside
+ * CSS url('…') declarations. External http(s) URLs are untouched.
+ */
+export function rewriteUploadPaths(
+  html: string,
+  assetBase = "uploads",
+): string {
+  // Boundary: /api/uploads/ must START the URL (after a quote, paren,
+  // whitespace, =, or at string start) — a path fragment inside an
+  // external URL must stay untouched.
+  return html.replace(
+    /(^|["'(=\s])\/api\/uploads\/([^"')\s]+)/g,
+    (_m, boundary: string, file: string) =>
+      `${boundary}${assetBase.replace(/\/+$/, "")}/${file}`,
+  );
+}

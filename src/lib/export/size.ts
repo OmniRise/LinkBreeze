@@ -9,6 +9,12 @@
 
 export const EXPORT_MAX_BYTES = 2 * 1024 * 1024;
 
+/**
+ * Cap for the uploads-included zip variant (E.2): media-bound rather than
+ * text-bound, so it gets a larger budget than the plain HTML export.
+ */
+export const EXPORT_EMBED_MAX_BYTES = 25 * 1024 * 1024;
+
 export type ExportSizeResult =
   | { ok: true; bytes: number }
   | { ok: false; bytes: number; max: number };

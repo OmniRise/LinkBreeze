@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFileSync } from "node:fs";
 import { getSession } from "@/lib/auth";
 import {
   getPageById,
@@ -11,9 +12,11 @@ import {
 } from "@/server/queries";
 import { pickRequestHost } from "@/lib/host-routing";
 import { buildStaticExport } from "@/lib/export/build-static-export";
-import { assertExportSize, EXPORT_MAX_BYTES } from "@/lib/export/size";
+import { assertExportSize, EXPORT_MAX_BYTES, EXPORT_EMBED_MAX_BYTES } from "@/lib/export/size";
 import { exportFilename } from "@/lib/export/filename";
-import { createZip, dedupeNames } from "@/lib/export/zip";
+import { createZip, dedupeNames, type ZipEntry } from "@/lib/export/zip";
+import { collectUploadNames } from "@/lib/export/url-rewrite";
+import { safeUploadPath } from "@/lib/uploads";
 import { parseCustomFontId, buildFontFaceCss } from "@/lib/custom-fonts";
 import type { ThemeInput } from "@/lib/theme-tokens";
 
@@ -69,6 +72,7 @@ async function buildPageHtml(
   page: NonNullable<Awaited<ReturnType<typeof getPageById>>>,
   fallbackTheme: ThemeInput | null,
   origin: string,
+  assetBase?: string,
 ): Promise<string> {
   const pageTheme = page.themeId ? await getThemeById(page.themeId) : null;
   const theme: ThemeInput = pageTheme ?? fallbackTheme ?? {};
@@ -83,14 +87,45 @@ async function buildPageHtml(
     sections,
     theme,
     baseUrl: origin,
+    assetBase,
     ...fontOptions,
   });
 }
 
-function sizeError(bytes: number): NextResponse {
+/**
+ * Upload files referenced by the exported HTML (E.2) — read from the
+ * volume via safeUploadPath; missing files are skipped (same as the live
+ * page's broken-image behavior for deleted uploads).
+ */
+function collectUploadEntries(htmls: string[]): ZipEntry[] {
+  const names = new Set(htmls.flatMap((html) => collectUploadNames(html)));
+  const entries: ZipEntry[] = [];
+  for (const name of names) {
+    const abs = safeUploadPath(name);
+    if (!abs) continue;
+    try {
+      entries.push({ name: `uploads/${name}`, content: readFileSync(abs) });
+    } catch {
+      // Missing/unreadable upload — skip, mirroring the live page.
+    }
+  }
+  return entries;
+}
+
+function zipResponse(zip: Buffer, filename: string): NextResponse {
+  return new NextResponse(new Uint8Array(zip), {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function sizeError(bytes: number, maxBytes: number): NextResponse {
   return NextResponse.json(
     {
-      error: `Export exceeds the ${Math.round(EXPORT_MAX_BYTES / (1024 * 1024))} MiB limit`,
+      error: `Export exceeds the ${Math.round(maxBytes / (1024 * 1024))} MiB limit`,
       bytes,
     },
     { status: 413 },
@@ -104,6 +139,9 @@ export async function GET(request: NextRequest) {
 
   const sp = new URL(request.url).searchParams;
   const origin = getOrigin(request);
+  const embed = sp.get("embed") === "1";
+  // E.2: self-contained zip — assets rewritten to uploads/ and shipped.
+  const assetBase = embed ? "uploads" : undefined;
 
   // ── Batch export: every page as one zip (?all=1, E.1) ────────────────────
   if (sp.get("all") === "1") {
@@ -116,25 +154,30 @@ export async function GET(request: NextRequest) {
     }
     const htmls: string[] = [];
     for (const page of pages) {
-      htmls.push(await buildPageHtml(page, fallbackTheme, origin));
+      htmls.push(await buildPageHtml(page, fallbackTheme, origin, assetBase));
     }
-    const totalBytes = htmls.reduce(
-      (sum, html) => sum + new TextEncoder().encode(html).length,
-      0,
-    );
-    if (totalBytes > EXPORT_MAX_BYTES) return sizeError(totalBytes);
 
     const names = dedupeNames(pages.map((page) => exportFilename(page.slug)));
-    const zip = createZip(
-      htmls.map((html, i) => ({ name: names[i], content: html })),
+    const htmlEntries: ZipEntry[] = htmls.map((html, i) => ({
+      name: names[i],
+      content: html,
+    }));
+    const uploadEntries = embed ? collectUploadEntries(htmls) : [];
+    const maxBytes = embed ? EXPORT_EMBED_MAX_BYTES : EXPORT_MAX_BYTES;
+    const totalBytes = [...htmlEntries, ...uploadEntries].reduce(
+      (sum, entry) =>
+        sum +
+        (Buffer.isBuffer(entry.content)
+          ? entry.content.length
+          : new TextEncoder().encode(entry.content).length),
+      0,
     );
-    return new NextResponse(new Uint8Array(zip), {
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": 'attachment; filename="linkbreeze-pages.zip"',
-        "Cache-Control": "no-store",
-      },
-    });
+    if (totalBytes > maxBytes) return sizeError(totalBytes, maxBytes);
+
+    return zipResponse(
+      createZip([...htmlEntries, ...uploadEntries]),
+      "linkbreeze-pages.zip",
+    );
   }
 
   // ── Single-page export ───────────────────────────────────────────────────
@@ -151,10 +194,33 @@ export async function GET(request: NextRequest) {
 
   // Same theme resolution as the public page: page theme → active fallback.
   const fallbackTheme = await getActiveTheme();
-  const html = await buildPageHtml(page, fallbackTheme, origin);
+  const html = await buildPageHtml(page, fallbackTheme, origin, assetBase);
+
+  // E.2 self-contained variant: html + referenced uploads in one zip.
+  if (embed) {
+    const htmlEntry: ZipEntry = { name: exportFilename(page.slug), content: html };
+    const uploadEntries = collectUploadEntries([html]);
+    const totalBytes =
+      new TextEncoder().encode(html).length +
+      uploadEntries.reduce(
+        (sum, entry) =>
+          sum +
+          (Buffer.isBuffer(entry.content)
+            ? entry.content.length
+            : new TextEncoder().encode(entry.content).length),
+        0,
+      );
+    if (totalBytes > EXPORT_EMBED_MAX_BYTES) {
+      return sizeError(totalBytes, EXPORT_EMBED_MAX_BYTES);
+    }
+    return zipResponse(
+      createZip([htmlEntry, ...uploadEntries]),
+      `${exportFilename(page.slug).replace(/\.html$/, "")}-export.zip`,
+    );
+  }
 
   const size = assertExportSize(html);
-  if (!size.ok) return sizeError(size.bytes);
+  if (!size.ok) return sizeError(size.bytes, EXPORT_MAX_BYTES);
 
   return new NextResponse(html, {
     headers: {

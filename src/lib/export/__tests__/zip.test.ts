@@ -29,7 +29,7 @@ function eocdCount(buf: Buffer): number {
 
 describe("createZip", () => {
   it("round-trips entries with correct CRCs (store method)", () => {
-    const input: ZipEntry[] = [
+    const input = [
       { name: "jane.html", content: "<!DOCTYPE html><html>hello</html>" },
       { name: "second.html", content: "x".repeat(1000) },
     ];
