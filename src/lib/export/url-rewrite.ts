@@ -14,6 +14,10 @@ export function absolutizeAsset(
 ): string {
   if (!url) return "";
   if (/^https?:\/\//i.test(url)) return url;
+  // Already self-contained schemes (admin can set a data: avatar/image):
+  // never prefix with origin, never treat as an uploads path (E.36) —
+  // otherwise embed mode would emit `uploads/data:image/…` garbage.
+  if (/^(data|blob):/i.test(url)) return url;
   // Self-contained zip variant (E.2): site-relative uploads become
   // `assetBase/<filename>` so the unzipped folder works offline. Upload
   // URLs are flat (/api/uploads/<file>), so the last path segment wins.

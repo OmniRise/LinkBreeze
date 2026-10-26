@@ -18,6 +18,18 @@ describe("absolutizeAsset (assetBase mode, E.2)", () => {
     ).toBe("https://cdn.example/pic.jpg");
   });
 
+  it("leaves data:/blob: URIs byte-verbatim in both modes (E.36)", () => {
+    const uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+    const blob = "blob:https://x.example/9f8e7d6c";
+    for (const mode of ["uploads", undefined] as const) {
+      expect(absolutizeAsset(uri, "https://x.example", mode)).toBe(uri);
+      expect(absolutizeAsset(blob, "https://x.example", mode)).toBe(blob);
+    }
+    // and they are never collected for the zip
+    const html = `<img src="${uri}"><img src='${blob}'>`;
+    expect(collectUploadNames(html, "uploads")).toEqual([]);
+  });
+
   it("still absolutizes against origin when assetBase is absent", () => {
     expect(absolutizeAsset("/api/uploads/a.png", "https://x.example")).toBe(
       "https://x.example/api/uploads/a.png",

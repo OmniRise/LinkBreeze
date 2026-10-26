@@ -305,3 +305,26 @@ describe("export determinism (E.32)", () => {
     expect(createZip(entries).equals(createZip(entries))).toBe(true);
   });
 });
+
+describe("data-URI asset passthrough (E.36)", () => {
+  const uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==AAAA";
+  const withDataAvatar: ExportInput = {
+    ...baseInput,
+    page: { ...baseInput.page, avatarUrl: uri },
+  };
+
+  it("plain export keeps the data: avatar byte-verbatim", () => {
+    const html = buildStaticExport(withDataAvatar);
+    expect(html).toContain(`src="${uri}"`);
+    expect(html).not.toContain("data:image/png;base64,http");
+    expect(html).not.toContain(`https://links.example.com/data:`);
+  });
+
+  it("embed export keeps the data: avatar and collects nothing for it", async () => {
+    const html = buildStaticExport({ ...withDataAvatar, assetBase: "uploads" });
+    expect(html).toContain(`src="${uri}"`);
+    expect(html).not.toContain("uploads/data:image");
+    const { collectUploadNames } = await import("@/lib/export/url-rewrite");
+    expect(collectUploadNames(html, "uploads")).toEqual([]);
+  });
+});
