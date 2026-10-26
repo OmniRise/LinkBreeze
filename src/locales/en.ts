@@ -759,6 +759,23 @@ const en = {
     },
 
     security: {
+      apiKey: {
+        title: "API access",
+        desc: "Create an API key to manage links, profile and analytics through the public REST API.",
+        generate: "Generate key",
+        regenerate: "Regenerate key",
+        revoke: "Revoke key",
+        working: "Working…",
+        copy: "Copy key",
+        copied: "Copied to clipboard.",
+        warning: "Copy it now: this is the only time the full key is shown. If you lose it, generate a new one.",
+        keyLabel: "Key",
+        createdAt: "Created",
+        lastUsed: "Last used",
+        neverUsed: "Never",
+        revoked: "API key revoked.",
+        docsHint: "Endpoint reference: /api/v1/docs (send the key as a Bearer token).",
+      },
 
       updatePassword: "Update password",
 

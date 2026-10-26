@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 7f3b24d510f3 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 7c06bf5ecedf ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -751,6 +751,23 @@ const it: Messages = {
     },
 
     security: {
+      apiKey: {
+        title: "Accesso API",
+        desc: "Crea una chiave API per gestire link, profilo e analisi tramite la REST API pubblica.",
+        generate: "Genera chiave",
+        regenerate: "Rigenera chiave",
+        revoke: "Revoca chiave",
+        working: "Operazione in corso…",
+        copy: "Copia chiave",
+        copied: "Copiato negli appunti.",
+        warning: "Copia subito: è l'unica volta che la chiave completa viene mostrata. Se la perdi, generane una nuova.",
+        keyLabel: "Chiave",
+        createdAt: "Creata",
+        lastUsed: "Ultimo utilizzo",
+        neverUsed: "Mai",
+        revoked: "Chiave API revocata.",
+        docsHint: "Riferimento degli endpoint: /api/v1/docs (invia la chiave come token Bearer).",
+      },
 
       updatePassword: "Aggiorna password",
 

@@ -16,7 +16,9 @@ import { formatTimeOfDay } from "@/lib/backup-schedule";
 import { parseQrStyle } from "@/lib/qr-style";
 import { getSession } from "@/lib/auth";
 import { getUserById } from "@/server/queries";
+import { getApiKeyRecord } from "@/server/api-keys";
 import { QrCard } from "./qr-card";
+import { ApiKeyCard } from "./api-key-card";
 import { GeneralTab, IntegrationTab, AppearanceTab, CustomCssCard } from "./settings-tab-forms";
 import { OgImageCard } from "./og-image-card";
 import { ChangePasswordForm } from "./change-password-form";
@@ -78,6 +80,17 @@ export default async function SettingsPage({
 
   // Update status card (Data tab): installed vs latest on GitHub + website.
   const updateStatus = await getUpdateStatus();
+
+  // API key card (Security tab): NEVER ship the hash to the client — only
+  // display metadata (prefix + timestamps).
+  const keyRecord = await getApiKeyRecord();
+  const apiKeyRecord = keyRecord
+    ? {
+        prefix: keyRecord.prefix,
+        createdAt: keyRecord.createdAt,
+        lastUsedAt: keyRecord.lastUsedAt,
+      }
+    : null;
 
   // #83: opportunistic scheduled-backup trigger on admin loads (quiet
   // instances whose owners log in but get no public traffic still back up).
@@ -211,6 +224,7 @@ export default async function SettingsPage({
             <div className="flex flex-col gap-4">
               <ChangePasswordForm />
               <TwoFactorCard enabled={await getTotpEnabled()} />
+              <ApiKeyCard record={apiKeyRecord} />
             </div>
           ),
           data: (
