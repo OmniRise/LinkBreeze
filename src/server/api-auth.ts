@@ -66,16 +66,22 @@ export function apiError(
 }
 
 /** Canonical v1 success response: `{ "data": ... }`. */
-export function apiOk(data: unknown, init?: { status?: number }): NextResponse {
+export function apiOk(
+  data: unknown,
+  init?: { status?: number; headers?: Record<string, string> },
+): NextResponse {
   return NextResponse.json(
     { data },
-    { status: init?.status ?? 200, headers: { "Cache-Control": "no-store" } },
+    {
+      status: init?.status ?? 200,
+      headers: { "Cache-Control": "no-store", ...(init?.headers ?? {}) },
+    },
   );
 }
 
 /** Machine-readable codes: the ONE vocabulary from src/lib/errors.ts, so the
  *  REST API and the admin UI can never drift apart. */
-export { ErrorCode as ApiErrorCode };
+export { ErrorCode };
 
 // ── Gate ───────────────────────────────────────────────────────────────
 
