@@ -19,6 +19,35 @@ img,svg,video{display:block;max-width:100%}
 button{font:inherit;color:inherit;background:none;cursor:pointer}
 a{color:inherit;text-decoration:none}`;
 
+/**
+ * Font variable fallbacks. On the live app every --lb-font-* / --font-sans
+ * variable is defined by next/font in layout.tsx; the exported file has no
+ * build, so undefined variables make the whole `var(--x), sans-serif` stack
+ * invalid at computed-value time and text falls back to the UA serif face.
+ * Generic families per font character keep every theme's font choice sane
+ * offline (uploaded-font themes get real @font-face CSS instead — see the
+ * route's fontFaceCss pass-through).
+ */
+const FONT_FALLBACKS_CSS = `:root{
+--font-sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-inter:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-poppins:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-space-grotesk:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-dm-sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-sora:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-outfit:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-nunito:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-montserrat:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+--lb-font-playfair:Georgia,"Times New Roman",serif;
+--lb-font-lora:Georgia,"Times New Roman",serif;
+--lb-font-abril:Georgia,"Times New Roman",serif;
+--lb-font-jetbrains:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+--lb-font-press-start:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+--lb-font-bebas:Impact,"Arial Narrow",sans-serif;
+--lb-font-caveat:"Comic Sans MS",cursive;
+--lb-font-pacifico:cursive;
+}`;
+
 /** Structural rules for export-only wrapper classes (media-query sized). */
 const STRUCTURAL_CSS = `.lb-export-container{max-width:var(--lb-container-width);margin:0 auto;padding:48px 20px 24px;text-align:var(--lb-alignment)}
 @media (min-width:640px){.lb-export-container{padding-top:64px;padding-bottom:32px}}
@@ -170,6 +199,7 @@ const REDUCED_MOTION_CSS = `@media (prefers-reduced-motion:reduce){
 
 export const EXPORT_CSS = [
   RESET_CSS,
+  FONT_FALLBACKS_CSS,
   STRUCTURAL_CSS,
   KEYFRAMES_CSS,
   BACKGROUND_CSS,
