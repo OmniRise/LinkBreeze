@@ -473,6 +473,79 @@ export function buildOpenApiDocument(): Json {
           },
         },
       },
+      "/api/v1/links/import": {
+        post: {
+          tags: ["links"],
+          summary: "Bulk-create links (partial failure reporting)",
+          description:
+            "1..100 items per request. Every item runs the exact single-create " +
+            "pipeline (same validation, slug, icons, enrichment). Envelope problems " +
+            "(missing/empty/oversized items) are a 400; per-item failures come " +
+            "back as results[i].error inside 200 — one bad entry never aborts the batch.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["items"],
+                  additionalProperties: false,
+                  properties: {
+                    items: {
+                      type: "array",
+                      minItems: 1,
+                      maxItems: 100,
+                      items: { $ref: "#/components/schemas/LinkCreate" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Per-item results with created/failed counts",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      data: {
+                        type: "object",
+                        properties: {
+                          results: {
+                            type: "array",
+                            items: {
+                              type: "object",
+                              required: ["index", "status"],
+                              properties: {
+                                index: { type: "integer" },
+                                status: { type: "string", enum: ["created", "error"] },
+                                id: { type: "integer", description: "Present when created." },
+                                error: {
+                                  type: "object",
+                                  properties: {
+                                    code: { type: "string", enum: ["validation", "internal"] },
+                                    message: { type: "string" },
+                                    details: { type: "array", items: { type: "object" } },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                          created: { type: "integer" },
+                          failed: { type: "integer" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            ...standardErrors,
+          },
+        },
+      },
       "/api/v1/sections": {
         get: {
           tags: ["sections"],

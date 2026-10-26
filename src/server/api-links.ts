@@ -22,7 +22,9 @@ import {
 } from "@/lib/link-slug";
 import { isLucideName } from "@/lib/link-icons";
 import { fetchAndCacheFavicon, extractDomain } from "@/lib/favicon";
-import { isSlugTaken } from "@/server/queries";
+import { fetchOgData } from "@/lib/og-fetcher";
+import { isSlugTaken, createLink, getDefaultPage } from "@/server/queries";
+import { linkSchema } from "@/lib/validation/link";
 
 /** English default CTA for location cards (matches the action's en entry). */
 export const DEFAULT_MAPS_CTA_LABEL = "Open in Google Maps";
@@ -110,6 +112,118 @@ export function normalizeApiPopupFields(d: {
     return { url: "", ctaLabel: null };
   }
   return { url: d.url, ctaLabel: null };
+}
+
+// ─── E.10 shared create path (single POST + bulk import run THE SAME code) ───
+
+export type CreateLinkFailure = {
+  ok: false;
+  message: string;
+  details?: Array<{ path: string; message: string }>;
+};
+export type CreateLinkOutcome =
+  | { ok: true; row: Awaited<ReturnType<typeof createLink>> }
+  | CreateLinkFailure;
+
+function fail(message: string, path?: string): CreateLinkFailure {
+  return { ok: false, message, ...(path ? { details: [{ path, message }] } : {}) };
+}
+
+/**
+ * Create ONE link from raw request JSON — the full single-create pipeline
+ * (shared linkSchema → /go/ slug availability → icon resolution → OG
+ * pre-fill for rich cards → per-type URL/CTA normalization → default-page
+ * fallback → createLink). Used by POST /api/v1/links AND the E.10 bulk
+ * import loop, so a bulk item can never diverge from a single create.
+ * Throws only on DB-level failures (callers catch per item / per request).
+ */
+export async function createLinkFromRaw(raw: unknown): Promise<CreateLinkOutcome> {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, message: "Entry must be a JSON object." };
+  }
+
+  // Single validation boundary: the SAME schema the admin action parses.
+  // The resource id is the URL's, never the body's — strip it before parse.
+  // Unknown keys (userId, createdAt, clicksCount, ...) are stripped by zod
+  // and never forwarded — the insert is an explicit field pick below.
+  const bodyRecord = { ...(raw as Record<string, unknown>) };
+  delete bodyRecord.id;
+  const parsed = linkSchema.safeParse(bodyRecord);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => ({
+      path: i.path.join(".") || "(root)",
+      message: i.message,
+    }));
+    return {
+      ok: false,
+      message: details[0]?.message ?? "Invalid input",
+      details,
+    };
+  }
+  const d = parsed.data;
+
+  // #96 custom /go/ slug: validate + availability before any write.
+  const slug = await resolveApiRedirectSlug(d.redirectSlug);
+  if (!slug.ok) return fail(slug.message, slug.path);
+
+  // Icon fields (favicon fetch / lucide pick; custom upload is API-rejected).
+  const icons = await resolveApiIconFields({
+    iconMode: d.iconMode,
+    icon: d.icon,
+    type: d.type,
+    url: d.url,
+    autoIcon: d.autoIcon,
+  });
+  if (!icons.ok) return fail(icons.message, icons.path);
+
+  // Rich cards: same OG pre-fill as the admin action (best-effort).
+  let description = d.description || null;
+  let imageUrl = d.imageUrl || null;
+  if (d.cardStyle === "rich" && d.type === "url" && extractDomain(d.url)) {
+    const og = await fetchOgData(d.url);
+    if (!description && og.description) description = og.description;
+    if (!imageUrl && og.imageUrl) imageUrl = og.imageUrl;
+  }
+
+  // Per-type URL + CTA normalization (#93/#87).
+  const popup = normalizeApiPopupFields({
+    type: d.type,
+    url: d.url,
+    ctaLabel: d.ctaLabel,
+  });
+
+  // Default page resolution mirrors createLink's own fallback — resolving
+  // it here keeps the insert payload explicit (404 if the instance has no
+  // page at all, which only happens on a broken setup).
+  let pageId = d.pageId;
+  if (pageId === undefined) {
+    pageId = (await getDefaultPage())?.id;
+  }
+
+  const row = await createLink({
+    title: d.title,
+    url: popup.url,
+    ...(pageId !== undefined ? { pageId } : {}),
+    description,
+    imageUrl,
+    type: d.type,
+    isHighlighted: d.isHighlighted,
+    isActive: d.isActive,
+    autoIcon: d.autoIcon,
+    icon: icons.value.icon,
+    iconUrl: icons.value.iconUrl,
+    iconMode: icons.value.iconMode,
+    cardStyle: d.cardStyle,
+    sectionId: d.sectionId ?? null,
+    scheduleStart: d.scheduleStart || null,
+    scheduleEnd: d.scheduleEnd || null,
+    popupText:
+      d.type === "text" || d.type === "location" ? d.popupText || null : null,
+    ctaLabel: popup.ctaLabel,
+    redirectSlug: slug.value,
+  });
+
+  return { ok: true, row };
 }
 
 // ─── E.3 list pagination + sparse fieldsets (GET /api/v1/links) ──────────────
