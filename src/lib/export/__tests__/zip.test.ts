@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { crc32 } from "node:zlib";
 import { createZip, dedupeNames, type ZipEntry } from "@/lib/export/zip";
+import { exportFilename } from "@/lib/export/filename";
+import { collectUploadNames } from "@/lib/export/url-rewrite";
 
 /** Minimal STORE-method reader for round-trip assertions. */
 function readZip(buf: Buffer): Array<{ name: string; content: string; crc: number }> {
@@ -52,6 +54,63 @@ describe("createZip", () => {
   it("produces a deterministic archive for fixed input", () => {
     const input: ZipEntry[] = [{ name: "a.html", content: "same" }];
     expect(createZip(input).equals(createZip(input))).toBe(true);
+  });
+});
+
+/**
+ * E.13 — zip-slip regression. Archive entry names come from
+ * exportFilename (hostile slugs) plus the fixed "uploads/" literal; a
+ * name containing a path separator could escape the extraction
+ * directory on unzip. Prove the sanitizer makes that impossible.
+ */
+describe("zip-slip: entry names are always flat", () => {
+  const hostileSlugs = [
+    "../../etc/cron.d/x",
+    "..\\..\\windows\\system32\\evil",
+    "a/b/c",
+    "/absolute/path",
+    "....//....//x",
+    "C:\\evil",
+    ".hidden",
+  ];
+
+  it("exportFilename never emits a path separator", () => {
+    for (const slug of hostileSlugs) {
+      const name = exportFilename(slug);
+      expect(name, slug).not.toContain("/");
+      expect(name, slug).not.toContain("\\");
+      expect(name, slug).toMatch(/^[A-Za-z0-9-_.@]+\.html$/);
+    }
+  });
+
+  it("a hostile-slug batch produces a zip with only flat entries", () => {
+    const entries: ZipEntry[] = hostileSlugs.map((slug) => ({
+      name: exportFilename(slug),
+      content: "x",
+    }));
+    const zip = createZip(entries);
+    // parse local headers and re-check every stored name
+    let off = 0;
+    let count = 0;
+    while (off + 4 <= zip.length && zip.readUInt32LE(off) === 0x04034b50) {
+      const size = zip.readUInt32LE(off + 18);
+      const nameLen = zip.readUInt16LE(off + 26);
+      const extraLen = zip.readUInt16LE(off + 28);
+      const name = zip.subarray(off + 30, off + 30 + nameLen).toString("utf8");
+      expect(name).not.toContain("/");
+      expect(name).not.toContain("\\");
+      count++;
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    expect(count).toBe(hostileSlugs.length);
+  });
+
+  it("collectUploadNames can never yield separators (file charset)", () => {
+    const html = '<img src="uploads/a/../b.png"><img src="uploads/x/y.png">';
+    for (const name of collectUploadNames(html)) {
+      expect(name).not.toContain("/");
+      expect(name).not.toContain("\\");
+    }
   });
 });
 
