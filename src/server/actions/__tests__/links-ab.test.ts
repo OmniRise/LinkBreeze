@@ -392,3 +392,43 @@ describe("removeAbTest", () => {
     expect(mocks.getLink).not.toHaveBeenCalled();
   });
 });
+
+describe("error paths: invalid id + not-found (E.28)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.demoBlock.mockReturnValue(null);
+    mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1 });
+    mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
+  });
+
+  const cases: Array<{ name: string; call: (data: Record<string, string>) => Promise<{ success: boolean; error?: string }> }> = [
+    { name: "setAbTest", call: (d) => setAbTest(fd(d)) },
+    { name: "setAbTestStatus", call: (d) => setAbTestStatus(fd(d)) },
+    { name: "promoteAbVariant", call: (d) => promoteAbVariant(fd(d)) },
+    { name: "removeAbTest", call: (d) => removeAbTest(fd(d)) },
+  ];
+  const payload = (name: string, id: string): Record<string, string> => {
+    const base: Record<string, string> = { id };
+    if (name === "setAbTest") Object.assign(base, { urlB: "https://example.com/b", weightA: "50" });
+    if (name === "setAbTestStatus") base.status = "paused";
+    if (name === "promoteAbVariant") base.winner = "B";
+    return base;
+  };
+
+  for (const { name, call } of cases) {
+    it(`${name}: non-numeric id is a validation error (no lookup)`, async () => {
+      const res = await call(payload(name, "not-a-number"));
+      expect(res.success).toBe(false);
+      if (!res.success) expect(res.error).toContain("Invalid link id");
+      expect(mocks.getLink).not.toHaveBeenCalled();
+    });
+
+    it(`${name}: unknown id is not-found (no write)`, async () => {
+      mocks.getLink.mockResolvedValue(null);
+      const res = await call(payload(name, "999999"));
+      expect(res.success).toBe(false);
+      if (!res.success) expect(res.error).toContain("Link not found");
+      expect(mocks.updateLink).not.toHaveBeenCalled();
+    });
+  }
+});
