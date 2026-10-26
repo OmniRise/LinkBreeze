@@ -740,6 +740,12 @@ export async function updateSetting(key: string, value: string): Promise<void> {
   }
 }
 
+/** Remove a settings KV row entirely (e.g. revoking an API key — a stale
+ *  empty-string row would keep dead keys visible to getSettings dumps). */
+export async function deleteSetting(key: string): Promise<void> {
+  await db.delete(settings).where(eq(settings.key, key));
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getUserCount(): Promise<number> {
