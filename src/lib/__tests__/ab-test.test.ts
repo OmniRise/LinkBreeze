@@ -332,6 +332,14 @@ describe("docs-drift tripwire (#81 E.19)", () => {
     );
   });
 
+  it("E.29: the CHANGELOG #81 entry's floors come from the same constants", () => {
+    // Second hardcoding surface for the same thresholds — a constant change
+    // must fail on the release notes too, not just the guide.
+    const changelog = readFileSync(resolve(process.cwd(), "CHANGELOG.md"), "utf8");
+    expect(changelog).toContain(`a winner below ${AB_MIN_SAMPLE_CLICKS} clicks`);
+    expect(changelog).toContain(`automatically at ${AB_AUTO_PROMOTE_MIN_CLICKS}+ clicks`);
+  });
+
   it("the constants themselves stay sane (guard against an accidental 0)", () => {
     expect(AB_MIN_SAMPLE_CLICKS).toBeGreaterThanOrEqual(50);
     expect(AB_AUTO_PROMOTE_MIN_CLICKS).toBeGreaterThan(AB_MIN_SAMPLE_CLICKS);
