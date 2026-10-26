@@ -11,7 +11,7 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { apiGate, apiOk, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
+import { apiGate, apiOk, apiOkConditional, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
 import { getProfile, updateProfile } from "@/server/queries";
 import { profileCoreShape, socialEntrySchema } from "@/lib/validation/profile";
 import { logError } from "@/lib/errors";
@@ -57,7 +57,9 @@ export async function GET(request: NextRequest) {
         headers: gate.rateHeaders,
       });
     }
-    return apiOk(serializeProfile(existing), { headers: gate.rateHeaders });
+    return apiOkConditional({ data: serializeProfile(existing) }, request, {
+      headers: gate.rateHeaders,
+    });
   } catch (err) {
     logError("api/v1/profile GET", err);
     return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);

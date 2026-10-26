@@ -10,7 +10,7 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { apiGate, apiOk, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
+import { apiGate, apiOk, apiOkConditional, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
 import {
   getAllLinks,
   listLinksKeyset,
@@ -75,8 +75,11 @@ export async function GET(request: NextRequest) {
   try {
     if (!paginated) {
       const all = await getAllLinks();
-      return apiOk(
-        all.map((r) => projectRow(r as unknown as Record<string, unknown>, fields)),
+      return apiOkConditional(
+        {
+          data: all.map((r) => projectRow(r as unknown as Record<string, unknown>, fields)),
+        },
+        request,
         { headers: gate.rateHeaders },
       );
     }
@@ -87,16 +90,17 @@ export async function GET(request: NextRequest) {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
     const last = page[page.length - 1];
-    return apiOk(
-      page.map((r) => projectRow(r as unknown as Record<string, unknown>, fields)),
+    return apiOkConditional(
       {
-        headers: gate.rateHeaders,
+        data: page.map((r) => projectRow(r as unknown as Record<string, unknown>, fields)),
         meta: {
           count: page.length,
           nextCursor:
             hasMore && last ? encodeListCursor(last.orderIndex, last.id) : null,
         },
       },
+      request,
+      { headers: gate.rateHeaders },
     );
   } catch (err) {
     logError("api/v1/links GET", err);

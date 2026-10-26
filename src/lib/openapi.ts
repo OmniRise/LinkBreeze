@@ -314,10 +314,18 @@ export function buildOpenApiDocument(): Json {
                 "Comma-separated sparse fieldset, e.g. `fields=title,url,clicksCount` " +
                 "(id always included; unknown names are a 400).",
             },
+            {
+              name: "If-None-Match",
+              in: "header",
+              schema: { type: "string" },
+              description:
+                "Previous ETag → 304 Not Modified (empty body) while the list is unchanged.",
+            },
           ],
           responses: {
             "200": {
-              description: "All links (no params) or one page (with limit/cursor)",
+              description:
+                "All links (no params) or one page (with limit/cursor). Carries an ETag header.",
               content: {
                 "application/json": {
                   schema: {
@@ -335,6 +343,9 @@ export function buildOpenApiDocument(): Json {
                   },
                 },
               },
+            },
+            "304": {
+              description: "If-None-Match matched the current ETag; empty body.",
             },
             ...standardErrors,
           },
@@ -595,9 +606,19 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["profile"],
           summary: "Get the profile",
+          description:
+            "Conditional: carries an ETag; send it back as If-None-Match for a 304 while unchanged.",
+          parameters: [
+            {
+              name: "If-None-Match",
+              in: "header",
+              schema: { type: "string" },
+              description: "Previous ETag → 304 Not Modified (empty body).",
+            },
+          ],
           responses: {
             "200": {
-              description: "Profile",
+              description: "Profile. Carries an ETag header.",
               content: {
                 "application/json": {
                   schema: {
@@ -606,6 +627,9 @@ export function buildOpenApiDocument(): Json {
                   },
                 },
               },
+            },
+            "304": {
+              description: "If-None-Match matched the current ETag; empty body.",
             },
             "404": errorResponse("Profile not created yet (set displayName via PUT)"),
             ...standardErrors,

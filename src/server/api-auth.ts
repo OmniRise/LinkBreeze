@@ -23,6 +23,7 @@ import {
 import { getApiKeyRecord, recordApiKeyUsed } from "@/server/api-keys";
 import { rateLimit, type RateLimitResult } from "@/lib/rate-limit";
 import { recordApiUsage } from "@/lib/api-usage";
+import { etagFor, etagNotModified } from "@/lib/api-etag";
 import { demoBlock } from "@/lib/demo";
 import { ErrorCode } from "@/lib/errors";
 
@@ -80,6 +81,31 @@ export function apiOk(
       headers: { "Cache-Control": "no-store", ...(init?.headers ?? {}) },
     },
   );
+}
+
+/**
+ * #4 E.8 — conditional success response: 200s carry a strong ETag over the
+ * EXACT body; a matching If-None-Match returns an empty 304 with the same
+ * ETag (poller bandwidth saving). `body` must be the full wire payload
+ * (`{ data, meta? }`) so the hash matches serialization byte-for-byte.
+ */
+export function apiOkConditional(
+  body: unknown,
+  request: NextRequest,
+  init?: { headers?: Record<string, string> },
+): NextResponse {
+  const etag = etagFor(body);
+  const base = init?.headers ?? {};
+  if (etagNotModified(request.headers.get("if-none-match"), etag)) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: { ...base, ETag: etag, "Cache-Control": "no-store" },
+    });
+  }
+  return NextResponse.json(body, {
+    status: 200,
+    headers: { "Cache-Control": "no-store", ...base, ETag: etag },
+  });
 }
 
 /** Machine-readable codes: the ONE vocabulary from src/lib/errors.ts, so the
