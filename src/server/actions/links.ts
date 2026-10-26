@@ -19,6 +19,7 @@ import {
   reorderLinks as reorderLinksQuery,
   isSlugTaken,
   getLink,
+  updateSetting,
 } from "@/server/queries";
 import {
   abConfigSchema,
@@ -803,6 +804,34 @@ export async function removeAbTest(formData: FormData): Promise<ActionResult> {
     return { success: true };
   } catch (err) {
     logError("removeAbTest", err, { id });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/**
+ * #81 E.1 — global auto-promotion toggle (settings KV `abAutoPromote`).
+ *
+ * DEFAULT OFF: an operator who set up a manual test never gets it promoted
+ * out from under them without opting in. When on, the throttled scanner in
+ * src/server/ab-auto-promote.ts promotes any running test whose variant
+ * clicks clear the minimum sample with a significant margin.
+ */
+export async function setAbAutoPromote(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await getSession())) return unauthorizedError();
+
+  const enabled = formData.get("abAutoPromote") === "on";
+  try {
+    await updateSetting("abAutoPromote", enabled ? "on" : "off");
+    revalidatePath("/settings");
+    return { success: true };
+  } catch (err) {
+    logError("setAbAutoPromote", err, { enabled });
     return {
       success: false,
       error: "Something went wrong. Please try again.",

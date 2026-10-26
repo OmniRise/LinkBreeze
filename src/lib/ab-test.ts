@@ -147,3 +147,23 @@ export function variantConfidence(
   const z = Math.abs(clicksA / n - p) / se;
   return { leader, significant: z >= 1.96 };
 }
+
+/** E.1: default minimum total variant clicks before auto-promotion may fire. */
+export const AB_AUTO_PROMOTE_MIN_CLICKS = 200;
+
+/**
+ * E.1 auto-promotion decision (pure — the scanner and its tests share it).
+ * Returns the winner to promote, or null when the test must keep running:
+ * no leader (tie), sample below the floor, or the margin not significant.
+ * Uses the same variantConfidence math as the UI hint, so what the operator
+ * sees is exactly what the automation would act on.
+ */
+export function autoPromotableWinner(
+  clicksA: number,
+  clicksB: number,
+  weightA: number,
+  minClicks: number = AB_AUTO_PROMOTE_MIN_CLICKS,
+): AbVariant | null {
+  const { leader, significant } = variantConfidence(clicksA, clicksB, weightA, minClicks);
+  return leader && significant ? leader : null;
+}

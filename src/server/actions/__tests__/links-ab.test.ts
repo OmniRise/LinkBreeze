@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   updateLink: vi.fn(async () => undefined),
   getLink: vi.fn(async () => null as null | Record<string, unknown>),
+  updateSetting: vi.fn(async () => undefined),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -27,10 +28,13 @@ vi.mock("@/server/queries", () => ({
   getAllLinks: vi.fn(async () => []),
   reorderLinks: vi.fn(),
   isSlugTaken: vi.fn(async () => false),
+  updateSetting: mocks.updateSetting,
+  getSetting: vi.fn(async () => null),
 }));
 
 import {
   setAbTest,
+  setAbAutoPromote,
   setAbTestStatus,
   promoteAbVariant,
   removeAbTest,
@@ -242,6 +246,44 @@ describe("promoteAbVariant", () => {
     const res = await promoteAbVariant(fd({ id: "7", winner: "C" }));
     expect(res.success).toBe(false);
     expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+});
+
+describe("setAbAutoPromote (#81 E.1)", () => {
+  it("demo mode blocks before anything else", async () => {
+    mocks.demoBlock.mockReturnValue("Demo mode");
+    const fd = new FormData();
+    fd.set("abAutoPromote", "on");
+    const res = await setAbAutoPromote(fd);
+    expect(res.success).toBe(false);
+    expect(mocks.getLink).not.toHaveBeenCalled();
+  });
+
+  it("rejects unauthenticated", async () => {
+    mocks.getSession.mockResolvedValue(null);
+    const fd = new FormData();
+    fd.set("abAutoPromote", "on");
+    const res = await setAbAutoPromote(fd);
+    expect(res.success).toBe(false);
+  });
+
+  it("stores 'on' when the checkbox is checked", async () => {
+    const fd = new FormData();
+    fd.set("abAutoPromote", "on");
+    const res = await setAbAutoPromote(fd);
+    expect(res.success).toBe(true);
+    expect(mocks.updateSetting).toHaveBeenCalledWith("abAutoPromote", "on");
+  });
+
+  it("stores 'off' for any other value (default stays off)", async () => {
+    const fd = new FormData();
+    fd.set("abAutoPromote", "off");
+    expect((await setAbAutoPromote(fd)).success).toBe(true);
+    expect(mocks.updateSetting).toHaveBeenLastCalledWith("abAutoPromote", "off");
+
+    const empty = new FormData(); // field absent -> off, never "on"
+    expect((await setAbAutoPromote(empty)).success).toBe(true);
+    expect(mocks.updateSetting).toHaveBeenLastCalledWith("abAutoPromote", "off");
   });
 });
 

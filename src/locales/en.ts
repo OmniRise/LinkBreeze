@@ -854,6 +854,8 @@ const en = {
       exportCsv: "Export CSV",
       retentionLabel: "Analytics retention (days)",
       updateNotifications: "Update notifications",
+      abAutoPromote: "A/B test auto-promotion",
+      abAutoPromoteHint: "Automatically promote a significant winner and archive the test (200+ clicks).",
       restoreTitle: "Restore backup?",
       clearAnalyticsTitle: "Clear all analytics?",
       clearTitle: "Clear all subscribers?",

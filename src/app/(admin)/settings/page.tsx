@@ -63,7 +63,7 @@ export default async function SettingsPage({
     activePage = defaultPage ?? allPages[0];
   }
 
-  const [themes, active, updateCheckEnabled, retentionDays, consentText, subscribers, searchEngineHidden] = await Promise.all([
+  const [themes, active, updateCheckEnabled, retentionDays, consentText, subscribers, searchEngineHidden, abAutoPromote] = await Promise.all([
     getAllThemes(),
     getActiveTheme(),
     isUpdateCheckEnabled(),
@@ -71,6 +71,8 @@ export default async function SettingsPage({
     getSetting("consentText"),
     getAllSubscribers(),
     getSetting("searchEngineHidden"),
+    // #81 E.1: auto-promotion toggle (settings KV, default off).
+    getSetting("abAutoPromote"),
   ]);
 
   const slug = activePage?.slug || "u";
@@ -227,6 +229,7 @@ export default async function SettingsPage({
               <DataManager
                 retentionDays={String(retentionDays)}
                 updateCheckEnabled={updateCheckEnabled}
+                abAutoPromoteEnabled={abAutoPromote === "on"}
               />
               {/* Scheduled backups (#83) — config + stored-backup list */}
               <BackupsCard

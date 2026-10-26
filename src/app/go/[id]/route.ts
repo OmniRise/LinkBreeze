@@ -6,6 +6,7 @@ import { isBot } from "@/lib/bot-detect";
 import { getSession } from "@/lib/auth";
 import { getLinkByRef, getPageById, recordClick } from "@/server/queries";
 import { maybeRunScheduledBackup } from "@/server/backup-scheduler";
+import { maybeAutoPromoteAbTests } from "@/server/ab-auto-promote";
 import {
   parseAbConfig,
   isAbActive,
@@ -136,6 +137,9 @@ export async function GET(
         // #83: opportunistic scheduled-backup trigger (throttled inside the
         // scheduler; must never delay the redirect — fire-and-forget).
         maybeRunScheduledBackup();
+        // #81 E.1: auto-promotion scan (settings-KV gated, default off;
+        // throttled inside the scanner — same fire-and-forget contract).
+        maybeAutoPromoteAbTests();
       }
     }
     // If rate-limited, we still redirect the user to their destination —

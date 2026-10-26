@@ -7,6 +7,7 @@ import {
   resolveVariantUrl,
   variantLift,
   variantConfidence,
+  autoPromotableWinner,
   fnv1a32,
   abConfigSchema,
   type AbConfig,
@@ -182,6 +183,32 @@ describe("variantConfidence", () => {
 
   it("handles the zero-click case", () => {
     expect(variantConfidence(0, 0)).toEqual({ leader: null, significant: false });
+  });
+});
+
+describe("autoPromotableWinner (#81 E.1)", () => {
+  it("promotes a clear winner at healthy sample size", () => {
+    expect(autoPromotableWinner(350, 650, 50)).toBe("B");
+    expect(autoPromotableWinner(650, 350, 50)).toBe("A");
+  });
+
+  it("never promotes below the minimum sample", () => {
+    expect(autoPromotableWinner(2, 18, 50)).toBeNull(); // 20 total < 200
+    expect(autoPromotableWinner(1, 99, 50, 200)).toBeNull();
+  });
+
+  it("never promotes a noise-level split", () => {
+    expect(autoPromotableWinner(510, 490, 50)).toBeNull();
+  });
+
+  it("never promotes a tie", () => {
+    expect(autoPromotableWinner(100, 100, 50)).toBeNull();
+  });
+
+  it("respects the configured weights (70/30 on-target split is not promotable)", () => {
+    expect(autoPromotableWinner(700, 300, 70)).toBeNull();
+    // But a genuine reversal is: B ahead when A was expected to dominate.
+    expect(autoPromotableWinner(450, 550, 70)).toBe("B");
   });
 });
 

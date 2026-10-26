@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 511fbe9ae216 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 84af93dde4dd ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -846,6 +846,8 @@ const it: Messages = {
       exportCsv: "Esporta CSV",
       retentionLabel: "Conservazione analitiche (giorni)",
       updateNotifications: "Notifiche di aggiornamento",
+      abAutoPromote: "Auto-promozione dei test A/B",
+      abAutoPromoteHint: "Promuovi automaticamente un vincitore significativo e archivia il test (oltre 200 clic).",
       restoreTitle: "Ripristinare il backup?",
       clearAnalyticsTitle: "Cancellare tutte le analitiche?",
       clearTitle: "Cancellare tutti gli iscritti?",
