@@ -337,3 +337,28 @@ describe("docs-drift tripwire (#81 E.19)", () => {
     expect(AB_AUTO_PROMOTE_MIN_CLICKS).toBeGreaterThan(AB_MIN_SAMPLE_CLICKS);
   });
 });
+
+describe("scanner prefilter drift guard (#81 E.25)", () => {
+  // src/server/ab-auto-promote.ts prefilters rows with
+  // links.abConfig LIKE '%"status":"running"%' before re-validating. That
+  // SQL fragment must match serializeAbConfig's EXACT encoding of status —
+  // a key-order/format change here would silently stop finding running
+  // tests while every parse-level test stays green.
+  const RUNNING_FRAG = '"status":"running"';
+
+  it("a serialized running config always matches the scanner's LIKE fragment", () => {
+    // The % chars in the scanner's LIKE pattern are SQL wildcards; the JSON
+    // only has to carry this exact inner fragment.
+    expect(serializeAbConfig({ ...base, status: "running" })).toContain(
+      RUNNING_FRAG,
+    );
+  });
+
+  it("paused and archived configs never match the running fragment", () => {
+    for (const status of ["paused", "archived"] as const) {
+      expect(serializeAbConfig({ ...base, status })).not.toContain(
+        RUNNING_FRAG,
+      );
+    }
+  });
+});
