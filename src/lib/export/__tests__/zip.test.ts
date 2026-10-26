@@ -131,4 +131,17 @@ describe("dedupeNames", () => {
   it("handles names without extensions", () => {
     expect(dedupeNames(["x", "x"])).toEqual(["x", "x-2"]);
   });
+
+  it("12 identical names yield 12 unique flat entries (E.34)", () => {
+    const out = dedupeNames(Array(12).fill("page.html"));
+    expect(out).toHaveLength(12);
+    expect(new Set(out).size).toBe(12);
+    expect(out[0]).toBe("page.html");
+    expect(out[1]).toBe("page-2.html");
+    expect(out[11]).toBe("page-12.html");
+    for (const name of out) {
+      expect(name).not.toContain("/");
+      expect(name).not.toContain("\\");
+    }
+  });
 });
