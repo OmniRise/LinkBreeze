@@ -29,6 +29,7 @@ vi.mock("@/lib/visitor", () => ({
 }));
 
 import { GET } from "@/app/go/[id]/route";
+import { assignVariant } from "@/lib/ab-test";
 import { NextRequest } from "next/server";
 
 function makeRequest(ref: string) {
@@ -101,5 +102,133 @@ describe("GET /go/[ref] (#96)", () => {
     mocks.getPageById.mockResolvedValue(null);
     const res = await GET(makeRequest("orphan-slug"), { params: Promise.resolve({ id: "orphan-slug" }) });
     expect(res.status).toBe(404);
+  });
+});
+
+/**
+ * #81 A/B split on the serving path. getVisitorHash is mocked to a constant
+ * ("hash"), so assignment for a given link id + weights is deterministic —
+ * expectations below compute the SAME bucket via the real pure helpers,
+ * proving the route wires visitorHash/linkId/weights through correctly.
+ * The analytics write is production-gated, so these tests assert the
+ * Location header only; per-variant COUNTING is covered by the sql.js
+ * integration tests.
+ */
+describe("GET /go/[ref] A/B split (#81)", () => {
+  const abConfig = (overrides: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      v: 1,
+      status: "running",
+      labelA: null,
+      labelB: null,
+      urlB: "https://example.com/b",
+      weightA: 50,
+      weightB: 50,
+      winner: null,
+      ...overrides,
+    });
+  // The mocked visitor hash is a constant, so SOME weight pair always puts
+  // this visitor on B — forcing B makes "splits to urlB" a real assertion
+  // instead of one that passes vacuously when the bucket lands on A.
+  const weightAForB = Array.from({ length: 99 }, (_, i) => i + 1).find(
+    (w) => assignVariant("hash", 7, w, 100 - w) === "B",
+  )!;
+  const bWeights = { weightA: weightAForB, weightB: 100 - weightAForB };
+
+  it("a running test splits traffic to the deterministic variant URL", async () => {
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "url", abConfig: abConfig(bWeights) }),
+    );
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.status).toBe(302);
+    // Forced onto B: must go to urlB, NOT the link's own url.
+    expect(res.headers.get("location")).toBe("https://example.com/b");
+    // And the bucket the route computed matches the pure helper exactly.
+    expect(assignVariant("hash", 7, weightAForB, 100 - weightAForB)).toBe("B");
+  });
+
+  it("is sticky: repeated requests keep the same variant", async () => {
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "url", abConfig: abConfig() }),
+    );
+    const first = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    for (let i = 0; i < 5; i++) {
+      const again = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+      expect(again.headers.get("location")).toBe(first.headers.get("location"));
+    }
+  });
+
+  it("paused and archived tests serve variant A only", async () => {
+    for (const status of ["paused", "archived"]) {
+      mocks.getLinkByRef.mockResolvedValue(
+        activeLink({ url: "https://example.com/a", type: "url", abConfig: abConfig({ status }) }),
+      );
+      const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+      expect(res.headers.get("location")).toBe("https://example.com/a");
+    }
+  });
+
+  it("links without a config are untouched (regression)", async () => {
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "url" }),
+    );
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.headers.get("location")).toBe("https://example.com/a");
+  });
+
+  it("non-url link types never split even with a config present (scope guard)", async () => {
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "email", abConfig: abConfig() }),
+    );
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.headers.get("location")).toBe("https://example.com/a");
+  });
+
+  it("defense-in-depth: a javascript: variant B 400s the CHOSEN target", async () => {
+    // bWeights forces the deterministic bucket onto B (see above).
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({
+        url: "https://example.com/a",
+        type: "url",
+        abConfig: abConfig({ urlB: "javascript:alert(1)", ...bWeights }),
+      }),
+    );
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    // B is chosen here; the chosen target is non-http(s) -> rejected.
+    expect(res.status).toBe(400);
+  });
+
+  it("E.2: serves A before the window opens and after it closes", async () => {
+    const fmt = (d: Date) => d.toISOString().slice(0, 16);
+    const futureEnd = fmt(new Date(Date.now() + 7 * 86400_000));
+    const pastStart = fmt(new Date(Date.now() - 7 * 86400_000));
+    const pastEnd = fmt(new Date(Date.now() - 86400_000));
+    const futureStart = fmt(new Date(Date.now() + 86400_000));
+
+    // Start in the future -> not yet splitting.
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "url", abConfig: abConfig({ startsAt: futureStart }) }),
+    );
+    let res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.headers.get("location")).toBe("https://example.com/a");
+
+    // End in the past -> window over, back to A.
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "url", abConfig: abConfig({ endsAt: pastEnd }) }),
+    );
+    res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.headers.get("location")).toBe("https://example.com/a");
+
+    // Elapsed window (start past, end future) -> splitting again; weights
+    // force the bucket onto B so the assertion can't pass vacuously.
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({
+        url: "https://example.com/a",
+        type: "url",
+        abConfig: abConfig({ startsAt: pastStart, endsAt: futureEnd, ...bWeights }),
+      }),
+    );
+    res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.headers.get("location")).toBe("https://example.com/b");
   });
 });
