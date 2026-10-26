@@ -173,6 +173,15 @@ Prefer building from source? `git clone https://github.com/OmniRise/LinkBreeze.g
 </details>
 
 <details>
+<summary>⚡ &nbsp;RepoCloud</summary>
+
+Deploy LinkBreeze on a dedicated VPS with one-click setup:
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/LinkBreeze/)
+
+</details>
+
+<details>
 <summary>📦 &nbsp;Synology NAS</summary>
 
 Container Manager (DSM 7.2+):
