@@ -135,6 +135,37 @@ describe("GET /api/pages/export", () => {
     expect(buf.readUInt32LE(0)).toBe(0x04034b50); // PK local header
   });
 
+  it("batch economics: global state once, per-page queries linear (E.24)", async () => {
+    const pages = Array.from({ length: 5 }, (_, i) => ({
+      ...(PAGE as object),
+      id: i + 1,
+      slug: `p${i + 1}`,
+    })) as never[];
+    mockGetAllPages.mockResolvedValue(pages);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    // global fallback theme resolved ONCE for the whole batch, not per page
+    expect(mockGetActiveTheme).toHaveBeenCalledTimes(1);
+    // per-page data exactly once per page — no re-fetch storms
+    expect(mockGetActiveLinks).toHaveBeenCalledTimes(5);
+    expect(mockGetSections).toHaveBeenCalledTimes(5);
+    // pages with themeId:null never hit the theme table
+    expect(mockGetThemeById).not.toHaveBeenCalled();
+    // sequential loop: at most one getActiveLinks call in flight at a time
+    let inFlight = 0;
+    let maxInFlight = 0;
+    mockGetActiveLinks.mockImplementation(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 1));
+      inFlight--;
+      return [];
+    });
+    mockGetAllPages.mockResolvedValue(pages);
+    await GET(req("?all=1"));
+    expect(maxInFlight).toBe(1);
+  });
+
   it("embed=1 single page returns a zip (missing uploads skip silently)", async () => {
     const res = await GET(req("?id=1&embed=1"));
     expect(res.status).toBe(200);
