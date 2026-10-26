@@ -83,13 +83,17 @@ export default async function SettingsPage({
   const updateStatus = await getUpdateStatus();
 
   // API key card (Security tab): NEVER ship the hash to the client — only
-  // display metadata (prefix + timestamps).
+  // display metadata (prefix, timestamps, rotation-grace window). Grace
+  // liveness is computed in getApiKeyRecord (server), NOT here, so render
+  // stays pure (react-hooks/purity) and hydration is stable.
   const keyRecord = await getApiKeyRecord();
   const apiKeyRecord = keyRecord
     ? {
         prefix: keyRecord.prefix,
         createdAt: keyRecord.createdAt,
         lastUsedAt: keyRecord.lastUsedAt,
+        graceActive: keyRecord.graceActive,
+        graceUntil: keyRecord.graceActive ? keyRecord.prevExpiresAt : null,
       }
     : null;
 

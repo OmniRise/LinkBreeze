@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { KeyRound, Copy, Check, Trash2 } from "lucide-react";
+import { KeyRound, Copy, Check, Trash2, Clock } from "lucide-react";
 import { localizeActionError } from "@/lib/action-error-i18n";
 import {
   generateApiKeyAction,
@@ -21,6 +21,9 @@ export interface ApiKeyCardRecord {
   prefix: string;
   createdAt: string;
   lastUsedAt: string | null;
+  /** E.9 rotation grace: server-computed liveness + expiry (epoch ms). */
+  graceActive?: boolean;
+  graceUntil?: number | null;
 }
 
 /** E.4 in-process usage counters (see src/lib/api-usage.ts). */
@@ -92,6 +95,13 @@ export function ApiKeyCard({
   const formatDate = (iso: string) => {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString();
+  };
+
+  const formatTime = (epochMs: number) => {
+    const d = new Date(epochMs);
+    return Number.isNaN(d.getTime())
+      ? ""
+      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
@@ -209,6 +219,14 @@ export function ApiKeyCard({
             />
             {t("graceLabel")}
           </label>
+        )}
+
+        {/* E.9: live rotation-grace window; Revoke (below) clears it at once. */}
+        {record?.graceActive && record.graceUntil != null && (
+          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+            {t("graceActive", { time: formatTime(record.graceUntil) })}
+          </p>
         )}
       </CardContent>
     </Card>

@@ -777,6 +777,7 @@ const en = {
         docsHint: "Endpoint reference: /api/v1/docs (send the key as a Bearer token).",
         graceLabel: "Keep the previous key working for 1 hour after regenerating (lets scripts migrate without downtime)",
         usageToday: "Today (since server start): {calls} calls, {authFails} rejected, {rateLimited} rate-limited",
+        graceActive: "Previous key still valid until {time} — Regenerate or Revoke ends it early.",
       },
 
       updatePassword: "Update password",

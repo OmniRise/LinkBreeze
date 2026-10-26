@@ -43,6 +43,8 @@ export interface ApiKeyRecord {
   prevHash: string | null;
   /** Epoch ms when the previous key stops authenticating. */
   prevExpiresAt: number | null;
+  /** Server-computed grace liveness (kept out of component render — purity). */
+  graceActive: boolean;
 }
 
 /**
@@ -61,13 +63,19 @@ export async function getApiKeyRecord(): Promise<ApiKeyRecord | null> {
     ]);
   if (!hash) return null;
   const prevExpiresAt = prevExpiresRaw ? Number(prevExpiresRaw) : null;
+  const normalizedPrev = Number.isFinite(prevExpiresAt) ? prevExpiresAt : null;
+  const normalizedHash = prevHash ?? null;
   return {
     hash,
     prefix: prefix ?? "",
     createdAt: createdAt ?? "",
     lastUsedAt: lastUsedAt ?? null,
-    prevHash: prevHash ?? null,
-    prevExpiresAt: Number.isFinite(prevExpiresAt) ? prevExpiresAt : null,
+    prevHash: normalizedHash,
+    prevExpiresAt: normalizedPrev,
+    graceActive: isPrevKeyLive({
+      prevHash: normalizedHash,
+      prevExpiresAt: normalizedPrev,
+    }),
   };
 }
 
