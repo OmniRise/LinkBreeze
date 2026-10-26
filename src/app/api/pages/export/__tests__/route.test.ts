@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/pages/export/route";
 
@@ -212,5 +212,79 @@ describe("GET /api/pages/export", () => {
     const body = await res.text();
     expect(mockGetThemeById).toHaveBeenCalledWith(7);
     expect(body).toContain("--lb-accent: #ff0000;");
+  });
+});
+
+describe("getOrigin host-injection guard (E.23)", () => {
+  const origBase = process.env.BASE_URL;
+  const origTrust = process.env.LINKBREEZE_TRUST_X_FORWARDED_HOST;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSession.mockResolvedValue({ userId: 1, username: "jane" } as never);
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      avatarUrl: "/api/uploads/av.png",
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    mockGetActiveTheme.mockResolvedValue(null);
+    mockGetThemeById.mockResolvedValue(null);
+    mockGetCustomFont.mockResolvedValue(null);
+    delete process.env.BASE_URL;
+    delete process.env.LINKBREEZE_TRUST_X_FORWARDED_HOST;
+  });
+
+  afterEach(() => {
+    if (origBase === undefined) delete process.env.BASE_URL;
+    else process.env.BASE_URL = origBase;
+    if (origTrust === undefined) delete process.env.LINKBREEZE_TRUST_X_FORWARDED_HOST;
+    else process.env.LINKBREEZE_TRUST_X_FORWARDED_HOST = origTrust;
+  });
+
+  it("BASE_URL beats a spoofed X-Forwarded-Host", async () => {
+    process.env.BASE_URL = "https://cdn.example";
+    const res = await GET(
+      new NextRequest("http://victim.example/api/pages/export?id=1", {
+        headers: {
+          host: "victim.example",
+          "x-forwarded-host": "evil.example",
+          "x-forwarded-proto": "https",
+        },
+      }),
+    );
+    const body = await res.text();
+    expect(body).toContain('src="https://cdn.example/api/uploads/av.png"');
+    expect(body).not.toContain("evil.example");
+  });
+
+  it("without BASE_URL or trust flag, X-Forwarded-Host is ignored", async () => {
+    const res = await GET(
+      new NextRequest("http://victim.example/api/pages/export?id=1", {
+        headers: {
+          host: "victim.example",
+          "x-forwarded-host": "evil.example",
+        },
+      }),
+    );
+    const body = await res.text();
+    expect(body).toContain('src="http://victim.example/api/uploads/av.png"');
+    expect(body).not.toContain("evil.example");
+  });
+
+  it("trust flag opts in to X-Forwarded-Host (proxy-correct path)", async () => {
+    process.env.LINKBREEZE_TRUST_X_FORWARDED_HOST = "true";
+    const res = await GET(
+      new NextRequest("http://backend.internal/api/pages/export?id=1", {
+        headers: {
+          host: "backend.internal",
+          "x-forwarded-host": "public.example",
+          "x-forwarded-proto": "https",
+        },
+      }),
+    );
+    const body = await res.text();
+    expect(body).toContain('src="https://public.example/api/uploads/av.png"');
+    expect(body).not.toContain("backend.internal");
   });
 });
