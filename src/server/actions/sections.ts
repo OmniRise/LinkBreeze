@@ -11,6 +11,7 @@ import {
   reorderPageContent as reorderPageContentQuery,
   getPageById,
 } from "@/server/queries";
+import { sectionSchema } from "@/lib/validation/section";
 import {
   type ActionResult,
   validationError,
@@ -24,21 +25,6 @@ async function requireAuth(): Promise<boolean> {
   const session = await getSession();
   return !!session;
 }
-
-const sectionSchema = z.object({
-  id: z.coerce.number().optional(),
-  pageId: z.coerce.number(),
-  title: z.string().min(1, "Title is required").max(80),
-  // Dashed lucide icon name ("shopping-bag"), or empty → null. Values that
-  // aren't valid icon names (e.g. legacy emoji) are rejected on save.
-  icon: z
-    .string()
-    .trim()
-    .max(48)
-    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Invalid icon name")
-    .optional()
-    .nullable(),
-});
 
 export async function saveSection(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();

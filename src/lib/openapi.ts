@@ -42,7 +42,7 @@ export function buildOpenApiDocument(): Json {
         "Mutating endpoints are blocked in demo mode.",
     },
     servers: [{ url: "/" }],
-    tags: [{ name: "links" }, { name: "profile" }, { name: "analytics" }, { name: "meta" }],
+    tags: [{ name: "links" }, { name: "sections" }, { name: "profile" }, { name: "analytics" }, { name: "meta" }],
     components: {
       securitySchemes: {
         bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "lbk_*" },
@@ -184,6 +184,42 @@ export function buildOpenApiDocument(): Json {
               description: "Link ids in their new display order (unique, positive).",
             },
           },
+        },
+        Section: {
+          type: "object",
+          required: ["id", "pageId", "title"],
+          properties: {
+            id: { type: "integer" },
+            pageId: { type: "integer" },
+            title: { type: "string", minLength: 1, maxLength: 80 },
+            icon: {
+              type: ["string", "null"],
+              description: "Dashed lucide icon name (e.g. shopping-bag), or null.",
+            },
+            orderIndex: { type: "integer", minimum: 0 },
+            createdAt: { type: "string" },
+          },
+        },
+        SectionCreate: {
+          type: "object",
+          required: ["pageId", "title"],
+          properties: {
+            pageId: { type: "integer", minimum: 1 },
+            title: { type: "string", minLength: 1, maxLength: 80 },
+            icon: { type: ["string", "null"], maxLength: 48 },
+          },
+          additionalProperties: false,
+        },
+        SectionUpdate: {
+          type: "object",
+          properties: {
+            title: { type: "string", minLength: 1, maxLength: 80 },
+            icon: { type: ["string", "null"], maxLength: 48 },
+            orderIndex: { type: "integer", minimum: 0, maximum: 100000 },
+          },
+          additionalProperties: false,
+          description:
+            "Partial, data-exact: only the fields you send change. id and pageId are not settable here.",
         },
         SocialLink: {
           type: "object",
@@ -422,6 +458,135 @@ export function buildOpenApiDocument(): Json {
                 },
               },
             },
+            ...standardErrors,
+          },
+        },
+      },
+      "/api/v1/sections": {
+        get: {
+          tags: ["sections"],
+          summary: "List sections (all pages, display order)",
+          description:
+            "Stable order (pageId, orderIndex, id). Filter to one page with ?pageId=N.",
+          parameters: [
+            {
+              name: "pageId",
+              in: "query",
+              schema: { type: "integer", minimum: 1 },
+              description: "Only sections belonging to this page.",
+            },
+          ],
+          responses: {
+            "200": {
+              description: "All sections (or those of ?pageId)",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      data: { type: "array", items: { $ref: "#/components/schemas/Section" } },
+                    },
+                  },
+                },
+              },
+            },
+            ...standardErrors,
+          },
+        },
+        post: {
+          tags: ["sections"],
+          summary: "Create a section",
+          description:
+            "Same validation as the admin form; orderIndex is auto-assigned within the page. 404 when the page does not exist.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/SectionCreate" } },
+            },
+          },
+          responses: {
+            "201": {
+              description: "Created section",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: { data: { $ref: "#/components/schemas/Section" } },
+                  },
+                },
+              },
+            },
+            "404": errorResponse("Page not found"),
+            ...standardErrors,
+          },
+        },
+      },
+      "/api/v1/sections/{id}": {
+        put: {
+          tags: ["sections"],
+          summary: "Partially update a section",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "integer", minimum: 1 },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/SectionUpdate" } },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Updated section",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: { data: { $ref: "#/components/schemas/Section" } },
+                  },
+                },
+              },
+            },
+            "404": errorResponse("Section not found"),
+            ...standardErrors,
+          },
+        },
+        delete: {
+          tags: ["sections"],
+          summary: "Delete a section (its links fall back to uncategorized)",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "integer", minimum: 1 },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Deleted",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      data: {
+                        type: "object",
+                        properties: {
+                          id: { type: "integer" },
+                          deleted: { type: "boolean" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            "404": errorResponse("Section not found"),
             ...standardErrors,
           },
         },

@@ -445,6 +445,31 @@ export async function getSectionsByPage(pageId: number): Promise<LinkSectionRow[
     .orderBy(asc(linkSections.orderIndex), asc(linkSections.id));
 }
 
+/**
+ * #4 E.7 — every section across pages, in stable display order
+ * (pageId, orderIndex, id) so the API list and admin view agree.
+ */
+export async function getAllSections(): Promise<LinkSectionRow[]> {
+  return db
+    .select()
+    .from(linkSections)
+    .orderBy(
+      asc(linkSections.pageId),
+      asc(linkSections.orderIndex),
+      asc(linkSections.id),
+    );
+}
+
+/** #4 E.7 — single-section lookup for API 404s. */
+export async function getSectionById(id: number): Promise<LinkSectionRow | null> {
+  const rows = await db
+    .select()
+    .from(linkSections)
+    .where(eq(linkSections.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function createSection(
   data: Pick<typeof linkSections.$inferInsert, "pageId" | "title"> &
     Partial<Pick<typeof linkSections.$inferInsert, "icon">>,
