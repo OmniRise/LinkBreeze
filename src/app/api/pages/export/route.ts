@@ -15,7 +15,7 @@ import { buildStaticExport } from "@/lib/export/build-static-export";
 import { assertExportSize, EXPORT_MAX_BYTES, EXPORT_EMBED_MAX_BYTES } from "@/lib/export/size";
 import { exportFilename } from "@/lib/export/filename";
 import { createZip, dedupeNames, type ZipEntry } from "@/lib/export/zip";
-import { collectUploadNames } from "@/lib/export/url-rewrite";
+import { collectUploadNames, absolutizeAsset } from "@/lib/export/url-rewrite";
 import { safeUploadPath } from "@/lib/uploads";
 import { parseCustomFontId, buildFontFaceCss } from "@/lib/custom-fonts";
 import type { ThemeInput } from "@/lib/theme-tokens";
@@ -33,7 +33,12 @@ export const dynamic = "force-dynamic";
 function getOrigin(request: NextRequest): string {
   // If BASE_URL is set, always use it — prevents host-header injection
   // (X-Forwarded-Host spoofing → absolute asset URLs pointing elsewhere).
-  if (process.env.BASE_URL) return process.env.BASE_URL.replace(/\/$/, "");
+  // A root-only value ("/") strips to the empty string, which would make
+  // every absolute URL relative — treat it as unset instead. (Observed as
+  // the ambient value inside vitest workers; same defensive shape needed
+  // for a misconfigured deployment.)
+  const configured = process.env.BASE_URL?.replace(/\/+$/, "");
+  if (configured) return configured;
   const proto = request.headers.get("x-forwarded-proto") || "http";
   // Same host-deciding rule as the QR/vCard routes: only trust
   // X-Forwarded-Host behind LINKBREEZE_TRUST_X_FORWARDED_HOST.
@@ -47,7 +52,11 @@ function getOrigin(request: NextRequest): string {
 }
 
 /** Resolve "custom:<id>" font refs exactly like the public page. */
-async function resolveFontOptions(theme: ThemeInput): Promise<{
+async function resolveFontOptions(
+  theme: ThemeInput,
+  origin: string,
+  assetBase?: string,
+): Promise<{
   fontFaceCss?: string;
   customFonts?: Map<number, { family: string }>;
 }> {
@@ -62,7 +71,19 @@ async function resolveFontOptions(theme: ThemeInput): Promise<{
   const found = rows.filter((row): row is NonNullable<typeof row> => row !== null);
   if (found.length === 0) return {};
   return {
-    fontFaceCss: found.map((row) => buildFontFaceCss(row)).join("\n"),
+    // Font URLs get the same treatment as every other asset (#80): the
+    // public page serves them same-origin (relative works there), but an
+    // export renders off-origin — absolute unless embed mode rewrote it
+    // to uploads/<file> for the bundled zip.
+    fontFaceCss: found
+      .map((row) =>
+        buildFontFaceCss({
+          family: row.family,
+          url: absolutizeAsset(row.url, origin, assetBase),
+          format: row.format,
+        }),
+      )
+      .join("\n"),
     customFonts: new Map(found.map((row) => [row.id, { family: row.family }])),
   };
 }
@@ -79,7 +100,7 @@ async function buildPageHtml(
   const [links, sections, fontOptions] = await Promise.all([
     getActiveLinks(page.id),
     getSectionsByPage(page.id),
-    resolveFontOptions(theme),
+    resolveFontOptions(theme, origin, assetBase),
   ]);
   return buildStaticExport({
     page,

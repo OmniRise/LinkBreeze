@@ -230,6 +230,51 @@ describe("GET /api/pages/export", () => {
     expect(json.bytes).toBeGreaterThan(2 * 1024 * 1024);
   });
 
+  it("resolves custom:<id> fonts into @font-face + token family (E.25)", async () => {
+    // explicit host header: undici does not auto-populate it on
+    // programmatically-built requests (real server requests always have it)
+    const fontReq = (q: string) =>
+      new NextRequest(`http://localhost:3000/api/pages/export${q}`, {
+        headers: { host: "localhost:3000" },
+      });
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      themeId: 9,
+    } as never);
+    mockGetThemeById.mockResolvedValue({
+      id: 9,
+      name: "CustomFontTheme",
+      fontFamily: "custom:7",
+      cardFontFamily: null,
+      animationType: "none",
+    } as never);
+    mockGetCustomFont.mockResolvedValue({
+      id: 7,
+      family: "My Uploaded",
+      url: "/api/uploads/f-abc.woff2",
+      format: "woff2",
+    } as never);
+    const res = await GET(fontReq("?id=1"));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(mockGetCustomFont).toHaveBeenCalledWith(7);
+    expect(body).toContain("@font-face {");
+    expect(body).toContain("font-family: 'My Uploaded';");
+    expect(body).toContain(
+      "src: url('http://localhost:3000/api/uploads/f-abc.woff2')",
+    );
+    // the theme token points at the uploaded family, not the default stack
+    expect(body).toContain("--lb-font: 'My Uploaded'");
+
+    // embed mode: the font src ships as a relative uploads/ ref, so the
+    // collector can bundle the file alongside the html
+    const embedRes = await GET(fontReq("?id=1&embed=1"));
+    expect(embedRes.status).toBe(200);
+    const zipBuf = Buffer.from(await embedRes.arrayBuffer());
+    expect(zipBuf.toString("latin1")).toContain("url('uploads/f-abc.woff2')");
+    expect(zipBuf.toString("latin1")).not.toContain("/api/uploads/f-abc.woff2");
+  });
+
   it("theme rows flow through page theme override", async () => {
     mockGetThemeById.mockResolvedValue({
       id: 7,
