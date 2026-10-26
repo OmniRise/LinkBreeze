@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ─── Users ─────────────────────────────────────────────
@@ -7,6 +7,11 @@ export const users = sqliteTable("users", {
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  // #124 multi-user: role/capability + lifecycle status. NULL role (pre-124 row)
+  // is treated as 'admin' in code so the bootstrapped admin is never demoted.
+  role: text("role").notNull().default("owner"), // admin | owner
+  status: text("status").notNull().default("active"), // active | disabled
+  lastLoginAt: text("last_login_at"), // NULL until first login
   // #5 TOTP 2FA — all nullable/opt-in so existing users are untouched.
   // totp_secret stores the AES-256-GCM ciphertext (see src/lib/two-factor.ts);
   // recovery_codes is a JSON array of bcrypt hashes of used/unused codes.
@@ -49,6 +54,10 @@ export const pages = sqliteTable("pages", {
   isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
   isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  // #124 multi-user: which account owns this page. NULL = legacy page (created
+  // before multi-user) — treated as owned by the sole admin. A user owns AT MOST
+  // one page in v1 (no unique constraint yet, keeps the door open for more).
+  userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
 
   // Page-specific settings (moved from global settings table in 0008)
   seoTitle: text("seo_title").notNull().default(""),
@@ -99,6 +108,39 @@ export const pages = sqliteTable("pages", {
   // the domain IS the page (foreign slugs 404); 'hub' → the page renders at
   // root and every slug keeps resolving under the domain (path routing).
   domainScope: text("domain_scope"), // 'exclusive' | 'hub' | NULL (= exclusive)
+});
+
+// ─── OIDC identities (#124) ──────────────────────────
+// Links a local user to an external OIDC identity. Separate table (never columns
+// on users) so one user may link MULTIPLE identities later (e.g. work + personal
+// IdP). UNIQUE(issuer, subject) = one identity maps to exactly one user.
+export const oidcIdentities = sqliteTable(
+  "oidc_identities",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    issuer: text("issuer").notNull(),
+    subject: text("subject").notNull(),
+    // Snapshot of the IdP's preferred_username at link time (JIT slug source +
+    // admin display). Not authoritative — the IdP can change it.
+    preferredUsername: text("preferred_username"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (t) => [unique("oidc_identities_issuer_subject").on(t.issuer, t.subject)],
+);
+
+// ─── OIDC auth states (#124) ─────────────────────────
+// Server-side PKCE/state store for the OIDC login flow. Single-use (deleted on
+// consume), expiring. Holds the code_verifier for the token exchange and the
+// site-relative redirect target after a successful login.
+export const oidcStates = sqliteTable("oidc_states", {
+  state: text("state").primaryKey(),
+  codeVerifier: text("code_verifier").notNull(),
+  redirectTo: text("redirect_to").notNull().default("/"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  expiresAt: text("expires_at").notNull(),
 });
 
 // ─── Domains (custom domains, #85) ────────────────────
