@@ -71,6 +71,7 @@
 - **🖼️ Miniaturas de enlaces** - Añade imágenes a tus enlaces para crear tarjetas de vista previa visuales
 - **⏰ Programación de enlaces** - Programa que los enlaces aparezcan o desaparezcan automáticamente con controles de fecha y hora
 - **🏷️ Slugs de redirección personalizados** - Enlaces cortos `/go/tu-nombre` estables y compartibles que sobreviven a borrarlos y recrearlos
+- **🧪 Pruebas A/B** - Divide el tráfico de un enlace entre dos destinos con asignación por visitante que se mantiene entre visitas, analítica por variante, porcentaje de lift y promoción del ganador con un clic
 - **📈 Estadísticas externas** - Integra Plausible, Umami, Matomo o Google Analytics con un simple pegado
 - **🖼️ Imágenes de vista previa (OG)** - Tarjetas para compartir generadas automáticamente a partir del tema de tu página, o sube la tuya con control de ajuste, posición y zoom
 - **✏️ CSS personalizado** - Ajusta tu página al detalle mediante inyección de CSS sin procesar

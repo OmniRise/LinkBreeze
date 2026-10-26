@@ -6,16 +6,16 @@ authoritative; translations may lag behind.
 | Language | File | Source commit (README.md) | Status |
 |----------|------|--------------------------|--------|
 | English | [README.md](../README.md) | — | authoritative |
-| العربية | [README.ar.md](../README.ar.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| 中文 | [README.zh.md](../README.zh.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| Français | [README.fr.md](../README.fr.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| Deutsch | [README.de.md](../README.de.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| Italiano | [README.it.md](../README.it.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| 日本語 | [README.ja.md](../README.ja.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| Português (Brasil) | [README.pt-BR.md](../README.pt-BR.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| Русский | [README.ru.md](../README.ru.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| Español | [README.es.md](../README.es.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
-| Türkçe | [README.tr.md](../README.tr.md) | `f32ad36ac69a156b6cdee64a96b0e48a1a749753` | in review |
+| العربية | [README.ar.md](../README.ar.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| 中文 | [README.zh.md](../README.zh.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| Français | [README.fr.md](../README.fr.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| Deutsch | [README.de.md](../README.de.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| Italiano | [README.it.md](../README.it.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| 日本語 | [README.ja.md](../README.ja.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| Português (Brasil) | [README.pt-BR.md](../README.pt-BR.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| Русский | [README.ru.md](../README.ru.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| Español | [README.es.md](../README.es.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
+| Türkçe | [README.tr.md](../README.tr.md) | `926459e242b3065b3a41a66147d8179d56528c3f` | in review |
 
 ## Keeping translations fresh
 

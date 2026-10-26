@@ -71,6 +71,7 @@
 - **🖼️ Miniaturas nos Links** - Adicione imagens aos seus links para cartões com pré-visualização visual
 - **⏰ Agendamento de Links** - Agende links para aparecerem ou desaparecerem automaticamente com controles de data/hora
 - **🏷️ Slugs de Redirecionamento Personalizados** - Links curtos `/go/seu-nome` estáveis e compartilháveis que sobrevivem a excluir e recriar
+- **🧪 Testes A/B** - Divida o tráfego de um link entre dois destinos com atribuição por visitante que se mantém entre visitas, analítica por variante, percentual de lift e promoção do vencedor com um clique
 - **📈 Análises Externas** - Injete Plausible, Umami, Matomo ou Google Analytics com um simples colar
 - **🖼️ Imagens de Pré-visualização Social (OG)** - Cartões de compartilhamento gerados automaticamente a partir do tema da sua página, ou envie a sua com controle de ajuste, posição e zoom
 - **✏️ CSS Personalizado** - Ajuste fino da sua página com injeção de CSS puro

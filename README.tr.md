@@ -71,6 +71,7 @@
 - **🖼️ Bağlantı Küçük Resimleri** - Görsel önizleme kartları için bağlantılarına resim ekle
 - **⏰ Bağlantı Zamanlama** - Bağlantıları tarih/saat kontrolleriyle otomatik olarak görünür veya görünmez yap
 - **🏷️ Özel Yönlendirme Slug'ları** - Silip yeniden oluşturulsa bile bozulmayan, paylaşılabilir sabit `/go/adiniz` kısa bağlantıları
+- **🧪 A/B Testleri** - Bir bağlantının trafiğini iki hedef arasında, ziyaretler boyunca aynı kalan ziyaretçi atamasıyla paylaşın; varyant başına analitik, lift yüzdesi ve tek tıkla kazananı belirleme
 - **📈 Harici Analitik** - Plausible, Umami, Matomo veya Google Analytics'i tek yapıştırmayla ekle
 - **🖼️ Sosyal Önizleme (OG) Görselleri** - Sayfanın temasından otomatik oluşturulan paylaşım kartları ya da ölçek, konum ve yakınlaştırma kontrolüyle kendi görselini yükle
 - **✏️ Özel CSS** - Sayfanı ham CSS enjeksiyonuyla ince ayarla
