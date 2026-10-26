@@ -215,6 +215,13 @@ GDPR Article 33 (72 hours to the supervisory authority).
    backups, the filesystem, or any other instance; `/api/v1` responses are
    structurally unable to contain user/session fields (enforced by a
    surface-hygiene test in CI).
+7. **Treat webhook URLs as sensitive** — Webhook notification URLs
+   (Settings -> Integration) embed an auth token for Discord/Slack and are
+   stored in the database. The server POSTs milestone notifications to them
+   (http/https only; the URL is owner-configured in an admin-only surface,
+   so server-side fetching is trusted-by-owner configuration — revisit if a
+   multi-user admin/user split ever lands). Do not paste webhook URLs into
+   logs, screenshots, or issue reports; rotate a URL you have exposed.
 
 ## Accessibility
 

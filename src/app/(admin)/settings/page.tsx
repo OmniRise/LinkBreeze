@@ -22,10 +22,15 @@ import { getSession } from "@/lib/auth";
 import { getUserById } from "@/server/queries";
 import { getApiKeyRecord } from "@/server/api-keys";
 import { getApiUsage } from "@/lib/api-usage";
+import {
+  getNotificationConfigByPage,
+  getRecentDeliveries,
+} from "@/server/queries/notifications";
 import { QrCard } from "./qr-card";
 import { ApiKeyCard } from "./api-key-card";
 import { GeneralTab, IntegrationTab, AppearanceTab, CustomCssCard } from "./settings-tab-forms";
 import { OgImageCard } from "./og-image-card";
+import { NotificationsCard } from "./notifications-card";
 import { ChangePasswordForm } from "./change-password-form";
 import { TwoFactorCard } from "./two-factor-card";
 import { OidcCard } from "./oidc-card";
@@ -114,6 +119,14 @@ export default async function SettingsPage({
       }
     : null;
 
+  // Webhook notifications (#13): the active page's config + recent deliveries.
+  const notificationConfig = activePage
+    ? await getNotificationConfigByPage(activePage.id)
+    : null;
+  const notificationDeliveries = notificationConfig
+    ? await getRecentDeliveries(notificationConfig.id, 10)
+    : [];
+
   // #83: opportunistic scheduled-backup trigger on admin loads (quiet
   // instances whose owners log in but get no public traffic still back up).
   maybeRunScheduledBackup();
@@ -196,6 +209,14 @@ export default async function SettingsPage({
                 emailCapture={activePage?.emailCapture ?? false}
                 shareEnabled={activePage?.shareEnabled ?? false}
               />
+              {/* Webhook notifications (#13) — per-page milestone webhooks */}
+              {activePage ? (
+                <NotificationsCard
+                  pageId={activePage.id}
+                  initialConfig={notificationConfig}
+                  initialDeliveries={notificationDeliveries}
+                />
+              ) : null}
             </div>
           ),
           appearance: (
