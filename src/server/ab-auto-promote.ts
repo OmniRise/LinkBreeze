@@ -68,8 +68,11 @@ export async function runAbAutoPromoteScan(): Promise<number> {
       if (Number.isFinite(end) && Date.now() < end) continue;
     }
 
-    // All-time variant-labeled clicks (retention pruning only lowers these,
-    // which makes the scanner MORE conservative over time, never less).
+    // All-time variant-labeled clicks — DELIBERATELY un-ranged, unlike the
+    // range-scoped detail-page breakdown (getLinkStats): promotion is a
+    // PERMANENT decision, so it weighs the whole experiment, not whatever
+    // window the dashboard happens to show. Retention pruning only lowers
+    // these, which makes the scanner MORE conservative over time, never less.
     const rows = await db
       .select({ variant: analyticsClicks.variant, c: sql<number>`count(*)` })
       .from(analyticsClicks)

@@ -12,6 +12,7 @@ import { recordClick, updateSetting, getLink } from "@/server/queries";
 import { analyticsClicks, links } from "@/db/schema";
 import { runAbAutoPromoteScan, maybeAutoPromoteAbTests, _resetAbAutoPromoteThrottle, AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
 import { parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
+import { eq } from "drizzle-orm";
 
 const running: AbConfig = {
   v: 1,
@@ -183,5 +184,22 @@ describe("auto-promotion scanner (#81 E.1)", () => {
       },
       { timeout: 3000 },
     );
+  });
+
+  it("E.23: promotion weighs ALL-TIME clicks (backdated history still fires the scanner)", async () => {
+    // Deliberately un-ranged: promotion is permanent, so the whole
+    // experiment counts — contrast with the range-scoped detail breakdown.
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    const link = await seedRunningTest();
+    await clickVariants(link.id, 50, 150); // exactly 200 = the floor
+    // Backdate ALL clicks a year: a range-scoped count would see zero.
+    await db
+      .update(analyticsClicks)
+      .set({ createdAt: "2020-01-01 00:00:00" })
+      .where(eq(analyticsClicks.linkId, link.id));
+    expect(await runAbAutoPromoteScan()).toBe(1);
+    const cfg = parseAbConfig((await getLink(link.id))?.abConfig ?? null);
+    expect(cfg?.status).toBe("archived");
+    expect(cfg?.winner).toBe("B");
   });
 });
