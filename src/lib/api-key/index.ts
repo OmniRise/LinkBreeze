@@ -85,3 +85,19 @@ export function parseBearerToken(headerValue: string | null): string | null {
 export function rateLimitBucketKey(storedHashHex: string): string {
   return `api:v1:key:${storedHashHex.slice(0, 16)}`;
 }
+
+/**
+ * E.2 rotation grace: is a previous key's digest still inside its window?
+ * Pure time check over the KV record's grace fields (both must be present;
+ * a corrupt/partial record fails closed).
+ */
+export function isPrevKeyLive(
+  record: { prevHash: string | null; prevExpiresAt: number | null },
+  now: number = Date.now(),
+): boolean {
+  return (
+    record.prevHash !== null &&
+    record.prevExpiresAt !== null &&
+    now < record.prevExpiresAt
+  );
+}

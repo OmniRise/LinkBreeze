@@ -18,6 +18,7 @@ import {
   isApiKeyShaped,
   parseBearerToken,
   rateLimitBucketKey,
+  isPrevKeyLive,
 } from "@/lib/api-key";
 import { getApiKeyRecord, recordApiKeyUsed } from "@/server/api-keys";
 import { rateLimit, type RateLimitResult } from "@/lib/rate-limit";
@@ -161,7 +162,15 @@ export async function apiGate(
   }
 
   const record = await getApiKeyRecord();
-  if (!record || !apiKeyMatches(presented, record.hash)) {
+  const presentedHashMatch = record ? apiKeyMatches(presented, record.hash) : false;
+  // E.2 rotation grace: the PREVIOUS key lives until its window closes.
+  const prevLiveMatch =
+    !presentedHashMatch &&
+    record !== null &&
+    isPrevKeyLive(record) &&
+    record.prevHash !== null &&
+    apiKeyMatches(presented, record.prevHash);
+  if (!record || (!presentedHashMatch && !prevLiveMatch)) {
     return {
       ok: false,
       response: apiError(

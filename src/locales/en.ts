@@ -775,6 +775,7 @@ const en = {
         neverUsed: "Never",
         revoked: "API key revoked.",
         docsHint: "Endpoint reference: /api/v1/docs (send the key as a Bearer token).",
+        graceLabel: "Keep the previous key working for 1 hour after regenerating (lets scripts migrate without downtime)",
       },
 
       updatePassword: "Update password",

@@ -168,6 +168,55 @@ describe("apiGate — body cap + demo guard", () => {
   });
 });
 
+describe("apiGate — E.2 rotation grace", () => {
+  const OLD = generateApiKey();
+  const NEW = generateApiKey();
+  const graceRecord = (expiresAt: number | null) => ({
+    hash: hashApiKey(NEW.key),
+    prefix: "lbk_testkey",
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null as string | null,
+    prevHash: hashApiKey(OLD.key),
+    prevExpiresAt: expiresAt,
+  });
+
+  it("the previous key authenticates inside its grace window", async () => {
+    mocks.getApiKeyRecord.mockResolvedValue(graceRecord(Date.now() + 3_600_000));
+    const gate = await apiGate(
+      makeRequest({ authorization: `Bearer ${OLD.key}` }),
+    );
+    expect(gate.ok).toBe(true);
+  });
+
+  it("the previous key is a 401 once the window closes", async () => {
+    mocks.getApiKeyRecord.mockResolvedValue(graceRecord(Date.now() - 1));
+    const gate = await apiGate(
+      makeRequest({ authorization: `Bearer ${OLD.key}` }),
+    );
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(401);
+  });
+
+  it("the NEW key works regardless of grace state", async () => {
+    mocks.getApiKeyRecord.mockResolvedValue(graceRecord(Date.now() - 1));
+    const gate = await apiGate(
+      makeRequest({ authorization: `Bearer ${NEW.key}` }),
+    );
+    expect(gate.ok).toBe(true);
+  });
+
+  it("a corrupted future expiry with a null hash never authenticates the old key", async () => {
+    mocks.getApiKeyRecord.mockResolvedValue({
+      ...graceRecord(Date.now() + 3_600_000),
+      prevHash: null,
+    });
+    const gate = await apiGate(
+      makeRequest({ authorization: `Bearer ${OLD.key}` }),
+    );
+    expect(gate.ok).toBe(false);
+  });
+});
+
 describe("apiGate — rate limiting", () => {
   it("429s with Retry-After once the per-key budget is exhausted", async () => {
     const gate = await apiGate(

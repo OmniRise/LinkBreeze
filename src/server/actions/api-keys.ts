@@ -14,17 +14,21 @@ import { createApiKey, revokeApiKey } from "@/server/api-keys";
 /**
  * Generate (or rotate) the API key (#4). The plaintext is returned EXACTLY
  * once — only its sha256 hash is persisted, so nothing can ever show it
- * again. Rotating invalidates the previous key immediately.
+ * again. Rotating invalidates the previous key immediately unless a grace
+ * window is requested (E.2): the old key then keeps working for 1 hour so
+ * callers can migrate without downtime.
  */
-export async function generateApiKeyAction(): Promise<
-  ActionResult<{ key: string; prefix: string; createdAt: string }>
-> {
+export async function generateApiKeyAction(opts?: {
+  keepPrevious?: boolean;
+}): Promise<ActionResult<{ key: string; prefix: string; createdAt: string }>> {
   const blocked = demoGuard();
   if (blocked) return blocked;
   if (!(await getSession())) return unauthorizedError();
 
   try {
-    const created = await createApiKey();
+    const created = await createApiKey({
+      graceHours: opts?.keepPrevious ? 1 : 0,
+    });
     revalidatePath("/settings");
     return { success: true, ...created };
   } catch (err) {

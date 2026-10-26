@@ -40,12 +40,14 @@ export function ApiKeyCard({
   const [oneTimeKey, setOneTimeKey] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [revoked, setRevoked] = React.useState(false);
+  // E.2 rotation grace: keep the old key alive for 1h while callers migrate.
+  const [keepPrevious, setKeepPrevious] = React.useState(false);
 
   const handleGenerate = () => {
     setError(null);
     setRevoked(false);
     startTransition(async () => {
-      const res = await generateApiKeyAction();
+      const res = await generateApiKeyAction({ keepPrevious });
       if (res.success) {
         setOneTimeKey(res.key);
       } else {
@@ -174,6 +176,20 @@ export function ApiKeyCard({
             </Button>
           )}
         </div>
+
+        {/* E.2: rotation grace — opt-in, default off (instant invalidate). */}
+        {record && (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={keepPrevious}
+              onChange={(e) => setKeepPrevious(e.target.checked)}
+              disabled={pending}
+              className="size-4"
+            />
+            {t("graceLabel")}
+          </label>
+        )}
       </CardContent>
     </Card>
   );

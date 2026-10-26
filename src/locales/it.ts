@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 7c06bf5ecedf ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 41d3a051e762 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -767,6 +767,7 @@ const it: Messages = {
         neverUsed: "Mai",
         revoked: "Chiave API revocata.",
         docsHint: "Riferimento degli endpoint: /api/v1/docs (invia la chiave come token Bearer).",
+        graceLabel: "Mantieni la chiave precedente attiva per 1 ora dopo la rigenerazione (gli script possono migrare senza interruzioni)",
       },
 
       updatePassword: "Aggiorna password",
