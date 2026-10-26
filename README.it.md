@@ -72,6 +72,7 @@
 - **⏰ Programmazione dei Link** - Pianifica l'apparizione o la scomparsa automatica dei link con controlli data/ora
 - **🏷️ Slug di Reindirizzamento Personalizzati** - Short link stabili e condivisibili tipo `/go/tuo-nome` che sopravvivono a eliminazioni e ricreazioni
 - **📈 Analytics Esterni** - Inietta Plausible, Umami, Matomo o Google Analytics con un semplice incolla
+- **📦 Esportazione HTML statica** - Scarica qualsiasi pagina come un unico file .html autonomo da ospitare ovunque
 - **🖼️ Immagini di Anteprima Social (OG)** - Card di condivisione generate automaticamente dal tema della tua pagina, oppure carica le tue con controllo di adattamento, posizione e zoom
 - **✏️ CSS Personalizzato** - Rifinisci la tua pagina con iniezione di CSS grezzo
 - **📧 Raccolta Email** - Raccogli le email degli iscritti sulla tua pagina pubblica, esporta in CSV

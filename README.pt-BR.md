@@ -72,6 +72,7 @@
 - **⏰ Agendamento de Links** - Agende links para aparecerem ou desaparecerem automaticamente com controles de data/hora
 - **🏷️ Slugs de Redirecionamento Personalizados** - Links curtos `/go/seu-nome` estáveis e compartilháveis que sobrevivem a excluir e recriar
 - **📈 Análises Externas** - Injete Plausible, Umami, Matomo ou Google Analytics com um simples colar
+- **📦 Exportação HTML estática** - Baixe qualquer página como um único arquivo .html autocontido para hospedar onde quiser
 - **🖼️ Imagens de Pré-visualização Social (OG)** - Cartões de compartilhamento gerados automaticamente a partir do tema da sua página, ou envie a sua com controle de ajuste, posição e zoom
 - **✏️ CSS Personalizado** - Ajuste fino da sua página com injeção de CSS puro
 - **📧 Captura de E-mails** - Colete e-mails de inscritos na sua página pública, exporte para CSV

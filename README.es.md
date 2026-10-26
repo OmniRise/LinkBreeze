@@ -72,6 +72,7 @@
 - **⏰ Programación de enlaces** - Programa que los enlaces aparezcan o desaparezcan automáticamente con controles de fecha y hora
 - **🏷️ Slugs de redirección personalizados** - Enlaces cortos `/go/tu-nombre` estables y compartibles que sobreviven a borrarlos y recrearlos
 - **📈 Estadísticas externas** - Integra Plausible, Umami, Matomo o Google Analytics con un simple pegado
+- **📦 Exportación a HTML estático** - Descarga cualquier página como un único archivo .html autónomo para alojarlo donde quieras
 - **🖼️ Imágenes de vista previa (OG)** - Tarjetas para compartir generadas automáticamente a partir del tema de tu página, o sube la tuya con control de ajuste, posición y zoom
 - **✏️ CSS personalizado** - Ajusta tu página al detalle mediante inyección de CSS sin procesar
 - **📧 Recopilación de correos electrónicos** - Recopila los correos de tus suscriptores en tu página pública y expórtalos a CSV

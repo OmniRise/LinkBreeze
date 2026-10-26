@@ -72,6 +72,7 @@
 - **⏰ Link-Planung** - Plane, dass Links automatisch erscheinen oder verschwinden, mit Datum- und Uhrzeitsteuerung
 - **🏷️ Eigene Weiterleitungs-Slugs** - Stabile, teilbare `/go/your-name`-Kurzlinks, die Löschen-und-Neu-Anlegen überstehen
 - **📈 Externe Analysen** - Plausible, Umami, Matomo oder Google Analytics mit einem einzigen Einfügen einbinden
+- **📦 Statischer HTML-Export** - Laden Sie jede Seite als eine eigenständige .html-Datei herunter und hosten Sie sie überall
 - **🖼️ Social-Vorschaubilder (OG)** - Sharecards werden automatisch aus dem Theme deiner Seite gerendert, oder lade ein eigenes Bild hoch mit Kontrolle über Zuschnitt, Position und Zoom
 - **✏️ Eigenes CSS** - Feintune deine Seite mit direkter CSS-Injektion
 - **📧 E-Mail-Sammlung** - Abonnenten-E-Mails auf deiner öffentlichen Seite sammeln, Export als CSV

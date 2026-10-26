@@ -72,6 +72,7 @@
 - **⏰ Bağlantı Zamanlama** - Bağlantıları tarih/saat kontrolleriyle otomatik olarak görünür veya görünmez yap
 - **🏷️ Özel Yönlendirme Slug'ları** - Silip yeniden oluşturulsa bile bozulmayan, paylaşılabilir sabit `/go/adiniz` kısa bağlantıları
 - **📈 Harici Analitik** - Plausible, Umami, Matomo veya Google Analytics'i tek yapıştırmayla ekle
+- **📦 Statik HTML Dışa Aktarım** - Herhangi bir sayfayı tek bir bağımsız .html dosyası olarak indirip her yerde barındırın
 - **🖼️ Sosyal Önizleme (OG) Görselleri** - Sayfanın temasından otomatik oluşturulan paylaşım kartları ya da ölçek, konum ve yakınlaştırma kontrolüyle kendi görselini yükle
 - **✏️ Özel CSS** - Sayfanı ham CSS enjeksiyonuyla ince ayarla
 - **📧 E-posta Toplama** - Herkese açık sayfanda abone e-postaları topla, CSV olarak dışa aktar

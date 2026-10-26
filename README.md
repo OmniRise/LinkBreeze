@@ -72,6 +72,7 @@
 - **⏰ Link Scheduling** - Schedule links to appear or disappear automatically with date/time controls
 - **🏷️ Custom Redirect Slugs** - Stable, shareable `/go/your-name` short links that survive delete-and-recreate
 - **📈 External Analytics** - Inject Plausible, Umami, Matomo or Google Analytics with one paste
+- **📦 Static HTML Export** - Download any page as a single self-contained .html file to host anywhere
 - **🖼️ Social Preview (OG) Images** - Share cards auto-rendered from your page's theme, or upload your own with fit, position and zoom control
 - **✏️ Custom CSS** - Fine-tune your page with raw CSS injection
 - **📧 Email Capture** - Collect subscriber emails on your public page, export to CSV
