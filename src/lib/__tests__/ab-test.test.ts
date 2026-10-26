@@ -79,15 +79,20 @@ describe("assignVariant", () => {
     }
   });
 
-  it("is per-link: the same visitor gets independent assignments across links", () => {
-    // Not asserting difference for ONE visitor (50% chance of collision);
-    // asserting that assignments are not trivially identical across all
-    // visitors for every link pair.
-    let sameForAll = true;
-    for (let linkId = 1; linkId <= 200 && sameForAll; linkId++) {
-      if (assignVariant("fixed-visitor", linkId, 50, 50) !== "A") sameForAll = false;
+  it("is per-link: assignments are independent across links", () => {
+    // Sequential link ids used to correlate through raw FNV-1a low bits
+    // (35% same-variant observed); fmix32 finalizer restores ~50%.
+    let sameCount = 0;
+    const n = 2000;
+    for (let i = 0; i < n; i++) {
+      if (
+        assignVariant(`v-${i}`, 1, 50, 50) === assignVariant(`v-${i}`, 2, 50, 50)
+      ) sameCount++;
     }
-    expect(sameForAll).toBe(false);
+    // Binomial sd at n=2000 is ~1.1%; +/-8% is enormously conservative but
+    // still catches the 15% deficit the unfixed hash produced.
+    expect(sameCount / n).toBeGreaterThan(0.42);
+    expect(sameCount / n).toBeLessThan(0.58);
   });
 
   it("honors weights within tolerance (statistical fixture, 10k visitors)", () => {
