@@ -42,6 +42,16 @@ export function AbTestCard({ linkId, config, clicksA, clicksB }: AbTestCardProps
     null | "promoteA" | "promoteB" | "remove"
   >(null);
   const [error, setError] = React.useState<string | null>(null);
+  // #81 E.4 a11y: when a confirm region mounts it replaces the button that
+  // was focused — move focus INTO the region (to Confirm) so keyboard users
+  // aren't dumped back on <body>. Escape cancels (handled on the region).
+  const confirmBtnRef = React.useRef<HTMLButtonElement | null>(null);
+  React.useEffect(() => {
+    if (confirming) confirmBtnRef.current?.focus();
+  }, [confirming]);
+  const confirmKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") setConfirming(null);
+  };
 
   const total = clicksA + clicksB;
   const shareA = total > 0 ? Math.round((clicksA / total) * 100) : 50;
@@ -156,11 +166,15 @@ export function AbTestCard({ linkId, config, clicksA, clicksB }: AbTestCardProps
             {(["A", "B"] as const).map((v) => (
               <React.Fragment key={v}>
                 {confirming === `promote${v}` ? (
-                  <span className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">
+                  <span
+                    className="flex items-center gap-2 text-sm"
+                    onKeyDown={confirmKeyDown}
+                  >
+                    <span className="text-muted-foreground" aria-live="polite">
                       {v === "A" ? t("abPromoteAConfirm") : t("abPromoteBConfirm")}
                     </span>
                     <Button
+                      ref={confirmBtnRef}
                       size="sm"
                       disabled={pending}
                       onClick={() => run(() => promoteAbVariant(promoteFormData(linkId, v)))}
@@ -194,9 +208,15 @@ export function AbTestCard({ linkId, config, clicksA, clicksB }: AbTestCardProps
         {config.status === "archived" ? (
           <div className="flex flex-wrap items-center gap-2">
             {confirming === "remove" ? (
-              <span className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{t("abRemoveConfirm")}</span>
+              <span
+                className="flex items-center gap-2 text-sm"
+                onKeyDown={confirmKeyDown}
+              >
+                <span className="text-muted-foreground" aria-live="polite">
+                  {t("abRemoveConfirm")}
+                </span>
                 <Button
+                  ref={confirmBtnRef}
                   size="sm"
                   disabled={pending}
                   onClick={() => run(() => removeAbTest(idFormData(linkId)))}

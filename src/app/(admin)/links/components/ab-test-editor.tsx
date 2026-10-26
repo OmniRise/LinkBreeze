@@ -61,12 +61,18 @@ export function AbTestEditor({ storedConfig, urlA }: AbTestEditorProps) {
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border p-3">
       <label className="flex items-center gap-2 text-sm">
-        <Switch checked={enabled} onCheckedChange={setEnabled} />
+        <Switch
+          checked={enabled}
+          onCheckedChange={setEnabled}
+          aria-describedby={enabled ? "ab-test-hint" : undefined}
+        />
         {t("abTest")}
       </label>
       {enabled ? (
         <>
-          <p className="text-xs text-muted-foreground">{t("abTestHint")}</p>
+          <p id="ab-test-hint" className="text-xs text-muted-foreground">
+            {t("abTestHint")}
+          </p>
           <FormField label={t("abVariantBUrl")} htmlFor="ab_urlB">
             <Input
               id="ab_urlB"
@@ -111,7 +117,10 @@ export function AbTestEditor({ storedConfig, urlA }: AbTestEditorProps) {
                 className="h-2 flex-1 cursor-pointer accent-[var(--color-violet,#8b5cf6)]"
                 aria-valuetext={`${weightA} / ${100 - weightA}`}
               />
-              <span className="w-16 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
+              <span
+                aria-hidden="true"
+                className="w-16 shrink-0 text-right text-sm tabular-nums text-muted-foreground"
+              >
                 {weightA} / {100 - weightA}
               </span>
             </div>
