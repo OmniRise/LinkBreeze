@@ -60,6 +60,13 @@ export async function runAbAutoPromoteScan(): Promise<number> {
     if (link.type !== "url") continue;
     const config = parseAbConfig(link.abConfig ?? null);
     if (!config || config.status !== "running") continue;
+    // E.2: never auto-promote a time-boxed test whose window is still open —
+    // promotion archives the test, which would truncate the experiment the
+    // operator scheduled. No end bound (or a past one) = eligible.
+    if (config.endsAt) {
+      const end = Date.parse(config.endsAt);
+      if (Number.isFinite(end) && Date.now() < end) continue;
+    }
 
     // All-time variant-labeled clicks (retention pruning only lowers these,
     // which makes the scanner MORE conservative over time, never less).

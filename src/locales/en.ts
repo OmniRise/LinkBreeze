@@ -170,6 +170,8 @@ const en = {
     abWeightA: "Weight A (%)",
     abWeightHint: "Variant B gets the rest. 50 = even split.",
     abOpenBoth: "Open both",
+    abStartsAt: "Starts (optional)",
+    abEndsAt: "Ends (optional)",
 
     deleting: "Deleting…",
     delete: "Delete",

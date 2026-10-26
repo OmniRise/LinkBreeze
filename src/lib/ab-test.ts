@@ -25,10 +25,31 @@ export const abConfigSchema = z
     weightA: z.number().int().min(1).max(99),
     weightB: z.number().int().min(1).max(99),
     winner: z.enum(["A", "B"]).nullable(),
+    // E.2 time box: OPTIONAL local wall-clock strings ("YYYY-MM-DDTHH:MM",
+    // exactly what <input type="datetime-local"> produces — stored as-is, no
+    // timezone conversion, so save/reopen round-trips byte-identical). null /
+    // absent = unbounded on that side. Old configs without the keys parse
+    // fine (optional), so no migration and no backup incompatibility.
+    startsAt: z.string().nullable().optional(),
+    endsAt: z.string().nullable().optional(),
   })
   .refine((c) => c.weightA + c.weightB === 100, {
     message: "A/B weights must sum to 100",
-  });
+  })
+  .refine(
+    (c) => {
+      // Window validity: each bound must parse as a date, and when both are
+      // set the end must come after the start (a reversed window would make
+      // the test permanently inactive — rejected at the validation layer).
+      const s = c.startsAt ? Date.parse(c.startsAt) : null;
+      const e = c.endsAt ? Date.parse(c.endsAt) : null;
+      if (s !== null && !Number.isFinite(s)) return false;
+      if (e !== null && !Number.isFinite(e)) return false;
+      if (s !== null && e !== null) return e > s;
+      return true;
+    },
+    { message: "A/B window must be valid and end after it starts" },
+  );
 
 export type AbConfig = z.infer<typeof abConfigSchema>;
 
@@ -51,9 +72,27 @@ export function serializeAbConfig(config: AbConfig): string {
   return JSON.stringify(config);
 }
 
-/** Does this config currently split traffic? Only "running" serves B. */
-export function isAbActive(config: AbConfig | null): config is AbConfig {
-  return config !== null && config.status === "running";
+/**
+ * Does this config currently split traffic? Only "running" serves B, and
+ * E.2's time box (when set) must contain `now`. `now` is injectable so the
+ * window is fixture-testable without clock mocking; defaults to real time.
+ * Outside the window the link transparently serves variant A only.
+ */
+export function isAbActive(
+  config: AbConfig | null,
+  now: number = Date.now(),
+): config is AbConfig {
+  if (!config || config.status !== "running") return false;
+  if (config.startsAt) {
+    const s = Date.parse(config.startsAt);
+    // Unparseable bound (hand-edited) = treat as unset, never crash serving.
+    if (Number.isFinite(s) && now < s) return false;
+  }
+  if (config.endsAt) {
+    const e = Date.parse(config.endsAt);
+    if (Number.isFinite(e) && now > e) return false;
+  }
+  return true;
 }
 
 /** FNV-1a 32-bit — deterministic, dependency-free, even avalanche. */

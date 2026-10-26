@@ -123,4 +123,26 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     _resetAbAutoPromoteThrottle();
     expect(await runAbAutoPromoteScan()).toBe(0); // already archived
   });
+
+  it("E.2: never auto-promotes a time-boxed test whose window is still open", async () => {
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 16);
+    const link = await seedRunningTest({ endsAt: future });
+    await clickVariants(link.id, 50, 150); // would be promotable
+    expect(await runAbAutoPromoteScan()).toBe(0);
+    expect(parseAbConfig((await getLink(link.id))?.abConfig ?? null)?.status).toBe("running");
+  });
+
+  it("E.2: promotes once the window has closed", async () => {
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 16);
+    const link = await seedRunningTest({ endsAt: past });
+    await clickVariants(link.id, 50, 150);
+    expect(await runAbAutoPromoteScan()).toBe(1);
+    expect(parseAbConfig((await getLink(link.id))?.abConfig ?? null)?.status).toBe("archived");
+  });
 });

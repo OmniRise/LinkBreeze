@@ -650,6 +650,12 @@ export async function setAbTest(formData: FormData): Promise<ActionResult> {
   const labelA = String(formData.get("labelA") ?? "").trim() || null;
   const labelB = String(formData.get("labelB") ?? "").trim() || null;
 
+  // E.2 time box: datetime-local values stored as-is (local wall-clock,
+  // no TZ conversion — matches the schema comment). Empty = unbounded side.
+  // The schema refines reject unparseable bounds and end-before-start.
+  const startsAt = String(formData.get("startsAt") ?? "").trim() || null;
+  const endsAt = String(formData.get("endsAt") ?? "").trim() || null;
+
   const existing = parseAbConfig(link.abConfig ?? null);
   const status: AbStatus = existing
     ? existing.status === "archived"
@@ -666,6 +672,8 @@ export async function setAbTest(formData: FormData): Promise<ActionResult> {
     weightA,
     weightB,
     winner: existing?.winner ?? null,
+    startsAt,
+    endsAt,
   };
   const validated = abConfigSchema.safeParse(config);
   if (!validated.success) {

@@ -223,3 +223,90 @@ describe("abConfigSchema", () => {
     expect(abConfigSchema.safeParse({ ...base, labelA: null, labelB: null }).success).toBe(true);
   });
 });
+
+describe("E.2 time box (startsAt/endsAt)", () => {
+  const t = (s: string) => Date.parse(s);
+  const now = t("2026-06-15T12:00");
+
+  it("parses configs without window keys (pre-E.2 rows, no migration)", () => {
+    const cfg = parseAbConfig(serializeAbConfig(base));
+    expect(cfg).not.toBeNull();
+    expect(cfg!.startsAt).toBeUndefined();
+    expect(isAbActive(cfg, now)).toBe(true);
+  });
+
+  it("rejects an unparseable window bound", () => {
+    expect(abConfigSchema.safeParse({ ...base, startsAt: "not-a-date" }).success).toBe(false);
+    expect(abConfigSchema.safeParse({ ...base, endsAt: "yesterday" }).success).toBe(false);
+  });
+
+  it("rejects end-before-start (permanently-inactive window)", () => {
+    expect(
+      abConfigSchema.safeParse({
+        ...base,
+        startsAt: "2026-06-20T00:00",
+        endsAt: "2026-06-10T00:00",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a valid window (end strictly after start)", () => {
+    expect(
+      abConfigSchema.safeParse({
+        ...base,
+        startsAt: "2026-06-01T00:00",
+        endsAt: "2026-06-30T23:59",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("splits only inside the window", () => {
+    const cfg = parseAbConfig(
+      serializeAbConfig({
+        ...base,
+        startsAt: "2026-06-01T00:00",
+        endsAt: "2026-06-30T23:59",
+      }),
+    )!;
+    expect(isAbActive(cfg, t("2026-05-31T23:59"))).toBe(false); // before
+    expect(isAbActive(cfg, t("2026-06-01T00:00"))).toBe(true); // start edge (inclusive)
+    expect(isAbActive(cfg, now)).toBe(true); // inside
+    expect(isAbActive(cfg, t("2026-06-30T23:59"))).toBe(true); // end edge (inclusive)
+    expect(isAbActive(cfg, t("2026-07-01T00:00"))).toBe(false); // after
+  });
+
+  it("start-only and end-only windows each bound one side", () => {
+    const startOnly = parseAbConfig(
+      serializeAbConfig({ ...base, startsAt: "2026-06-01T00:00" }),
+    )!;
+    expect(isAbActive(startOnly, t("2026-05-31T00:00"))).toBe(false);
+    expect(isAbActive(startOnly, t("2027-01-01T00:00"))).toBe(true);
+
+    const endOnly = parseAbConfig(
+      serializeAbConfig({ ...base, endsAt: "2026-06-30T23:59" }),
+    )!;
+    expect(isAbActive(endOnly, t("2026-06-01T00:00"))).toBe(true);
+    expect(isAbActive(endOnly, t("2026-07-15T00:00"))).toBe(false);
+  });
+
+  it("a paused test never splits regardless of window", () => {
+    const cfg = parseAbConfig(
+      serializeAbConfig({
+        ...base,
+        status: "paused",
+        startsAt: "2026-06-01T00:00",
+        endsAt: "2026-06-30T23:59",
+      }),
+    )!;
+    expect(isAbActive(cfg, now)).toBe(false);
+  });
+
+  it("window round-trips through serialize/parse byte-identical", () => {
+    const cfg = {
+      ...base,
+      startsAt: "2026-06-01T08:30",
+      endsAt: "2026-06-30T18:00",
+    };
+    expect(parseAbConfig(serializeAbConfig(cfg))).toEqual(cfg);
+  });
+});

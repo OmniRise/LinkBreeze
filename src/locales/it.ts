@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 84af93dde4dd ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: d5614308e1b1 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -162,6 +162,8 @@ const it: Messages = {
     abWeightA: "Peso A (%)",
     abWeightHint: "La variante B riceve il resto. 50 = divisione pari.",
     abOpenBoth: "Apri entrambi",
+    abStartsAt: "Inizio (facoltativo)",
+    abEndsAt: "Fine (facoltativo)",
 
     deleting: "Eliminazione…",
     delete: "Elimina",

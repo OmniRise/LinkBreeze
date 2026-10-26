@@ -349,6 +349,9 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
         abData.set("labelA", String(formData.get("ab_labelA") ?? ""));
         abData.set("labelB", String(formData.get("ab_labelB") ?? ""));
         abData.set("weightA", String(formData.get("ab_weightA") ?? "50"));
+        // E.2 time box: empty string = unbounded side (server stores null).
+        abData.set("startsAt", String(formData.get("ab_startsAt") ?? ""));
+        abData.set("endsAt", String(formData.get("ab_endsAt") ?? ""));
         const abResult = await savedAction.run(setAbTest, abData);
         if (!abResult.success) {
           // The link itself saved; surface the A/B error without closing.

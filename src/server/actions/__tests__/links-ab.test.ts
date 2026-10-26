@@ -167,6 +167,56 @@ describe("setAbTest", () => {
     const res = await setAbTest(fd({ id: "999", urlB: "https://example.com/b", weightA: "50" }));
     expect(res.success).toBe(false);
   });
+
+  it("stores a valid time window (E.2)", async () => {
+    mocks.getLink.mockResolvedValue(urlLink(null));
+    const res = await setAbTest(
+      fd({
+        id: "7",
+        urlB: "https://example.com/b",
+        weightA: "50",
+        startsAt: "2026-06-01T00:00",
+        endsAt: "2026-06-30T23:59",
+      }),
+    );
+    expect(res.success).toBe(true);
+    const [, data] = mocks.updateLink.mock.calls[0] as unknown as [number, { abConfig: string }];
+    const saved = JSON.parse(data.abConfig);
+    expect(saved.startsAt).toBe("2026-06-01T00:00");
+    expect(saved.endsAt).toBe("2026-06-30T23:59");
+  });
+
+  it("stores empty window fields as null (unbounded)", async () => {
+    mocks.getLink.mockResolvedValue(urlLink(null));
+    const res = await setAbTest(
+      fd({ id: "7", urlB: "https://example.com/b", weightA: "50", startsAt: "", endsAt: "" }),
+    );
+    expect(res.success).toBe(true);
+    const [, data] = mocks.updateLink.mock.calls[0] as unknown as [number, { abConfig: string }];
+    const saved = JSON.parse(data.abConfig);
+    expect(saved.startsAt).toBeNull();
+    expect(saved.endsAt).toBeNull();
+  });
+
+  it("rejects end-before-start and garbage window bounds (E.2)", async () => {
+    mocks.getLink.mockResolvedValue(urlLink(null));
+    const reversed = await setAbTest(
+      fd({
+        id: "7",
+        urlB: "https://example.com/b",
+        weightA: "50",
+        startsAt: "2026-06-20T00:00",
+        endsAt: "2026-06-10T00:00",
+      }),
+    );
+    expect(reversed.success).toBe(false);
+
+    const garbage = await setAbTest(
+      fd({ id: "7", urlB: "https://example.com/b", weightA: "50", startsAt: "whenever" }),
+    );
+    expect(garbage.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
 });
 
 describe("setAbTestStatus", () => {

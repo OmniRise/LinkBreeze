@@ -28,7 +28,7 @@ export interface AbTestEditorProps {
 
 export function AbTestEditor({ storedConfig, urlA }: AbTestEditorProps) {
   const t = useTranslations("linksPage");
-  let initial: { urlB: string; labelA: string; labelB: string; weightA: number } | null = null;
+  let initial: { urlB: string; labelA: string; labelB: string; weightA: number; startsAt: string | null; endsAt: string | null } | null = null;
   if (storedConfig) {
     try {
       const c = JSON.parse(storedConfig);
@@ -38,6 +38,8 @@ export function AbTestEditor({ storedConfig, urlA }: AbTestEditorProps) {
           labelA: typeof c.labelA === "string" ? c.labelA : "",
           labelB: typeof c.labelB === "string" ? c.labelB : "",
           weightA: typeof c.weightA === "number" ? c.weightA : 50,
+          startsAt: typeof c.startsAt === "string" ? c.startsAt : null,
+          endsAt: typeof c.endsAt === "string" ? c.endsAt : null,
         };
       }
     } catch {
@@ -114,6 +116,27 @@ export function AbTestEditor({ storedConfig, urlA }: AbTestEditorProps) {
               </span>
             </div>
           </FormField>
+          {/* E.2 time box — optional start/end bounds (empty = unbounded).
+              Values stored as-is (local wall-clock); the server schema
+              rejects unparseable bounds and end-before-start. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr]">
+            <FormField label={t("abStartsAt")} htmlFor="ab_startsAt">
+              <Input
+                id="ab_startsAt"
+                name="ab_startsAt"
+                type="datetime-local"
+                defaultValue={initial?.startsAt ?? ""}
+              />
+            </FormField>
+            <FormField label={t("abEndsAt")} htmlFor="ab_endsAt">
+              <Input
+                id="ab_endsAt"
+                name="ab_endsAt"
+                type="datetime-local"
+                defaultValue={initial?.endsAt ?? ""}
+              />
+            </FormField>
+          </div>
           {/* Resolved-URL preview + open-both (#81): eyeball both targets
               before saving. Variant A is the link's SAVED url — the dialog's
               url field may hold unsaved edits, which are not this test's A. */}
