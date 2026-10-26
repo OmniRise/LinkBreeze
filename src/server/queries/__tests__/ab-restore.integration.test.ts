@@ -17,9 +17,9 @@ import { describe, it, expect, beforeAll, vi } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import "./integration-setup";
-import { db, seedPage } from "./integration-setup";
-import { applyBackupPayload } from "@/server/backup-restore";
-import { getSetting } from "@/server/queries";
+import { db, seedPage, seedLink } from "./integration-setup";
+import { applyBackupPayload, getBackupPayload } from "@/server/backup-restore";
+import { getSetting, updateSetting } from "@/server/queries";
 import { links } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { parseAbConfig, type AbConfig } from "@/lib/ab-test";
@@ -224,5 +224,53 @@ describe("[integration] A/B config restore sanitization (#81)", () => {
     // Absent key -> getSetting null -> the scanner's toggle check (=== "on")
     // reads OFF. Old backups can never enable automation.
     expect(await getSetting("abAutoPromote")).toBeNull();
+  });
+
+  // ---- E.18: EXPORT direction + export->import->export idempotence ----
+
+  it("E.18: export carries ab_config + toggle verbatim; a full round-trip is idempotent", async () => {
+    // Real rows for the export side (linkRow() fixtures above are payload
+    // INPUTS, not DB rows). Time-boxed ARCHIVED test — the richest config:
+    const archived = {
+      ...goodConfig,
+      status: "archived",
+      winner: "B",
+      startsAt: "2026-06-01T08:30",
+      endsAt: "2026-06-30T18:00",
+    };
+    const seeded = seedLink({
+      url: "https://example.com/winner",
+      abConfig: JSON.stringify(archived),
+    });
+    await updateSetting("abAutoPromote", "on");
+
+    // 1) Export: whole rows verbatim — no field drops on the way OUT.
+    const p1 = await getBackupPayload();
+    const exported = p1.links.find((l) => l.id === seeded.id);
+    expect(exported?.abConfig).toBe(JSON.stringify(archived));
+    expect(p1.settings.find((s) => s.key === "abAutoPromote")?.value).toBe("on");
+
+    // 2) Import (sanitizer runs, must pass verbatim for valid input)...
+    const res = await applyBackupPayload(p1);
+    expect(res.success).toBe(true);
+    expect(await restoredConfig(seeded.id)).toEqual(archived);
+
+    // 3) ...and a re-export is byte-identical on the A/B-relevant slices:
+    // configs (by link id) and settings. NOTE: whole-ROW link equality is
+    // deliberately not asserted — the pre-existing restore schema validates
+    // a reduced column set (#83-era design, out of #81 scope), so non-A/B
+    // columns are not round-trip stable by construction. The #81 contract
+    // is: ab_config (incl. window + winner) and the toggle KV survive a
+    // full export -> import -> export loop unchanged.
+    const p2 = await getBackupPayload();
+    const configById = (rows: typeof p1.links) =>
+      new Map([...rows].sort((a, b) => a.id - b.id).map((l) => [l.id, l.abConfig]));
+    expect(configById(p2.links)).toEqual(configById(p1.links));
+    const sortSettings = (rows: typeof p1.settings) =>
+      [...rows].sort((a, b) => a.key.localeCompare(b.key));
+    expect(sortSettings(p2.settings)).toEqual(sortSettings(p1.settings));
+    expect(
+      p2.links.find((l) => l.id === seeded.id)?.abConfig,
+    ).toBe(JSON.stringify(archived));
   });
 });
