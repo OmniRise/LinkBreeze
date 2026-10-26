@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   parseAbConfig,
   serializeAbConfig,
@@ -8,6 +10,8 @@ import {
   variantLift,
   variantConfidence,
   autoPromotableWinner,
+  AB_MIN_SAMPLE_CLICKS,
+  AB_AUTO_PROMOTE_MIN_CLICKS,
   fnv1a32,
   abConfigSchema,
   type AbConfig,
@@ -308,5 +312,28 @@ describe("E.2 time box (startsAt/endsAt)", () => {
       endsAt: "2026-06-30T18:00",
     };
     expect(parseAbConfig(serializeAbConfig(cfg))).toEqual(cfg);
+  });
+});
+
+describe("docs-drift tripwire (#81 E.19)", () => {
+  const guide = readFileSync(resolve(process.cwd(), "docs/ab-testing.md"), "utf8");
+
+  it("the guide's confidence-floor sentence matches AB_MIN_SAMPLE_CLICKS", () => {
+    // Exact phrase from the guide, number interpolated from the CODE —
+    // raising/lowering the floor without updating the guide fails here.
+    expect(guide).toContain(
+      `below **${AB_MIN_SAMPLE_CLICKS} variant clicks** the card always says`,
+    );
+  });
+
+  it("the guide's auto-promote sentence matches AB_AUTO_PROMOTE_MIN_CLICKS", () => {
+    expect(guide).toContain(
+      `reach **${AB_AUTO_PROMOTE_MIN_CLICKS}** with a significant margin`,
+    );
+  });
+
+  it("the constants themselves stay sane (guard against an accidental 0)", () => {
+    expect(AB_MIN_SAMPLE_CLICKS).toBeGreaterThanOrEqual(50);
+    expect(AB_AUTO_PROMOTE_MIN_CLICKS).toBeGreaterThan(AB_MIN_SAMPLE_CLICKS);
   });
 });

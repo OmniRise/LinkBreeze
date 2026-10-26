@@ -162,6 +162,12 @@ export function variantLift(clicksA: number, clicksB: number): number | null {
   return ((clicksB - clicksA) / clicksA) * 100;
 }
 
+/** #81 honesty floor: below this many total variant clicks the confidence
+ *  hint never calls a winner (spec: no fake winners at 12 clicks). Named so
+ *  docs/ab-testing.md's numbers can be tested against it (see the
+ *  docs-drift tripwire in ab-test.test.ts). */
+export const AB_MIN_SAMPLE_CLICKS = 100;
+
 /**
  * Honest confidence hint (#81: "no fake winner calls at 12 clicks").
  *
@@ -175,7 +181,7 @@ export function variantConfidence(
   clicksA: number,
   clicksB: number,
   weightA = 50,
-  minSample = 100,
+  minSample = AB_MIN_SAMPLE_CLICKS,
 ): { leader: AbVariant | null; significant: boolean } {
   const n = clicksA + clicksB;
   if (n === 0) return { leader: null, significant: false };
