@@ -298,4 +298,31 @@ describe("E.13 import edge battery", () => {
     expect(body.results[2].error.message).toContain("JSON object");
     expect(linkCount()).toBe(before + 1);
   });
+
+  it("E.132: from a LINK-LESS instance the envelope and counts are identical (absolute, not delta)", async () => {
+    await db.delete(schema.links); // absolute zero baseline
+    expect(linkCount()).toBe(0);
+
+    const first = await importRoute(
+      req({ items: [validItem(700), validItem(701), { title: "", url: "javascript:void(0)" }] }),
+    );
+    expect(first.status).toBe(200);
+    const body = (await first.json()).data;
+    expect(body.created).toBe(2);
+    expect(body.failed).toBe(1);
+    expect(body.results).toHaveLength(3);
+    expect(body.results[0].status).toBe("created");
+    expect(body.results[2].error.code).toBe("validation");
+    expect(linkCount()).toBe(2); // absolute count from zero
+
+    // The exact cap still computes from zero: 100 more → 102 total.
+    const full = await importRoute(
+      req({ items: Array.from({ length: 100 }, (_, i) => validItem(800 + i)) }),
+    );
+    expect(full.status).toBe(200);
+    const fullBody = (await full.json()).data;
+    expect(fullBody.created).toBe(100);
+    expect(fullBody.failed).toBe(0);
+    expect(linkCount()).toBe(102);
+  });
 });
