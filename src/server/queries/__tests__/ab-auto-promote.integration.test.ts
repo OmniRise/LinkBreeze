@@ -503,3 +503,79 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     expect(q).toBe(2 + N); // getSetting + prefilter + N grouped counts; 45 plain rows free
   });
 });
+
+describe("scanner eligibility truth table (#81 E.86)", () => {
+  // One visible matrix consolidating every eligibility rule the scanner
+  // applies (E.2 window, E.23 all-time counts, E.26 v-contract, E.32
+  // prefilter, E.64 count surfaces): 17 cells seeded into ONE database,
+  // ONE scan, then each row's fate asserted individually — 6 promote,
+  // 11 skip. Individual rules stay covered by their own tests above;
+  // this pins that they compose to the correct TOTAL behavior.
+  type Cell = {
+    name: string;
+    expect: "promote-A" | "promote-B" | "skip";
+    seed: { abConfig: string; type?: "url" | "email"; url?: string };
+    clicks: { a: number; b: number; unlabeled?: number };
+  };
+
+  const cfg = (o: Partial<AbConfig> = {}) => serializeAbConfig({ ...running, ...o });
+  const future = new Date(Date.now() + 3_600_000).toISOString();
+  const past = new Date(Date.now() - 3_600_000).toISOString();
+
+  const CELLS: Cell[] = [
+    { name: "paused (prefilter miss)", expect: "skip", seed: { abConfig: cfg({ status: "paused" }) }, clicks: { a: 150, b: 50 } },
+    { name: "archived (prefilter miss)", expect: "skip", seed: { abConfig: cfg({ status: "archived", winner: "A" }) }, clicks: { a: 150, b: 50 } },
+    { name: "future version v:2 (parse reject)", expect: "skip", seed: { abConfig: JSON.stringify({ ...running, v: 2 }) }, clicks: { a: 150, b: 50 } },
+    { name: "non-url link type", expect: "skip", seed: { abConfig: cfg(), type: "email" }, clicks: { a: 150, b: 50 } },
+    { name: "window still open (endsAt future)", expect: "skip", seed: { abConfig: cfg({ endsAt: future }) }, clicks: { a: 150, b: 50 } },
+    { name: "window closed (endsAt past)", expect: "promote-A", seed: { abConfig: cfg({ endsAt: past }) }, clicks: { a: 150, b: 50 } },
+    { name: "no window bounds", expect: "promote-A", seed: { abConfig: cfg() }, clicks: { a: 150, b: 50 } },
+    // The scanner gates ONLY on the end bound (E.2's rule): a future
+    // start with no end is still eligible — actual behavior, pinned.
+    { name: "startsAt future, no endsAt (end-bound-only gate)", expect: "promote-A", seed: { abConfig: cfg({ startsAt: future }) }, clicks: { a: 150, b: 50 } },
+    { name: "below floor (n=110)", expect: "skip", seed: { abConfig: cfg() }, clicks: { a: 50, b: 60 } },
+    { name: "tie at floor (100/100, z=0)", expect: "skip", seed: { abConfig: cfg() }, clicks: { a: 100, b: 100 } },
+    { name: "floor met, not significant (99/101)", expect: "skip", seed: { abConfig: cfg() }, clicks: { a: 99, b: 101 } },
+    { name: "weight-aware: leader at expected rate (w90, 180/20)", expect: "skip", seed: { abConfig: cfg({ weightA: 90, weightB: 10 }) }, clicks: { a: 180, b: 20 } },
+    { name: "weight-aware: leader beyond expected (w90, 195/5)", expect: "promote-A", seed: { abConfig: cfg({ weightA: 90, weightB: 10 }) }, clicks: { a: 195, b: 5 } },
+    { name: "significant but below floor (15/5)", expect: "skip", seed: { abConfig: cfg() }, clicks: { a: 15, b: 5 } },
+    { name: "unlabeled clicks excluded (150/50 + 500 unlabeled)", expect: "promote-A", seed: { abConfig: cfg() }, clicks: { a: 150, b: 50, unlabeled: 500 } },
+    { name: "poisoned urlB (E.82 parse reject)", expect: "skip", seed: { abConfig: cfg({ urlB: "javascript:alert(1)" }) }, clicks: { a: 150, b: 50 } },
+    { name: "B leader promotes + pins url", expect: "promote-B", seed: { abConfig: cfg() }, clicks: { a: 50, b: 150 } },
+  ];
+
+  it("runs all 17 cells through ONE scan and asserts each row's fate", async () => {
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    const seeded: Array<{ cell: Cell; id: number; config: string; url: string }> = [];
+    for (const [i, cell] of CELLS.entries()) {
+      const link = seedLink({ ...cell.seed, title: `Cell ${i}: ${cell.name}` });
+      for (let k = 0; k < cell.clicks.a; k++) await recordClick(link.id, `e86-${i}-a${k}`, null, "click", "A");
+      for (let k = 0; k < cell.clicks.b; k++) await recordClick(link.id, `e86-${i}-b${k}`, null, "click", "B");
+      for (let k = 0; k < (cell.clicks.unlabeled ?? 0); k++) await recordClick(link.id, `e86-${i}-u${k}`, null, "click");
+      seeded.push({ cell, id: link.id, config: link.abConfig ?? "", url: link.url });
+    }
+
+    const promoted = await runAbAutoPromoteScan();
+    expect(promoted).toBe(CELLS.filter((c) => c.expect !== "skip").length); // 6
+
+    for (const { cell, id, config, url } of seeded) {
+      const row = await getLink(id);
+      const parsed = parseAbConfig(row?.abConfig ?? null);
+      if (cell.expect === "skip") {
+        // Untouched: byte-identical config + same URL (either never
+        // fetched by the prefilter, rejected at parse, or gated by
+        // type/window/count rules after the fetch).
+        expect(row?.abConfig, cell.name).toBe(config);
+        expect(row?.url, cell.name).toBe(url);
+      } else if (cell.expect === "promote-A") {
+        expect(parsed?.status, cell.name).toBe("archived");
+        expect(parsed?.winner, cell.name).toBe("A");
+        expect(row?.url, cell.name).toBe(url); // A never touches the URL
+      } else {
+        expect(parsed?.status, cell.name).toBe("archived");
+        expect(parsed?.winner, cell.name).toBe("B");
+        expect(row?.url, cell.name).toBe("https://example.com/b"); // pinned
+      }
+    }
+  }, 60_000); // ~3,200 real recordClick inserts across the 17 cells
+});
