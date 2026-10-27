@@ -276,4 +276,40 @@ describe("export CSV variant fidelity (#81 E.95)", () => {
     );
     expect(bogusMetric.headers.get("Content-Disposition")).toContain("linkbreeze-views-7d.csv");
   });
+
+  it("E.118: attacker-controlled cells are neutralized in the REAL export (formula injection)", async () => {
+    // The mocked escaping test covers csvCell itself; this pins the REAL
+    // route end to end: an admin-set title and visitor-controlled referrers
+    // starting with = + - @ must reach the CSV apostrophe-guarded (spreadsheets
+    // treat the cell as text), on BOTH metrics.
+    await db.delete(analyticsClicks);
+    await db.delete(analyticsPageviews);
+    const link = seedLink({ title: "=EVIL_TITLE", url: "https://example.com/x" });
+    await recordClick(link.id, "e118-a", "=clickFormula", "click", "A");
+    await recordPageview("e118-p", "=viewFormula", "desktop", "MA");
+
+    const cRes = await GET(
+      new NextRequest("http://localhost:3000/api/analytics/export?metric=clicks&range=30d"),
+    );
+    const cLines = (await cRes.text()).split("\n").slice(1).filter(Boolean);
+    expect(cLines.length).toBe(1);
+    const cCols = cLines[0].split(",");
+    expect(cCols[2], "referrer guarded").toBe("'=clickFormula");
+    expect(cCols[3], "title guarded").toBe("'=EVIL_TITLE");
+
+    const vRes = await GET(
+      new NextRequest("http://localhost:3000/api/analytics/export?metric=views&range=30d"),
+    );
+    const vLines = (await vRes.text()).split("\n").slice(1).filter(Boolean);
+    expect(vLines.length).toBe(1);
+    expect(vLines[0].split(",")[2], "pageview referrer guarded").toBe("'=viewFormula");
+
+    // Universal claim over both files: NO emitted cell starts with a raw
+    // formula character (all seeds are comma/quote-free, so split is exact).
+    for (const line of [...cLines, ...vLines]) {
+      for (const cell of line.split(",")) {
+        expect(/^[=+\-@\t\r]/.test(cell), `raw formula start: ${cell}`).toBe(false);
+      }
+    }
+  });
 });
