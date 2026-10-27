@@ -187,6 +187,34 @@ describe("buildStaticExport", () => {
     expect(html).toContain(".custom-thing { color: red; }");
   });
 
+  it("analyticsScript placement: verbatim, exactly once, top-of-body (E.232)", () => {
+    const script =
+      '<script async src="https://plausible.io/js/script.js"></script>';
+    const html = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, analyticsScript: script },
+    });
+    // verbatim inside its wrapping div, EXACTLY one occurrence
+    expect(html).toContain(`<div>${script}</div>`);
+    expect(html.split(script).length - 1).toBe(1);
+    // placement: inside <body>, BEFORE the styles/skip-link/heading
+    // (top-of-body, build-static-export.ts:520 — first body child)
+    const bodyIdx = html.indexOf("<body");
+    const scriptIdx = html.indexOf(script);
+    expect(bodyIdx).toBeGreaterThan(-1);
+    expect(scriptIdx).toBeGreaterThan(bodyIdx);
+    expect(scriptIdx).toBeLessThan(html.indexOf("Skip to content"));
+    // (head's own <style> legitimately precedes <body> — the ordering
+    // vs the skip-link already pins top-of-body: body → script →
+    // theme style chain → skip link)
+    // absent case: no wrapper div leaks
+    const noScript = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, analyticsScript: null },
+    });
+    expect(noScript).not.toContain("plausible.io");
+  });
+
   it("renders popup dialogs for text/location links", () => {
     const html = buildStaticExport({
       ...baseInput,

@@ -1042,6 +1042,24 @@ describe("GET /api/pages/export", () => {
     expect(html).toContain("🎉");
   });
 
+  it("route end-to-end: corrupt socialLinks JSON still serves 200 (E.231)", async () => {
+    // E.43 pins the BUILDER layer; this pins the full route stack
+    // (auth → queries → theme → builder → headers) with the same fault
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      socialLinks: "{{{ not json at all",
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const body = await res.text();
+    expect(body.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(body).not.toContain('class="lb-social-icon"');
+    expect(body).not.toContain("undefined</a>");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
