@@ -245,6 +245,36 @@ describe("embed zip ships real uploads files (E.35/E.52)", () => {
     }
   });
 
+  it("bundles a ~1MiB REAL image byte-exactly (E.117)", async () => {
+    // realistic payload: 1 MiB buffer (not a 4-byte fixture) — Buffer
+    // entry handling, CRC and size accounting at media scale
+    const BIG = Buffer.alloc(1024 * 1024);
+    for (let i = 0; i < BIG.length; i += 7) BIG[i] = (i * 13) % 256;
+    writeFileSync(join(tempUploads, "photo-big.png"), BIG);
+    vi.mocked(auth.getSession).mockResolvedValue({ userId: 1, username: "jane" } as never);
+    vi.mocked(q.getPageById).mockResolvedValue({
+      id: 1, slug: "bigphoto", title: "B", bio: null, themeId: null,
+      avatarUrl: "/api/uploads/photo-big.png",
+      emailCapture: false, shareEnabled: false,
+    } as never);
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/pages/export?id=1&embed=1", {
+        headers: { host: "localhost:3000" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const zipBuf = Buffer.from(await res.arrayBuffer());
+    expect(zipBuf.length).toBeGreaterThan(1024 * 1024);
+    const entries = readLocalEntries(zipBuf);
+    const img = entries.find((e) => e.name === "uploads/photo-big.png");
+    expect(img, "big image not bundled").toBeTruthy();
+    expect(img!.data.length).toBe(1024 * 1024);
+    expect(img!.data.equals(BIG)).toBe(true);
+    // structural: EOCD still clean at this size
+    expect(zipBuf.readUInt32LE(zipBuf.length - 22)).toBe(0x06054b50);
+    expect(zipBuf.readUInt16LE(zipBuf.length - 2)).toBe(0);
+  });
+
   it("embed zip bundles a REAL font file referenced by @font-face (E.99)", async () => {
     const FONT_BYTES = Buffer.from("wOF2-font-bytes-not-real");
     writeFileSync(join(tempUploads, "up-font.woff2"), FONT_BYTES);

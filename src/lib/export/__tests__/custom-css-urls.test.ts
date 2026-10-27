@@ -68,4 +68,23 @@ describe("customCss url() across export modes (E.78)", () => {
     // sibling context — media src and css url() rewrite independently
     expect(styleBlock(embed)).toContain("url(uploads/bg.png)");
   });
+
+  it("media queries in customCss survive verbatim in both modes (E.118)", () => {
+    const MQ = "@media (max-width:600px){.card{padding:4px}}";
+    const mk = (assetBase?: string) => ({
+      ...inputWithCss(assetBase),
+      page: { ...inputWithCss(assetBase).page, customCss: MQ },
+    });
+    for (const mode of [undefined, "uploads"] as const) {
+      const html = buildStaticExport(mk(mode));
+      expect(html, String(mode)).toContain(MQ);
+      // the customCss block itself: braces balanced (query not mangled)
+      const m = html.match(/<style>@media[^<]*<\/style>/);
+      expect(m, String(mode)).toBeTruthy();
+      const block = m![0];
+      const opens = (block.match(/\{/g) ?? []).length;
+      const closes = (block.match(/\}/g) ?? []).length;
+      expect(opens, String(mode)).toBe(closes);
+    }
+  });
 });
