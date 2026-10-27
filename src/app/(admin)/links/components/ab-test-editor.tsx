@@ -27,27 +27,42 @@ export interface AbTestEditorProps {
   urlA: string;
 }
 
+/** Fields the editor form seeds from a stored config — null = no test. */
+export type AbEditorInitial = {
+  urlB: string;
+  labelA: string;
+  labelB: string;
+  weightA: number;
+  startsAt: string | null;
+  endsAt: string | null;
+};
+
+/**
+ * Map stored ab_config JSON to the editor's initial fields — null when the
+ * config is absent or does not survive the SHARED zod parser (serve /
+ * scanner / restore all use it). The old raw-JSON typeof-guard let a
+ * tampered config (weightA=250, missing labelA) enable + mislabel the
+ * editor while parseAbConfig treated it as null everywhere else — one
+ * parser, one truth (E.40). Pure + exported so the mapping is unit-testable
+ * without a component harness (E.46).
+ */
+export function computeAbEditorInitial(storedConfig: string | null): AbEditorInitial | null {
+  if (!storedConfig) return null;
+  const c = parseAbConfig(storedConfig);
+  if (!c) return null;
+  return {
+    urlB: c.urlB,
+    labelA: c.labelA ?? "",
+    labelB: c.labelB ?? "",
+    weightA: c.weightA,
+    startsAt: c.startsAt ?? null,
+    endsAt: c.endsAt ?? null,
+  };
+}
+
 export function AbTestEditor({ storedConfig, urlA }: AbTestEditorProps) {
   const t = useTranslations("linksPage");
-  let initial: { urlB: string; labelA: string; labelB: string; weightA: number; startsAt: string | null; endsAt: string | null } | null = null;
-  if (storedConfig) {
-    // Parse through the SAME zod parser the app runs everywhere else
-    // (serve / scanner / restore). The old raw-JSON typeof-guard let a
-    // tampered config (weightA=250, missing labelA) enable + mislabel the
-    // editor while parseAbConfig treated it as null everywhere else — one
-    // parser, one truth (E.40).
-    const c = parseAbConfig(storedConfig);
-    if (c) {
-      initial = {
-        urlB: c.urlB,
-        labelA: c.labelA ?? "",
-        labelB: c.labelB ?? "",
-        weightA: c.weightA,
-        startsAt: c.startsAt ?? null,
-        endsAt: c.endsAt ?? null,
-      };
-    }
-  }
+  const initial = computeAbEditorInitial(storedConfig);
 
   const [enabled, setEnabled] = React.useState(!!initial);
   const [urlB, setUrlB] = React.useState(initial?.urlB ?? "");
