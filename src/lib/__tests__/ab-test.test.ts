@@ -821,3 +821,50 @@ describe("public surface A/B transparency (#81 E.113)", () => {
     expect(card).toContain("/go/");
   });
 });
+
+describe("settings toggle contract (#81 E.116)", () => {
+  it("auto-promote uses the shared constant on BOTH sides — no string-literal KV key anywhere", () => {
+    // Grounded: the toggle is a client switch (onChange builds FormData
+    // with fd.set(AB_AUTO_PROMOTE_SETTING, checked ? "on":"off")), the page
+    // renders getSetting(AB_AUTO_PROMOTE_SETTING), and the action reads
+    // formData.get(AB_AUTO_PROMOTE_SETTING) — one constant, three call
+    // sites. The literal "abAutoPromote" also exists as an i18n KEY and a
+    // DOM id, so the pin targets quoted literals in the SETTING calls only.
+    const page = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/settings/page.tsx"),
+      "utf8",
+    );
+    const dm = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/settings/data-manager.tsx"),
+      "utf8",
+    );
+    const action = readFileSync(
+      resolve(process.cwd(), "src/server/actions/links.ts"),
+      "utf8",
+    );
+
+    // Page: renders the CURRENT KV value through the shared constant.
+    expect(page).toContain('import { AB_AUTO_PROMOTE_SETTING } from "@/lib/ab-test"');
+    expect(page).toContain("getSetting(AB_AUTO_PROMOTE_SETTING)");
+    expect(page).toContain("abAutoPromoteEnabled={abAutoPromote ===");
+
+    // Switch -> action: the field key IS the constant the action reads.
+    expect(dm).toContain("fd.set(AB_AUTO_PROMOTE_SETTING,");
+    expect(dm).toContain("await setAbAutoPromote(fd)");
+    expect(action).toContain("formData.get(AB_AUTO_PROMOTE_SETTING)");
+
+    // Nobody spells the KV key as a bare quoted literal in a setting call.
+    const surfaces: Array<[string, string]> = [
+      ["settings page", page],
+      ["data-manager", dm],
+      ["links action", action],
+    ];
+    for (const [name, src] of surfaces) {
+      const bare =
+        /getSetting\("abAutoPromote"|fd\.set\("abAutoPromote"|formData\.get\("abAutoPromote"/.test(
+          src,
+        );
+      expect(bare, `bare KV literal in ${name}`).toBe(false);
+    }
+  });
+});
