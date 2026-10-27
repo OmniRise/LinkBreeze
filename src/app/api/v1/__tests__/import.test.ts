@@ -146,6 +146,25 @@ describe("batch behavior", () => {
     expect(linkCount()).toBe(before + 2);
   });
 
+  it("E.107: full-size batch (100 = the cap) with ONE bad entry → 99 created / 1 failed, exact counts", async () => {
+    const before = linkCount();
+    const items = Array.from({ length: 99 }, (_, n) => validItem(300 + n));
+    items.splice(57, 0, { title: "Poison", url: "javascript:alert(1)" });
+    expect(items).toHaveLength(100); // exactly the request cap
+
+    const res = await importRoute(req({ items }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()).data;
+    expect(body.created).toBe(99);
+    expect(body.failed).toBe(1);
+    expect(body.results).toHaveLength(100);
+    expect(body.results[57]).toMatchObject({ index: 57, status: "error" });
+    expect(
+      body.results.filter((r: { status: string }) => r.status === "created"),
+    ).toHaveLength(99);
+    expect(linkCount()).toBe(before + 99);
+  });
+
   it("strips id-shaped fields from every item (URL owns ids)", async () => {
     const res = await importRoute(
       req({
