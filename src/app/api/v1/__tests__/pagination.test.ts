@@ -18,6 +18,7 @@ import { NextRequest } from "next/server";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { GET as listLinks } from "@/app/api/v1/links/route";
+import { parseListParams, encodeListCursor, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "@/server/api-links";
 import { createApiKey } from "@/server/api-keys";
 
 let KEY = "";
@@ -221,5 +222,41 @@ describe("GET /api/v1/links — sparse fieldsets", () => {
     // A seeded row's actual column is readable through the projection.
     const all = db.select().from(schema.links).all();
     expect(all.length).toBe(5);
+  });
+});
+
+describe("E.44 spec claim: ?cursor alone defaults limit to exactly 100", () => {
+  // Real encoder — hand-rolled JSON uses the wrong keys and parseListParams
+  // correctly rejects it (that's how the fixture bug surfaced).
+  const cursor = encodeListCursor(0, 1);
+
+  it("pins the literal default (the spec says 100 — not merely 'large')", () => {
+    // The earlier route test proves "big enough for the tail"; this pins the
+    // NUMBER the OpenAPI description promises (spec ↔ behavior both ways).
+    expect(DEFAULT_LIST_LIMIT).toBe(100);
+    expect(MAX_LIST_LIMIT).toBe(100);
+
+    const cursorOnly = parseListParams(new URLSearchParams({ cursor }));
+    expect(cursorOnly.ok).toBe(true);
+    if (cursorOnly.ok) {
+      expect(cursorOnly.value.limit).toBe(100);
+      expect(cursorOnly.value.after).toEqual({ orderIndex: 0, id: 1 });
+    }
+
+    const noParams = parseListParams(new URLSearchParams());
+    expect(noParams.ok).toBe(true);
+    if (noParams.ok) expect(noParams.value.limit).toBe(100);
+  });
+
+  it("an explicit limit beats the default, and out-of-range limits stay 400", () => {
+    const explicit = parseListParams(new URLSearchParams({ limit: "7" }));
+    expect(explicit.ok).toBe(true);
+    if (explicit.ok) expect(explicit.value.limit).toBe(7);
+
+    for (const bad of ["0", "101", "1000", "-5", "abc", "10.5"]) {
+      const r = parseListParams(new URLSearchParams({ limit: bad }));
+      expect(r.ok, `limit=${bad}`).toBe(false);
+      if (!r.ok) expect(r.path).toBe("limit");
+    }
   });
 });
