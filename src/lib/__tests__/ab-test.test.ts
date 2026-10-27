@@ -388,6 +388,40 @@ describe("E.2 time box (startsAt/endsAt)", () => {
     expect(isAbActive(cfg, t("2026-07-01T00:00"))).toBe(false); // after
   });
 
+  it("E.98: window edges flip at the EXACT millisecond (±1ms), both bounds inclusive", () => {
+    // The test above pins the edges at minute granularity; this pins the
+    // true transition points: the start bound is inclusive (active from
+    // s itself, not s+1ms), the end bound is inclusive through e itself
+    // (inactive only from e+1ms).
+    const cfg = parseAbConfig(
+      serializeAbConfig({
+        ...base,
+        startsAt: "2026-06-01T00:00:00.000",
+        endsAt: "2026-06-30T23:59:59.999",
+      }),
+    )!;
+    const s = Date.parse("2026-06-01T00:00:00.000");
+    const e = Date.parse("2026-06-30T23:59:59.999");
+    expect(isAbActive(cfg, s - 1)).toBe(false); // last ms BEFORE start
+    expect(isAbActive(cfg, s)).toBe(true); // start ms itself (inclusive)
+    expect(isAbActive(cfg, e)).toBe(true); // end ms itself (inclusive)
+    expect(isAbActive(cfg, e + 1)).toBe(false); // first ms AFTER end
+  });
+
+  it("E.98: unparseable window bounds degrade to unset in isAbActive (hand-built defense)", () => {
+    // abConfigSchema REJECTS unparseable bounds (pinned elsewhere), so
+    // parse can never hand this to serving — but the function's own
+    // contract (docblock: hand-edited = treat as unset, never crash) is
+    // pinned directly with a hand-built config bypassing the parser.
+    const cfg = {
+      ...base,
+      startsAt: "not-a-date",
+      endsAt: "also-not",
+    };
+    expect(isAbActive(cfg, Date.parse("2020-01-01T00:00"))).toBe(true); // far past
+    expect(isAbActive(cfg, Date.parse("2099-01-01T00:00"))).toBe(true); // far future
+  });
+
   it("start-only and end-only windows each bound one side", () => {
     const startOnly = parseAbConfig(
       serializeAbConfig({ ...base, startsAt: "2026-06-01T00:00" }),
