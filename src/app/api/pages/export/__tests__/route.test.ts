@@ -1233,6 +1233,36 @@ describe("GET /api/pages/export", () => {
     }
   });
 
+  it("location card CTA: /go/ rewritten + popup intact (E.246)", async () => {
+    // schema: location targets live in url (resolved); popup card for
+    // text|location (#93) — same direct-URL treatment must apply
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object) } as never);
+    mockGetSections.mockResolvedValue([]);
+    mockGetActiveLinks.mockResolvedValue([
+      {
+        id: 21, pageId: 1, sectionId: null, orderIndex: 0, type: "location",
+        title: "Office map", description: "HQ pin",
+        url: "https://maps.example.com/@hq",
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        cardStyle: "compact", popupText: "33.5731,-7.5898",
+        ctaLabel: "Open map", redirectSlug: null,
+        createdAt: "2026-01-01 00:00:00",
+      },
+    ] as never[]);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // popup shell for the location card exists
+    expect(body).toContain('<dialog id="lb-popup-21"');
+    expect(body).toContain("Office map");
+    // the builder emitted href="/go/21" (ref=id) — applyDirectUrls
+    // replaced it with the card's direct destination; NO /go/ survives
+    expect(body).not.toMatch(/\/go\//);
+    expect(body).toContain('href="https://maps.example.com/@hq"');
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
