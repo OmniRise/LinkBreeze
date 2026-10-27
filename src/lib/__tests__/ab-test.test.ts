@@ -924,4 +924,27 @@ describe("stats detail surface contract (#81 E.125)", () => {
     expect(card.includes("1.96"), "z-critical literal in card").toBe(false);
     expect(card.includes("200"), "raw floor literal in card").toBe(false);
   });
+
+  it("E.133: display labels surface ONLY on the stats card (A/B fallback); the CSV exports variant letters", () => {
+    // Grounded: labelA/labelB render nowhere except ab-test-card (editor
+    // inputs aside — E.124 pins those through to the action), always with
+    // letter fallbacks so NULL labels still display; the export route has
+    // ZERO label references (greps: 0 raw hits) and emits "A"/"B"/""
+    // cells (pinned at runtime by E.95). Pins both halves so a label
+    // leaking into the CSV (or fallbacks disappearing) fails here.
+    const card = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/[id]/ab-test-card.tsx"),
+      "utf8",
+    );
+    const exportRoute = readFileSync(
+      resolve(process.cwd(), "src/app/api/analytics/export/route.ts"),
+      "utf8",
+    );
+
+    expect(card).toContain('config.labelA || "A"');
+    expect(card).toContain('config.labelB || "B"');
+
+    expect(exportRoute).not.toContain("labelA");
+    expect(exportRoute).not.toContain("labelB");
+  });
 });
