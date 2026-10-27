@@ -49,6 +49,19 @@ if (update) {
   process.exit(0);
 }
 
+// E.78 content rule: README endpoint tables use the `:id` placeholder
+// convention, never the OpenAPI `{id}` template syntax (that lives only in
+// the spec). A translator drifting into {id} fails here.
+const readmes = fs.readdirSync(root).filter((f) => /^README(\.[^.]+)?\.md$/.test(f));
+const badPlaceholders = readmes.filter((f) =>
+  /\{id\}/.test(fs.readFileSync(path.join(root, f), "utf8")),
+);
+if (badPlaceholders.length) {
+  console.error("OAS-style {id} placeholder leaked into README(s) — table convention is :id:");
+  for (const f of badPlaceholders) console.error(`  - ${f}`);
+  process.exit(1);
+}
+
 if (stale.length) {
   console.error("Stale translation(s) — README.md changed since they were synced:");
   for (const s of stale) console.error(`  - ${s}`);
