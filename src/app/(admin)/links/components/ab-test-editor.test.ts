@@ -187,4 +187,26 @@ describe("computeAbEditorInitial (#81 E.40/E.46)", () => {
     const afterGuard = dialog.slice(end, end + 200);
     expect(afterGuard).toContain("onOpenChange(false)");
   });
+
+  it("E.136: window inputs are datetime-local with empty-by-default (unbounded) values", () => {
+    // Grounded (ab-test-editor.tsx:151-166): both bounds are
+    // type="datetime-local" (emits "YYYY-MM-DDTHH:mm" — Date.parse-able,
+    // which abConfigSchema's window refine requires) with
+    // defaultValue = initial?.X ?? "" so a new test starts UNBOUNDED
+    // rather than implicitly windowed at load time.
+    const editor = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/components/ab-test-editor.tsx"),
+      "utf8",
+    );
+    for (const [anchor, initialKey] of [
+      ['name="ab_startsAt"', "startsAt"],
+      ['name="ab_endsAt"', "endsAt"],
+    ] as const) {
+      const at = editor.indexOf(anchor);
+      expect(at, anchor).toBeGreaterThan(-1);
+      const block = editor.slice(at, at + 220);
+      expect(block, anchor).toContain('type="datetime-local"');
+      expect(block, anchor).toContain(`defaultValue={initial?.${initialKey} ?? ""}`);
+    }
+  });
 });
