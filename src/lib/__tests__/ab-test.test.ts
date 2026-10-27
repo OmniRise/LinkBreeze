@@ -330,6 +330,24 @@ describe("E.2 time box (startsAt/endsAt)", () => {
     // never silently change.
     expect(AB_AUTO_PROMOTE_SETTING).toBe("abAutoPromote");
   });
+
+  it("all 11 locale auto-promote hints carry the CURRENT threshold (E.53)", () => {
+    // The locale hints are static translated strings ("200+ clicks" etc.)
+    // and were the ONE threshold surface with no tripwire: changing
+    // AB_AUTO_PROMOTE_MIN_CLICKS would silently leave 11 user-facing
+    // strings lying. If this fails, update every locale's abAutoPromoteHint
+    // — the docs (E.19) and CHANGELOG (E.29) tripwires cover the rest.
+    const expected = String(AB_AUTO_PROMOTE_MIN_CLICKS);
+    const localeFiles = readdirSync(resolve(process.cwd(), "src/locales"))
+      .filter((f) => f.endsWith(".ts"));
+    expect(localeFiles.length).toBe(11);
+    const offenders = localeFiles.filter((f) => {
+      const src = readFileSync(resolve(process.cwd(), "src/locales", f), "utf8");
+      const m = src.match(/abAutoPromoteHint:\s*"([^"]*)"/);
+      return !m || !m[1].includes(expected);
+    });
+    expect(offenders).toEqual([]);
+  });
 });
 
 describe("docs-drift tripwire (#81 E.19)", () => {
