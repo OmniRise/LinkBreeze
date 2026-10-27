@@ -947,4 +947,28 @@ describe("stats detail surface contract (#81 E.125)", () => {
     expect(exportRoute).not.toContain("labelA");
     expect(exportRoute).not.toContain("labelB");
   });
+
+  it("E.137: card status badge = stored config.status verbatim — window truth lives at /go (E.61)", () => {
+    // Grounded: ab-test-card derives its badge ONLY from config.status
+    // (line 64+), never imports isAbActive, and renders zero window fields;
+    // the /go route owns live activity via isAbActive (line 70 — the
+    // out-of-window bare-serving E.61 pinned). A window-CLOSED test shows
+    // "running" on the card while serving bare: BY DESIGN (the badge is
+    // the OPERATOR's state, the window is serving's), documented here so
+    // nobody "fixes" one side without the other.
+    const card = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/[id]/ab-test-card.tsx"),
+      "utf8",
+    );
+    const route = readFileSync(resolve(process.cwd(), "src/app/go/[id]/route.ts"), "utf8");
+
+    expect(card).not.toContain("isAbActive");
+    expect(card).not.toContain("startsAt");
+    expect(card).toContain('config.status === "running"');
+    expect(card).toContain('config.status === "paused"');
+    expect(card).toContain('config.status === "archived"');
+
+    expect(route).toContain("isAbActive");
+    expect(route).toContain("const abActive = isAbActive(abConfig);");
+  });
 });
