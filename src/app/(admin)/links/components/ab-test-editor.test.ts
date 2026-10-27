@@ -10,6 +10,8 @@
  * pre-E.2 configs lacking the window keys still map (schema optionality).
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { computeAbEditorInitial } from "./ab-test-editor";
 
 const base = {
@@ -71,5 +73,39 @@ describe("computeAbEditorInitial (#81 E.40/E.46)", () => {
     expect(computeAbEditorInitial("")).toBeNull();
     expect(computeAbEditorInitial("{not json")).toBeNull();
     expect(computeAbEditorInitial('"just a string"')).toBeNull();
+  });
+
+  it("E.107: one parser, one truth across the admin link surfaces (static source pin)", () => {
+    // The list has NO A/B badge today (grounded: zero abConfig refs in
+    // links-manager/sortable-link); the dialog is the ONLY client reader
+    // and hands the RAW string to the editor, which parses through the
+    // SHARED parseAbConfig. Pin all three so a future surface can't grow
+    // its own hand-rolled config reader.
+    const base = resolve(process.cwd(), "src/app/(admin)/links");
+    const files = readdirSync(base, { recursive: true })
+      .map(String)
+      .filter((f) => (f.endsWith(".tsx") || f.endsWith(".ts")) && !f.includes(".test."));
+    expect(files.length).toBeGreaterThan(5); // scan is real
+
+    // (1) No hand-rolled JSON.parse anywhere in the admin link surfaces.
+    for (const f of files) {
+      const src = readFileSync(resolve(base, f), "utf8");
+      expect(src.includes("JSON.parse"), `JSON.parse found in ${f}`).toBe(false);
+    }
+
+    // (2) The dialog passes the RAW stored string through unmodified.
+    const dialog = readFileSync(resolve(base, "components/link-dialog.tsx"), "utf8");
+    expect(dialog).toContain("<AbTestEditor storedConfig={editing.abConfig ?? null}");
+
+    // (3) The editor parses via the ONE shared function (not inline).
+    const editor = readFileSync(resolve(base, "components/ab-test-editor.tsx"), "utf8");
+    expect(editor).toContain("parseAbConfig(storedConfig)");
+
+    // (4) The list surface renders no A/B state — any future badge must
+    // come through the shared parser, never an ad-hoc read.
+    for (const f of ["links-manager.tsx", "components/sortable-link.tsx"]) {
+      const src = readFileSync(resolve(base, f), "utf8");
+      expect(src.includes("abConfig"), `abConfig reference in list file ${f}`).toBe(false);
+    }
   });
 });
