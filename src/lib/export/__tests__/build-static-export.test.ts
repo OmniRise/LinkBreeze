@@ -173,6 +173,22 @@ describe("buildStaticExport", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
+  it("skip-link target resolves: #lb-main href pairs with id (E.240)", () => {
+    const html = buildStaticExport(baseInput);
+    const hrefs = [...html.matchAll(/href="(#[^"]+)"/g)].map((m) => m[1]);
+    // the skip link's fragment must have a matching id= element
+    expect(hrefs).toContain("#lb-main");
+    expect(html.match(/href="#lb-main"/g)).toHaveLength(1);
+    expect(html.match(/id="lb-main"/g)).toHaveLength(1);
+    // generic rule: EVERY internal fragment href resolves to an id
+    for (const frag of hrefs) {
+      expect(
+        html.includes(`id="${frag.slice(1)}"`),
+        `unresolved anchor: ${frag}`,
+      ).toBe(true);
+    }
+  });
+
   it("keeps operator-provided analytics + custom CSS verbatim", () => {
     const html = buildStaticExport({
       ...baseInput,
