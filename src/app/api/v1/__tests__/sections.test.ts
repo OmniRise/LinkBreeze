@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import "../../../../server/queries/__tests__/integration-setup";
 import { seedPage, seedLink, db } from "../../../../server/queries/__tests__/integration-setup";
 import * as schema from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -372,5 +373,29 @@ describe("PUT /api/v1/sections/reorder (E.12 parity)", () => {
     const mod = await import("@/app/api/v1/sections/reorder/route");
     const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
     expect(Object.keys(mod).filter((k) => METHODS.has(k))).toEqual(["PUT"]);
+  });
+});
+
+describe("E.101 sections ordering tie-break (equal orderIndex → id ascending)", () => {
+  it("pins the tie-break on BOTH queries (all-pages and ?pageId=)", async () => {
+    const a = await createVia("Tie Alpha", pageId);
+    const b = await createVia("Tie Beta", pageId);
+    expect(a.id).toBeLessThan(b.id); // creation order → id order
+
+    // Force an exact tie (same-second admin writes can produce this).
+    db.update(schema.linkSections)
+      .set({ orderIndex: a.orderIndex })
+      .where(eq(schema.linkSections.id, b.id))
+      .run();
+
+    const all = await listSections(req("/api/v1/sections"));
+    const allIds: number[] = (await all.json()).data.map((s: { id: number }) => s.id);
+    expect(allIds.indexOf(b.id)).toBe(allIds.indexOf(a.id) + 1);
+
+    const filtered = await listSections(req(`/api/v1/sections?pageId=${pageId}`));
+    const filteredIds: number[] = (await filtered.json()).data.map(
+      (s: { id: number }) => s.id,
+    );
+    expect(filteredIds.indexOf(b.id)).toBe(filteredIds.indexOf(a.id) + 1);
   });
 });
