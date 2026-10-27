@@ -264,4 +264,21 @@ describe("dedupeNames", () => {
     // parser-exploitable inconsistency class
     expect(cd).toEqual(local);
   });
+
+  it("stored CRC equals node:zlib crc32 in BOTH records (E.201)", () => {
+    // zip.ts imports crc32 from node:zlib directly (no reimplementation,
+    // zip.ts:13) — pin the STORED value (local + central) agrees with a
+    // fresh computation for a multi-byte payload. Third-party
+    // (cross-language) agreement comes from python zipfile.testzip()
+    // which validates every stored CRC (E.157, re-verified below).
+    const payload = Buffer.from("CRC cross-check payload — 中文 & café", "utf8");
+    const zip = createZip([{ name: "crc.html", content: payload }]);
+    const storedLocal = zip.readUInt32LE(14); // crc at local offset 14
+    expect(storedLocal).toBe(crc32(payload));
+    const eocd = zip.length - 22;
+    const cdStart = zip.readUInt32LE(eocd + 16);
+    const storedCd = zip.readUInt32LE(cdStart + 16); // crc at CD offset 16
+    expect(storedCd).toBe(storedLocal);
+    expect(storedCd).toBe(crc32(payload));
+  });
 });
