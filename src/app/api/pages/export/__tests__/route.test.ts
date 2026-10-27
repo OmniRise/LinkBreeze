@@ -673,6 +673,32 @@ describe("GET /api/pages/export", () => {
     expect(count).toBe(5);
   });
 
+  it("route imports stay inside the dependency allowlist (E.159)", () => {
+    const routeSrc = readFileSync(join(__dirname, "../route.ts"), "utf8");
+    const specs = [...routeSrc.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]);
+    const ALLOWED = new Set([
+      "next/server",
+      "node:fs",
+      "@/lib/auth",
+      "@/server/queries",
+      "@/lib/host-routing",
+      "@/lib/export/build-static-export",
+      "@/lib/export/size",
+      "@/lib/export/filename",
+      "@/lib/export/zip",
+      "@/lib/export/url-rewrite",
+      "@/lib/uploads",
+      "@/lib/custom-fonts",
+      "@/lib/theme-tokens",
+    ]);
+    // every import inside the allowlist…
+    for (const spec of specs) {
+      expect(ALLOWED.has(spec), `unexpected import: ${spec}`).toBe(true);
+    }
+    // …and the allowlist is fully used (no rotting entries)
+    expect(new Set(specs).size).toBe(ALLOWED.size);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
