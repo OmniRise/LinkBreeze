@@ -27,11 +27,12 @@ describe("rateLimit", () => {
 
   it("resets the window after the duration elapses", async () => {
     const key = "test-reset-" + Math.random();
-    // Exhaust the limit with a very short window
-    rateLimit(key, 1, 1); // 1ms window
+    // Exhaust the limit with a short window (E.125: generous margins so a
+    // loaded box can't starve the sleep below the window length)
+    rateLimit(key, 1, 50); // 50ms window
 
-    // Wait >1ms for window to expire
-    await new Promise((r) => setTimeout(r, 10));
+    // Wait well past window expiry
+    await new Promise((r) => setTimeout(r, 150));
 
     const r = rateLimit(key, 1, 60_000);
     expect(r.ok).toBe(true);
@@ -92,12 +93,15 @@ describe("rateLimit", () => {
 
   it("E.27: after the window elapses the FULL budget returns", async () => {
     const key = "test-refill-" + Math.random();
-    for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 5).ok).toBe(true);
-    expect(rateLimit(key, 3, 5).ok).toBe(false);
+    // E.125: 50ms windows + 150ms sleeps — the original 5ms/15ms margins
+    // flaked once under full-suite load (timer starvation); 3× headroom here
+    // so CPU saturation can't make the sleep land inside the window.
+    for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 50).ok).toBe(true);
+    expect(rateLimit(key, 3, 50).ok).toBe(false);
 
-    await new Promise((r) => setTimeout(r, 15));
+    await new Promise((r) => setTimeout(r, 150));
 
-    for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 5).ok).toBe(true);
-    expect(rateLimit(key, 3, 5).ok).toBe(false);
+    for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 50).ok).toBe(true);
+    expect(rateLimit(key, 3, 50).ok).toBe(false);
   });
 });
