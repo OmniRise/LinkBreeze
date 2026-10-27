@@ -328,4 +328,27 @@ describe("bot/crawler interaction (#41 x #81, E.31)", () => {
         : "https://example.com/a",
     );
   });
+
+  it("E.37: no request input can reach recordClick's variant (forged ?variant/x-variant claims ignored)", async () => {
+    // Security re-pass: the route reads ONLY headers + params.id — no
+    // searchParams, no body, no request field feeds `variant`. The label
+    // must be the pure server-side assignment result even when the visitor
+    // forges every plausible channel (query param, custom header, cookie).
+    // Forced-B weights make the expected outcome deterministic: B wins
+    // regardless of the forged claims.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+    mocks.getLinkByRef.mockResolvedValue(forcedBLink());
+
+    const forged = new NextRequest(
+      "http://localhost:3000/go/7?variant=A&ab_variant=A",
+      { headers: { "x-variant": "A", cookie: "lb_variant=A" } },
+    );
+    const res = await GET(forged, { params: Promise.resolve({ id: "7" }) });
+
+    expect(res.headers.get("location")).toBe("https://example.com/b");
+    expect(mocks.recordClick).toHaveBeenCalledTimes(1);
+    // Server assignment, not any forged claim, reaches the analytics write.
+    expect(mocks.recordClick).toHaveBeenCalledWith(7, "hash", "", "click", "B");
+  });
 });
