@@ -206,6 +206,65 @@ describe("uploaded fonts", () => {
   });
 });
 
+describe("theme extremes: density × fontScale × linkStyle (E.120)", () => {
+  const inputWith = (theme: Record<string, unknown>): ExportInput => ({
+    page: {
+      slug: "extreme",
+      title: "T",
+      bio: null,
+      socialLinks: null,
+      avatarUrl: null,
+      bannerUrl: null,
+      footerText: null,
+    } as unknown as ExportPageInput,
+    links: [makeLink({ id: 1, title: "Solo" })],
+    sections: [],
+    theme: { animationType: "none", ...theme } as ExportInput["theme"],
+    baseUrl: "https://links.example.com",
+  });
+
+  it("compact density → 8px spacing token, fontScale extremes scale exactly", () => {
+    const compact = buildStaticExport(inputWith({ density: "compact", fontScale: "90" }));
+    expect(compact).toContain("--lb-spacing: 8px");
+    // 90% of the 15px base
+    expect(compact).toContain("--lb-font-size: 13.5px");
+
+    const big = buildStaticExport(inputWith({ density: "compact", fontScale: "130" }));
+    expect(big).toContain("--lb-spacing: 8px");
+    expect(big).toContain("--lb-font-size: 19.5px");
+
+    const normal = buildStaticExport(inputWith({}));
+    expect(normal).toContain("--lb-spacing: 12px");
+    expect(normal).toContain("--lb-font-size: 15px");
+
+    const relaxed = buildStaticExport(inputWith({ density: "relaxed" }));
+    expect(relaxed).toContain("--lb-spacing: 16px");
+  });
+
+  it("linkStyle extremes flip the mode class AND keep their card rules", () => {
+    const gel = buildStaticExport(inputWith({ linkStyle: "gel", density: "compact" }));
+    expect(gel).toContain("lb-gel-mode");
+    expect(gel).toContain(".lb-gel-mode .lb-link-card"); // rules ship
+
+    const pixel = buildStaticExport(inputWith({ linkStyle: "pixel", fontScale: "90" }));
+    expect(pixel).toContain("lb-pixel-mode");
+    expect(pixel).toContain("main.lb-pixel-mode"); // scoped rules ship
+
+    // CSS rules ship unconditionally (E.115) — only the <main> MODE
+    // CLASS flips, so assert on the element, not the substring
+    // (main tag carries id before class: <main id="lb-main" class="…")
+    const mainClass = (html: string) =>
+      html.match(/<main[^>]*\sclass="([^"]*)"/)?.[1] ?? "";
+    expect(mainClass(gel)).toContain("lb-gel-mode");
+    expect(mainClass(gel)).not.toContain("lb-pixel-mode");
+    expect(mainClass(pixel)).toContain("lb-pixel-mode");
+    expect(mainClass(pixel)).not.toContain("lb-gel-mode");
+    const cls = mainClass(buildStaticExport(inputWith({ linkStyle: "glass" })));
+    expect(cls).not.toContain("lb-gel-mode");
+    expect(cls).not.toContain("lb-pixel-mode");
+  });
+});
+
 describe("keyframes completeness (theme-tokens ↔ EXPORT_CSS drift guard)", () => {
   it("every reveal animation keyframe exists in the exported CSS", () => {
     for (const type of ["lift", "scale", "zoom-in", "fade-up", "slide-in", "blur-in"]) {
