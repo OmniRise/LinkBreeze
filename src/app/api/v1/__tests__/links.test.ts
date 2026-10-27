@@ -155,7 +155,15 @@ describe("POST /api/v1/links", () => {
       req("/api/v1/links", { method: "POST", body: { title: "No", url: "https://no.example" } }),
     );
     expect(res.status).toBe(403);
-    expect((await res.json()).error.code).toBe("demo");
+    const body = await res.json();
+    // E.129: full API envelope — top-level {error} only, exact code, exact
+    // message from demoBlock() (no admin-action error shape leaking through).
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(Object.keys(body.error).sort()).toEqual(["code", "message"]);
+    expect(body.error.code).toBe("demo");
+    expect(body.error.message).toBe(
+      "This is a read-only demo. Deploy your own instance to make changes.",
+    );
   });
 
   it("rejects iconMode custom (upload stays UI-only)", async () => {
@@ -481,5 +489,20 @@ describe("E.82 usage counters move through REAL routes (in-process readback)", (
     expect(usage.accepted).toBe(1);
     expect(usage.authFails).toBe(1);
     expect(usage.date).toMatch(/^\d{4}-\d{2}-\d{2}$/); // day-bucketed snapshot
+  });
+
+  it("E.129: a demo-blocked write increments demoBlocked through the real gate", async () => {
+    const { resetApiUsage, getApiUsage } = await import("@/lib/api-usage");
+    resetApiUsage();
+    process.env.DEMO_MODE = "true";
+
+    const res = await createLinkRoute(
+      req("/api/v1/links", { method: "POST", body: { title: "No", url: "https://no.example" } }),
+    );
+    expect(res.status).toBe(403);
+    const usage = getApiUsage();
+    expect(usage.demoBlocked).toBe(1);
+    expect(usage.accepted).toBe(0);
+    expect(usage.authFails).toBe(0); // cleared auth, then demo-stopped the write
   });
 });
