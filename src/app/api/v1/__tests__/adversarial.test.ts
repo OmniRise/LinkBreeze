@@ -18,9 +18,13 @@ vi.mock("@/lib/favicon", async (importOriginal) => ({
 
 import { GET as listLinks, POST as createLinkRoute } from "@/app/api/v1/links/route";
 import { PUT as updateLinkRoute } from "@/app/api/v1/links/[id]/route";
+import { POST as importRoute } from "@/app/api/v1/links/import/route";
+import { POST as createSectionRoute } from "@/app/api/v1/sections/route";
+import { PUT as putProfileRoute } from "@/app/api/v1/profile/route";
 import { createApiKey } from "@/server/api-keys";
 
 let KEY = "";
+let pageId = 0;
 let ipCounter = 0;
 
 function req(
@@ -54,7 +58,7 @@ const idParams = (id: string) => ({ params: Promise.resolve({ id }) });
 
 beforeAll(async () => {
   KEY = (await createApiKey()).key;
-  seedPage();
+  pageId = seedPage().id;
 });
 
 afterEach(() => {
@@ -228,5 +232,105 @@ describe("unicode in slugs and content", () => {
     );
     expect(res.status).toBe(201);
     expect((await res.json()).data.title).toBe("日本語タイトル 🚀 Ссылка");
+  });
+});
+
+describe("E.52 hostile input complement (sections/import/profile, pollution, content-type)", () => {
+  it("prototype-pollution keys never land or pollute Object.prototype (all three families)", async () => {
+    // Built as RAW STRINGS: an object-literal `__proto__` key would set the
+    // prototype instead of creating the hostile own-property we want to test.
+    const hostile = (inner: string): string =>
+      '{"__proto__": {"polluted": "yes"}, "constructor": {"prototype": {"x": 1}}, ' +
+      inner +
+      ", \"junk\": {\"__proto__\": {\"deep\": true}}}";
+
+    const linkRes = await createLinkRoute(
+      req("/api/v1/links", {
+        method: "POST",
+        body: hostile('"title": "Proto link", "url": "https://proto.example"'),
+      }),
+    );
+    expect(linkRes.status).toBe(201);
+    const linkBody = await linkRes.text();
+    expect(linkBody).not.toContain("__proto__");
+    expect(linkBody).not.toContain('"polluted"');
+
+    const sectionRes = await createSectionRoute(
+      req("/api/v1/sections", {
+        method: "POST",
+        body: hostile(`"pageId": ${pageId}, "title": "Proto section"`),
+      }),
+    );
+    expect(sectionRes.status).toBe(201);
+    const sectionBody = await sectionRes.text();
+    expect(sectionBody).not.toContain("__proto__");
+
+    const profileRes = await putProfileRoute(
+      req("/api/v1/profile", {
+        method: "PUT",
+        body: hostile('"displayName": "Proto user"'),
+      }),
+    );
+    // profile row may or may not exist yet — pollution never happens either way
+    if (profileRes.status === 200) {
+      expect(await profileRes.text()).not.toContain("__proto__");
+    } else {
+      expect([200, 404]).toContain(profileRes.status);
+    }
+
+    const importRes = await importRoute(
+      req("/api/v1/links/import", {
+        method: "POST",
+        body: `{"items": [${hostile('"title": "Proto bulk", "url": "https://proto-bulk.example"')}]}`,
+      }),
+    );
+    expect(importRes.status).toBe(200);
+    const importBody = await importRes.text();
+    expect(importBody).not.toContain('"polluted"');
+
+    // THE proof: Object.prototype is untouched after every family's parse+write.
+    expect(
+      (Object.prototype as unknown as Record<string, unknown>).polluted,
+    ).toBeUndefined();
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect((({} as Record<string, unknown>).constructor as unknown)).toBe(
+      Object,
+    );
+  });
+
+  it("a 10k-deep SECTION body is a 400 (zod boundary, no stack overflow)", async () => {
+    let deep = "1";
+    for (let i = 0; i < 10_000; i++) deep = `{"a":${deep}}`;
+    const res = await createSectionRoute(
+      req("/api/v1/sections", {
+        method: "POST",
+        body: `{"pageId":${pageId},"title":${deep}}`,
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("validation");
+  });
+
+  it("wrong content-type with a JSON body is PINNED lenient (parse-only contract)", async () => {
+    // parseJsonBody is request.json() — content-type agnostic (matches the
+    // repo's parse-only convention; GitHub-style leniency). Pinned so a
+    // future strictness change flips this test consciously.
+    const res = await createLinkRoute(
+      new NextRequest("http://localhost:3000/api/v1/links", {
+        method: "POST",
+        headers: {
+          authorization: ["Bearer", KEY].join(" "),
+          "content-type": "text/plain; charset=utf-8",
+          "x-forwarded-for": "10.61.0.1",
+        },
+        body: JSON.stringify({
+          title: "Plain text CT",
+          url: "https://plainct.example",
+        }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).data.title).toBe("Plain text CT");
   });
 });
