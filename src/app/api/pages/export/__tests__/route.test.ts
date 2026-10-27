@@ -978,6 +978,27 @@ describe("GET /api/pages/export", () => {
     expect(allZero.headers.get("Content-Disposition")).toMatch(/\.html"$/);
   });
 
+  it("status inventory: source literals + rejection propagation (E.226)", async () => {
+    // (1) explicit statuses in route source are EXACTLY this set —
+    // a new untested status literal forces a deliberate edit here
+    const src = readFileSync(join(__dirname, "../route.ts"), "utf8");
+    const literals = new Set(
+      [...src.matchAll(/status: (\d+)/g)].map((m) => m[1]),
+    );
+    expect([...literals].sort()).toEqual(["400", "401", "404", "413"]);
+    // every one has live coverage: 401 (E.30 tests), 400/404 (E.66),
+    // 413 (E.51/79), 200 (dozens of success assertions)
+
+    // (2) the implicit 500: a REJECTING query propagates (never
+    // swallowed into a fake success) — Next maps the rejection to 500
+    // at the framework edge; at unit level we pin the rejection itself
+    mockGetPageById.mockImplementationOnce(
+      () => Promise.reject(new Error("db down")) as never,
+    );
+    await expect(GET(req("?id=1"))).rejects.toThrow("db down");
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object) } as never);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
