@@ -999,6 +999,49 @@ describe("GET /api/pages/export", () => {
     mockGetPageById.mockResolvedValue({ ...(PAGE as object) } as never);
   });
 
+  it("batch entry: unicode across bio/section/link decodes clean (E.228)", async () => {
+    const bio = "حَياة رائعة — Ünïcödé テスト 🎉";
+    const sectionTitle = "美食推荐 · Деликатесы";
+    const linkTitle = "Ñandú & გველი's page";
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "uni", bio },
+    ] as never[]);
+    mockGetSections.mockResolvedValue([
+      { id: 7, pageId: 1, title: sectionTitle, icon: null, orderIndex: 0 },
+    ] as never[]);
+    mockGetActiveLinks.mockResolvedValue([
+      {
+        id: 3, pageId: 1, sectionId: 7, orderIndex: 0, type: "url",
+        title: linkTitle, description: null, url: "https://uni.example/x",
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        createdAt: "2026-01-01 00:00:00",
+      },
+    ] as never[]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const nameLen = buf.readUInt16LE(26);
+    const extraLen = buf.readUInt16LE(28);
+    const size = buf.readUInt32LE(18);
+    const htmlBytes = buf.subarray(
+      30 + nameLen + extraLen,
+      30 + nameLen + extraLen + size,
+    );
+    const html = htmlBytes.toString("utf8");
+    // valid UTF-8 all the way through (no replacement chars after decode)
+    expect(html).not.toContain("�");
+    expect(Buffer.from(html, "utf8").equals(htmlBytes)).toBe(true); // lossless
+    expect(html).toContain('<meta charset="utf-8"');
+    expect(html).toContain(bio);
+    expect(html).toContain(sectionTitle);
+    // & is HTML-escaped (E.69) — assert the escaped form for the link
+    expect(html).toContain("Ñandú &amp; გველი's page");
+    expect(html).not.toContain("Ñandú & გველი");
+    expect(html).toContain("🎉");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
