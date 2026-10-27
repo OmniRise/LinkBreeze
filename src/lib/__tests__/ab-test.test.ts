@@ -514,6 +514,36 @@ describe("docs-drift tripwire (#81 E.19)", () => {
     expect(AB_MIN_SAMPLE_CLICKS).toBeGreaterThanOrEqual(50);
     expect(AB_AUTO_PROMOTE_MIN_CLICKS).toBeGreaterThan(AB_MIN_SAMPLE_CLICKS);
   });
+
+  it("E.89: the guide's remaining behavioral claims stay pinned to the CODE", () => {
+    // The two floor sentences are already pinned above (E.19/E.29); this
+    // covers the guide's other falsifiable claims: the 95% confidence
+    // level, the window gate, and the cookieless/JS-free assignment.
+    const libSrc = readFileSync(resolve(process.cwd(), "src/lib/ab-test.ts"), "utf8");
+    const scannerSrc = readFileSync(
+      resolve(process.cwd(), "src/server/ab-auto-promote.ts"),
+      "utf8",
+    );
+    const routeSrc = readFileSync(resolve(process.cwd(), "src/app/go/[id]/route.ts"), "utf8");
+
+    // "Statistically significant (95%)" <-> the z critical value in the math.
+    expect(guide).toContain("Statistically significant (95%)");
+    expect(libSrc).toContain("1.96");
+
+    // "while a scheduled window is still open" <-> the scanner's
+    // end-bound gate (end-bound-only: no endsAt = eligible).
+    expect(guide).toContain("while a scheduled window is still open");
+    expect(scannerSrc).toMatch(/if \(config\.endsAt\)/);
+    expect(scannerSrc).toMatch(/Date\.now\(\) < end/);
+
+    // "no JavaScript on the public page, no cookie" + "deterministic hash
+    // on the server" <-> pure assignment fn present; the serve route must
+    // read NO cookie at assignment time (E.34: cookieless by design).
+    expect(guide).toContain("no JavaScript on the public page, no cookie");
+    expect(guide).toContain("deterministic hash on");
+    expect(libSrc).toContain("export function assignVariant");
+    expect(routeSrc).not.toMatch(/cookies?\(/); // no cookie read at serve time
+  });
 });
 
 describe("scanner prefilter drift guard (#81 E.25)", () => {
