@@ -286,6 +286,9 @@ describe("[integration] A/B config restore sanitization (#81)", () => {
     const res = await applyBackupPayload(p1);
     expect(res.success).toBe(true);
     expect(await restoredConfig(seeded.id)).toEqual(archived);
+    // E.94: DIRECT post-restore toggle read — the p2==p1 settings equality
+    // below only implies it; this asserts the restored state itself.
+    expect(await getSetting("abAutoPromote")).toBe("on");
 
     // 3) ...and a re-export is byte-identical on the A/B-relevant slices:
     // configs (by link id) and settings. NOTE: whole-ROW link equality is
