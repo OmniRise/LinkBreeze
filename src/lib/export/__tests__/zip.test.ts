@@ -201,4 +201,26 @@ describe("dedupeNames", () => {
       cd = cd + 46 + nameLen + extraLen + commentLen;
     }
   });
+
+  it("local headers: no data-descriptor flag, sizes written upfront (E.195)", () => {
+    const zip = createZip([
+      { name: "one.html", content: "hello world" },
+      { name: "two.html", content: "second body" },
+    ]);
+    let off = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const flags = zip.readUInt16LE(off + 6);
+      // bit 3 (0x0008) = data descriptor — createZip sizes upfront,
+      // so this must be OFF (streamed zips set it; naive parsers choke)
+      expect(flags & 0x0008, `entry ${i} data-descriptor bit`).toBe(0);
+      // compressed size present in the LOCAL header (not deferred)
+      const csize = zip.readUInt32LE(off + 18);
+      expect(csize, `entry ${i} local size`).toBeGreaterThan(0);
+      const nameLen = zip.readUInt16LE(off + 26);
+      const extraLen = zip.readUInt16LE(off + 28);
+      off = off + 30 + nameLen + extraLen + csize;
+    }
+    // walked exactly into the central directory (local section complete)
+    expect(zip.readUInt32LE(off)).toBe(0x02014b50);
+  });
 });

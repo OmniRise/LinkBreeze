@@ -892,6 +892,32 @@ describe("GET /api/pages/export", () => {
     expect(body.length).toBeGreaterThan(1000);
   });
 
+  it("batch with empty slugs: usable names + dedupe (E.196)", async () => {
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "", title: "One" },
+      { ...(PAGE as object), id: 2, slug: "", title: "Two" },
+      { ...(PAGE as object), id: 3, slug: ".", title: "Three" },
+    ] as never[]);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const names: string[] = [];
+    let off = 0;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const size = buf.readUInt32LE(off + 18);
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      names.push(buf.subarray(off + 30, off + 30 + nameLen).toString("utf8"));
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    // exportFilename falls back to page.html for empty/dot slugs; the
+    // dedupe layer disambiguates (E.58 pattern)
+    expect(names).toEqual(["page.html", "page-2.html", "page-3.html"]);
+    expect(new Set(names).size).toBe(3);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
