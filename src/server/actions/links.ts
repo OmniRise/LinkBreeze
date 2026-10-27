@@ -650,6 +650,16 @@ export async function setAbTest(formData: FormData): Promise<ActionResult> {
 
   const labelA = String(formData.get("labelA") ?? "").trim() || null;
   const labelB = String(formData.get("labelB") ?? "").trim() || null;
+  // Negative parity with abConfigSchema's .max(60) (#81 E.82): the editor
+  // caps both inputs, but without this a direct action call could store a
+  // config the schema refuses to parse — the test would then silently
+  // degrade to NULL (hidden until re-saved).
+  if (labelA && labelA.length > 60) {
+    return validationError("Label A must be 60 characters or fewer");
+  }
+  if (labelB && labelB.length > 60) {
+    return validationError("Label B must be 60 characters or fewer");
+  }
 
   // E.2 time box: datetime-local values stored as-is (local wall-clock,
   // no TZ conversion — matches the schema comment). Empty = unbounded side.

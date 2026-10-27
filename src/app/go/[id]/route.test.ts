@@ -198,8 +198,11 @@ describe("GET /go/[ref] A/B split (#81)", () => {
     expect(res.headers.get("location")).toBe("https://example.com/a");
   });
 
-  it("defense-in-depth: a javascript: variant B 400s the CHOSEN target", async () => {
-    // bWeights forces the deterministic bucket onto B (see above).
+  it("defense-in-depth: a javascript: variant B degrades to the bare link (E.82 schema rejects it first)", async () => {
+    // Since E.82 abConfigSchema itself refuses non-http(s) urlB, so
+    // parseAbConfig returns null and /go serves the bare link — the
+    // visitor-safe degrade documented in parseAbConfig's docblock, one
+    // layer BEFORE the route's own target validation.
     mocks.getLinkByRef.mockResolvedValue(
       activeLink({
         url: "https://example.com/a",
@@ -208,7 +211,16 @@ describe("GET /go/[ref] A/B split (#81)", () => {
       }),
     );
     const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
-    // B is chosen here; the chosen target is non-http(s) -> rejected.
+    expect(res.headers.get("location")).toBe("https://example.com/a"); // no split, own url
+  });
+
+  it("defense-in-depth: a poisoned non-http(s) TARGET still 400s at the serve boundary", async () => {
+    // Row-level poison OUTSIDE the config (link.url itself): the route's
+    // own http(s) gate on the CHOSEN target must still fire.
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "javascript:alert(1)", type: "url", abConfig: null }),
+    );
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
     expect(res.status).toBe(400);
   });
 

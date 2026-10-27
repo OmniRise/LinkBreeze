@@ -39,7 +39,7 @@ import {
   promoteAbVariant,
   removeAbTest,
 } from "@/server/actions/links";
-import { serializeAbConfig, type AbConfig } from "@/lib/ab-test";
+import { parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
 import { computeAbEditorInitial } from "@/app/(admin)/links/components/ab-test-editor";
 
 function urlLink(abConfig: string | null = null): Record<string, unknown> {
@@ -223,6 +223,34 @@ describe("setAbTest", () => {
       expect(res.success).toBe(false);
     }
     expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
+  it("E.82: labels over the schema's 60-char cap are rejected (negative parity)", async () => {
+    // Without the server-side cap a direct action call could store a
+    // config abConfigSchema refuses to parse — the test would silently
+    // degrade to NULL. The editor caps at 60 (maxLength); the action now
+    // enforces the SAME boundary.
+    mocks.getLink.mockResolvedValue(urlLink(null));
+    const long = "x".repeat(61);
+    const res = await setAbTest(
+      fd({ id: "7", urlB: "https://example.com/b", weightA: "50", labelA: long }),
+    );
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+    const resB = await setAbTest(
+      fd({ id: "7", urlB: "https://example.com/b", weightA: "50", labelB: long }),
+    );
+    expect(resB.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+
+    // The exact boundary both layers agree on still passes and parses.
+    const ok = await setAbTest(
+      fd({ id: "7", urlB: "https://example.com/b", weightA: "50", labelA: "x".repeat(60) }),
+    );
+    expect(ok.success).toBe(true);
+    expect(mocks.updateLink).toHaveBeenCalledTimes(1);
+    const saved = mocks.updateLink.mock.calls[0] as unknown as [number, { abConfig: string }];
+    expect(parseAbConfig(saved[1].abConfig)).not.toBeNull();
   });
 
   it("rejects non-URL link types (scope: URL links only)", async () => {

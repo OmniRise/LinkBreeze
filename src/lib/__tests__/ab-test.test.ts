@@ -64,6 +64,35 @@ describe("parseAbConfig", () => {
   it("returns null for an unknown status", () => {
     expect(parseAbConfig(JSON.stringify({ ...base, status: "live" }))).toBeNull();
   });
+
+  it("returns null for a non-http(s) variant B (E.82 negative parity with the save path)", () => {
+    // The schema now enforces the SAME http(s) allowlist that every WRITER
+    // enforces (setAbTest, restore sanitizer, manual + auto promote) —
+    // a poisoned config can never parse at any layer.
+    expect(parseAbConfig(JSON.stringify({ ...base, urlB: "javascript:alert(1)" }))).toBeNull();
+    expect(parseAbConfig(JSON.stringify({ ...base, urlB: "data:text/html,x" }))).toBeNull();
+    expect(parseAbConfig(JSON.stringify({ ...base, urlB: "ftp://x" }))).toBeNull();
+    // Valid https still parses (boundary).
+    expect(parseAbConfig(JSON.stringify({ ...base, urlB: "https://example.com/b" }))).not.toBeNull();
+  });
+
+  it("returns null for a reversed or unparseable window (E.82 negative parity)", () => {
+    expect(
+      parseAbConfig(
+        JSON.stringify({ ...base, startsAt: "2026-11-08T10:00", endsAt: "2026-11-01T10:00" }),
+      ),
+    ).toBeNull();
+    expect(
+      parseAbConfig(JSON.stringify({ ...base, startsAt: "not-a-date", endsAt: "2026-11-08T10:00" })),
+    ).toBeNull();
+  });
+
+  it("returns null for labels over the 60-char cap (E.82 negative parity)", () => {
+    expect(parseAbConfig(JSON.stringify({ ...base, labelA: "x".repeat(61) }))).toBeNull();
+    expect(parseAbConfig(JSON.stringify({ ...base, labelB: "y".repeat(61) }))).toBeNull();
+    // Boundary still parses.
+    expect(parseAbConfig(JSON.stringify({ ...base, labelA: "x".repeat(60) }))).not.toBeNull();
+  });
 });
 
 describe("isAbActive", () => {

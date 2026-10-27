@@ -140,7 +140,12 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     await clickVariants(link.id, 50, 150);
     expect(await runAbAutoPromoteScan()).toBe(0);
     const row = await getLink(link.id);
-    expect(parseAbConfig(row?.abConfig ?? null)?.status).toBe("running");
+    // Untouched proven at the RAW level: since E.82 the schema itself
+    // rejects this config (parse → null), so byte-identity of the stored
+    // JSON is the honest "scanner never wrote to it" assertion.
+    expect(row?.abConfig).toBe(
+      serializeAbConfig({ ...running, urlB: "javascript:alert(1)" }),
+    );
     expect(row?.url).toBe("https://example.com");
   });
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAllowedLinkUrl } from "@/lib/link-url";
 
 /**
  * #81 A/B testing for links — pure core.
@@ -21,7 +22,17 @@ export const abConfigSchema = z
     status: z.enum(["running", "paused", "archived"]),
     labelA: z.string().max(60).nullable(),
     labelB: z.string().max(60).nullable(),
-    urlB: z.string().min(1).max(500),
+    urlB: z
+      .string()
+      .min(1)
+      .max(500)
+      // Negative parity with the save path (#81 E.82): the schema enforces
+      // the SAME http(s) allowlist setAbTest / restore / promote enforce,
+      // so a poisoned config can never parse — defense-in-depth at the last
+      // layer (the restore sanitizer keeps its belt-and-braces copy).
+      .refine((v) => isAllowedLinkUrl("url", v), {
+        message: "Variant B must be an http(s) URL",
+      }),
     weightA: z.number().int().min(1).max(99),
     weightB: z.number().int().min(1).max(99),
     winner: z.enum(["A", "B"]).nullable(),
