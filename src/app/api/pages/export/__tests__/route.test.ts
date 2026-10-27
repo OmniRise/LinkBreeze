@@ -1128,6 +1128,54 @@ describe("GET /api/pages/export", () => {
     expect(body).toContain("<script");
   });
 
+  it("batch section queries: exactly N for N pages, no per-link fan-out (E.237)", async () => {
+    const pages = Array.from({ length: 5 }, (_, i) => ({
+      ...(PAGE as object),
+      id: i + 1,
+      slug: `sq-${i + 1}`,
+    }));
+    mockGetAllPages.mockResolvedValue(pages as never[]);
+    mockGetSections.mockResolvedValue([
+      { id: 71, pageId: 1, title: "S1", icon: null, orderIndex: 0 },
+      { id: 72, pageId: 1, title: "S2", icon: null, orderIndex: 1 },
+      { id: 73, pageId: 1, title: "S3", icon: null, orderIndex: 2 },
+    ] as never[]);
+    // 3 links per page → fan-out would show as >5 calls
+    mockGetActiveLinks.mockResolvedValue(
+      Array.from({ length: 15 }, (_, i) => ({
+        id: i + 1,
+        pageId: Math.floor(i / 3) + 1,
+        sectionId: null,
+        orderIndex: i % 3,
+        type: "url",
+        title: `L${i}`,
+        description: null,
+        url: `https://example.com/${i}`,
+        icon: null,
+        iconUrl: null,
+        customIconUrl: null,
+        iconMode: "auto",
+        autoIcon: true,
+        imageUrl: null,
+        isHighlighted: false,
+        isActive: true,
+        scheduleStart: null,
+        scheduleEnd: null,
+        clicksCount: 0,
+        createdAt: "2026-01-01 00:00:00",
+      })) as never[],
+    );
+    mockGetSections.mockClear();
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    // ONE sections query per page — never per link/section (5 pages)
+    expect(mockGetSections.mock.calls.length).toBe(5);
+    // each call args-differentiated by page (the linear pattern)
+    expect(mockGetSections.mock.calls[0]).not.toEqual(
+      mockGetSections.mock.calls[1],
+    );
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
