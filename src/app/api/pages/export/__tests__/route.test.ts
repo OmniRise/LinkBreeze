@@ -1434,6 +1434,29 @@ describe("GET /api/pages/export", () => {
     mockGetActiveTheme.mockResolvedValue({ animationType: "none" } as never);
   });
 
+  it("batch rejection fails whole request, no partial zip (E.261)", async () => {
+    // Route builds htmls into a local array and only THEN constructs
+    // the zip response (zipResponse at the end) — a throw anywhere
+    // before that can never produce a partial 200 archive.
+    mockGetAllPages.mockResolvedValue(
+      Array.from({ length: 5 }, (_, i) => ({
+        ...(PAGE as object),
+        id: i + 1,
+        slug: `abort-${i + 1}`,
+      })) as never[],
+    );
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    mockGetActiveTheme.mockImplementationOnce(
+      () => Promise.reject(new Error("batch theme down")) as never,
+    );
+    // the READ phase (Promise.all at route:174-175) rejects before any
+    // Response exists — GET rejects outright
+    await expect(GET(req("?all=1"))).rejects.toThrow("batch theme down");
+    // defaults restored for subsequent tests
+    mockGetActiveTheme.mockResolvedValue(null as never);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
