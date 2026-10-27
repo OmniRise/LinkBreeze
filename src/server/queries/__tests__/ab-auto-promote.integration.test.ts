@@ -12,6 +12,8 @@ import { recordClick, updateSetting, getLink, getLinkStats } from "@/server/quer
 import { analyticsClicks, links } from "@/db/schema";
 import { runAbAutoPromoteScan, maybeAutoPromoteAbTests, _resetAbAutoPromoteThrottle, AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
 import { parseAbConfig, serializeAbConfig, autoPromotableWinner, AB_AUTO_PROMOTE_MIN_CLICKS, type AbConfig } from "@/lib/ab-test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 const running: AbConfig = {
@@ -288,6 +290,76 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     // The archived view keeps its range-scoped numbers (never rewritten).
     const s2 = await getLinkStats(link.id, "7d");
     expect(s2!.variants).toEqual({ a: 30, b: 140 });
+  });
+
+  it("E.77: prefilter property sweep - LIKE hit-set == running configs over generated shapes (drift-proofed)", async () => {
+    // Property, not fixtures: over a combinatorial sweep of editor-shaped
+    // configs (status x version x adversarial labels x window x winner),
+    // the scanner's SQL prefilter must hit EXACTLY the status:"running"
+    // rows — adversarial label/url text must never false-match (JSON
+    // escapes quotes, so the structural substring is unforgeable inside
+    // values), paused/archived never match, bare (NULL) never match.
+    // v:2 RUNNING rows DO match the LIKE by design — parse re-validation
+    // rejects them at scan level (pinned by E.26); prefilter-level truth
+    // is version-blind and pinned here.
+    const prodSrc = readFileSync(
+      resolve(process.cwd(), "src/server/ab-auto-promote.ts"),
+      "utf8",
+    );
+    const predicate = `LIKE '%"status":"running"%'`;
+    expect(prodSrc, "test predicate drifted from production prefilter").toContain(
+      predicate,
+    );
+
+    const statuses = ["running", "paused", "archived"] as const;
+    const versions = [1, 2] as const;
+    const labels = ["control", "running", 'x","status":"running', '"status":"running"'];
+    const windows = [false, true] as const;
+    const winners = [null, "B"] as const;
+
+    const expected: number[] = [];
+    let i = 0;
+    for (const status of statuses) {
+      for (const v of versions) {
+        for (const labelA of labels) {
+          for (const useWindow of windows) {
+            for (const winner of winners) {
+              const row = seedLink({
+                url: `https://example.com/p${i}`,
+                abConfig: JSON.stringify({
+                  v,
+                  status,
+                  labelA,
+                  labelB: "short",
+                  urlB: "https://example.com/b",
+                  weightA: 50,
+                  weightB: 50,
+                  winner,
+                  ...(useWindow
+                    ? { startsAt: "2026-11-01T10:00", endsAt: "2026-11-08T10:00" }
+                    : {}),
+                }),
+              });
+              if (status === "running") expected.push(row.id);
+              i++;
+            }
+          }
+        }
+      }
+    }
+    // Bare links: no config at all (NULL must never match).
+    const bare = [seedLink({ url: "https://example.com/bare-0" }), seedLink({ url: "https://example.com/bare-1" })];
+    expect(i).toBe(96);
+
+    const matched = db
+      .select({ id: links.id })
+      .from(links)
+      .where(sql`${links.abConfig} LIKE '%\"status\":\"running\"%'`)
+      .all()
+      .map((r) => r.id);
+    expect(matched.sort((a, b) => a - b)).toEqual(expected.sort((a, b) => a - b));
+    expect(matched).toHaveLength(32); // 2v x 4labels x 2windows x 2winners
+    for (const b of bare) expect(matched).not.toContain(b.id);
   });
 
   it("E.26: a future-version (v:2) config is never scanned — prefilter matches, re-parse rejects", async () => {
