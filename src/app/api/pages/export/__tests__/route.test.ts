@@ -872,6 +872,26 @@ describe("GET /api/pages/export", () => {
     expect(routeMod.dynamic).toBe("force-dynamic");
   });
 
+  it("single-page Content-Length: absent-or-exact (E.187)", async () => {
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object) } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const body = Buffer.from(await res.arrayBuffer());
+    const cl = res.headers.get("Content-Length");
+    if (cl === null) {
+      // Next may omit it (chunked transport) — acceptable; the invariant
+      // is NEVER a WRONG length
+      expect(res.status).toBe(200);
+    } else {
+      expect(parseInt(cl, 10)).toBe(body.length);
+    }
+    // exactly one of the two truths, spelled out for the parent
+    expect(cl === null || parseInt(cl, 10) === body.length).toBe(true);
+    expect(body.length).toBeGreaterThan(1000);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),

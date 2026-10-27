@@ -197,3 +197,16 @@ if (zipFailed > 0) {
   console.error(`${zipFailed} zip/embed check(s) failed`);
   process.exit(1);
 }
+
+// E.186: check-COUNT integrity — deleting a check from either array
+// (making green easier) must fail the probe until this total is
+// consciously updated alongside the deletion.
+const EXPECTED_TOTAL_CHECKS = 38;
+const totalChecks = checks.length + embedChecks.length;
+if (totalChecks !== EXPECTED_TOTAL_CHECKS) {
+  console.error(
+    `check count drift: ${totalChecks} != ${EXPECTED_TOTAL_CHECKS}`,
+  );
+  process.exit(1);
+}
+console.log(`checks: ${totalChecks} (declared ${EXPECTED_TOTAL_CHECKS})`);
