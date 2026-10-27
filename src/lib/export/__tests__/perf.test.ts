@@ -153,5 +153,10 @@ describe("E.48 length stress", () => {
     const maxEntries = Math.floor(EXPORT_EMBED_MAX_BYTES / cssBytes);
     expect(cssBytes).toBeGreaterThan(10 * 1024); // per-entry floor (~20KB)
     expect(maxEntries).toBeLessThan(65535); // headroom: ~1310 << 65535
+    // OFFSET leg (zip64 absence, E.208): CD local-header offsets are
+    // 32-bit — the aggregate cap guarantees every offset stays < 4GiB,
+    // so no zip64 structures are ever required.
+    expect(EXPORT_EMBED_MAX_BYTES).toBeLessThan(0xffffffff);
+    expect(EXPORT_MAX_BYTES).toBeLessThan(0xffffffff);
   });
 });
