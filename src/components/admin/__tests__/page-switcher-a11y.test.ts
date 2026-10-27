@@ -47,4 +47,35 @@ describe("export UI accessibility (PageSwitcher source contract)", () => {
     expect(source).toContain('href="/api/pages/export?all=1"');
     expect(source).not.toContain("<Link\n                href=\"/api/pages/export");
   });
+
+  it("download mechanics: server-driven, no target/download/ping attrs (E.72)", () => {
+    // The real download mechanism is Content-Disposition: attachment from
+    // the route (pinned in route.test.ts), NOT anchor attributes — document
+    // the current state so a "helpful" target=_blank (blank-tab on a
+    // misconfigured server) or ping= (tracking) addition fails review.
+    const perPage = source.match(
+      /<a\s+href=\{`\/api\/pages\/export\?id=\$\{page\.id\}`\}[\s\S]*?<\/a>/,
+    );
+    const batch = source.match(
+      /<a\s+href="\/api\/pages\/export\?all=1"[\s\S]*?<\/a>/,
+    );
+    expect(perPage, "per-page anchor").toBeTruthy();
+    expect(batch, "batch anchor").toBeTruthy();
+    for (const [name, anchor] of [
+      ["per-page", perPage![0]],
+      ["batch", batch![0]],
+    ] as const) {
+      // no new-tab/popup semantics on an attachment endpoint
+      expect(anchor, name).not.toMatch(/\starget=/);
+      expect(anchor, name).not.toMatch(/\sping=/);
+      // download attr deliberately ABSENT — server decides via
+      // Content-Disposition (works for cross-origin mirrors too)
+      expect(anchor, name).not.toMatch(/\sdownload=/);
+      // both keep the eslint justification for the plain <a> (documented
+      // in the JSX comment right above the batch anchor)
+    }
+    expect(source).toContain(
+      "a plain anchor lets the browser handle\n                Content-Disposition natively",
+    );
+  });
 });
