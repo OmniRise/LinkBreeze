@@ -306,6 +306,41 @@ describe("export determinism (E.32)", () => {
   });
 });
 
+describe("corrupt socialLinks resilience (E.43)", () => {
+  const badValues = [
+    "{{{ not json", // parse failure (pre-existing catch)
+    "42", // parses to a number → .length/.map would crash
+    '"just a string"',
+    "null",
+    "[null]",
+    '[1, 2, true]',
+    '[[{"platform":"github"}]]',
+  ];
+
+  it.each(badValues)("builds without crashing: %s", (socialLinks) => {
+    const html = buildStaticExport({
+      ...baseInput,
+      page: { ...baseInput.page, socialLinks },
+    });
+    expect(html).toContain("<!DOCTYPE html>");
+    // degraded to no social icons, no leaked garbage
+    expect(html).not.toContain('class="lb-social-icon"');
+    expect(html).not.toContain("undefined</a>");
+  });
+
+  it("keeps well-formed entries when mixed with junk", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      page: {
+        ...baseInput.page,
+        socialLinks: '[null, {"platform":"github","url":"https://gh.example/u"}, 7]',
+      },
+    });
+    expect(html).toContain('href="https://gh.example/u"');
+    expect(html).toContain('class="lb-social-icon"');
+  });
+});
+
 describe("data-URI asset passthrough (E.36)", () => {
   const uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==AAAA";
   const withDataAvatar: ExportInput = {

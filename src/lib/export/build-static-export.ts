@@ -478,7 +478,16 @@ export function buildStaticExport(input: ExportInput): string {
 
   let socialLinks: SocialLink[] = [];
   try {
-    socialLinks = JSON.parse(page.socialLinks || "[]");
+    const parsed: unknown = JSON.parse(page.socialLinks || "[]");
+    // Parse success alone is not enough: a hand-edited row can hold 42,
+    // "text", null, or [null, ...] — anything non-array or non-object
+    // would crash .map/.length below and 500 the route (E.43).
+    socialLinks = Array.isArray(parsed)
+      ? parsed.filter(
+          (s): s is SocialLink =>
+            !!s && typeof s === "object" && !Array.isArray(s),
+        )
+      : [];
   } catch {
     socialLinks = [];
   }
