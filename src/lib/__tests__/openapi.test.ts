@@ -343,6 +343,30 @@ describe("spec hygiene (E.19)", () => {
     }
   });
 
+  it("E.99: info.description facts appear in the README API section (cross-artifact guard)", () => {
+    const readme = fs.readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+    const start = readme.indexOf("## 🔌 REST API");
+    expect(start).toBeGreaterThan(-1);
+    const section = readme.slice(start, readme.indexOf("\n## ", start));
+    const description = (doc as { info: { description: string } }).info.description;
+
+    // Every operational fact the spec states must also be promised to README
+    // readers — and vice versa is guarded by keeping this list symmetric.
+    const facts = [
+      "X-RateLimit",
+      "If-None-Match",
+      "no-store",
+      "120",
+      "demo mode",
+      "Bearer",
+      "?cursor",
+    ];
+    for (const fact of facts) {
+      expect(description, `info.description lost: ${fact}`).toContain(fact);
+      expect(section, `README API section lost: ${fact}`).toContain(fact);
+    }
+  });
+
   it("E.84: README endpoints table maps 1:1 onto the spec (table ↔ operations)", () => {
     const readme = fs.readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     // Scope to the REST API section — other README tables are unrelated.
