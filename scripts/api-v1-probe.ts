@@ -154,6 +154,24 @@ async function main() {
       check("PUT /links/:id partial update", false, `handler threw: ${revalidateBroken}`);
     }
 
+    // E.64 live: an empty effective patch is a 200 no-op (was a 500 via
+    // drizzle "No values to set" before the route-level short-circuit).
+    const noopPut = await invoke(() =>
+      linkIdRoute.PUT(req("PUT", {}), {
+        params: Promise.resolve({ id: String(linkId) }),
+      }),
+    );
+    if (noopPut) {
+      const noopBody = await noopPut.json();
+      check(
+        "PUT /links/:id empty-patch no-op",
+        noopPut.status === 200 && noopBody.data?.title === "Probe link v2",
+        `status=${noopPut.status} title=${noopBody.data?.title}`,
+      );
+    } else {
+      check("PUT /links/:id empty-patch no-op", false, `handler threw: ${revalidateBroken}`);
+    }
+
     const analytics = await analyticsRoute.GET(req("GET"));
     const analyticsBody = await analytics.json();
     check(
