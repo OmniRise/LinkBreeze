@@ -487,6 +487,93 @@ describe("GET /api/pages/export", () => {
     expect(body).toContain("<!DOCTYPE html>");
   });
 
+  it("mixed page shapes batch: no cross-page state bleed (E.114)", async () => {
+    const base = (p: number, over: Record<string, unknown>) => ({
+      id: p,
+      pageId: p,
+      sectionId: null,
+      orderIndex: 0,
+      type: "url",
+      title: `Link${p}`,
+      description: null,
+      url: `https://dest.example/${p}`,
+      icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+      autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+      scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+      cardStyle: "compact", popupText: null, ctaLabel: null,
+      redirectSlug: null, createdAt: "2026-01-01 00:00:00",
+      ...over,
+    });
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "p-popup" },
+      { ...(PAGE as object), id: 2, slug: "p-text" },
+      { ...(PAGE as object), id: 3, slug: "p-divider" },
+      { ...(PAGE as object), id: 4, slug: "p-embed" },
+      { ...(PAGE as object), id: 5, slug: "p-hl" },
+    ] as never[]);
+    // per-page distinct content: one link per page, marker = its type
+    let call = 0;
+    mockGetActiveLinks.mockImplementation(async () => {
+      call += 1;
+      switch (call) {
+        case 1:
+          return [base(1, { type: "text", title: "POPUPMARK", popupText: "pt", ctaLabel: "Go" })] as never;
+        case 2:
+          return [base(2, { type: "text", title: "TEXTMARK" })] as never;
+        case 3:
+          return [base(3, { type: "divider", title: "DIVMARK" })] as never;
+        case 4:
+          return [base(4, { type: "embed", title: "EMBEDMARK", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" })] as never;
+        default:
+          return [base(5, { title: "HLMARK", isHighlighted: true })] as never;
+      }
+    });
+    mockGetSections.mockResolvedValue([] as never);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const entries = new Map<string, string>();
+    let off = 0;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const size = buf.readUInt32LE(off + 18);
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      const name = buf.subarray(off + 30, off + 30 + nameLen).toString("utf8");
+      const start = off + 30 + nameLen + extraLen;
+      entries.set(name, buf.subarray(start, start + size).toString("utf8"));
+      off = start + size;
+    }
+    expect(entries.size).toBe(5);
+    // each marker lands ONLY in its own page's entry (no bleed)
+    const markers: Array<[file: string, marker: string]> = [
+      ["p-popup.html", "POPUPMARK"],
+      ["p-text.html", "TEXTMARK"],
+      ["p-divider.html", "DIVMARK"],
+      ["p-embed.html", "EMBEDMARK"],
+      ["p-hl.html", "HLMARK"],
+    ];
+    for (const [file, marker] of markers) {
+      expect(entries.has(file), file).toBe(true);
+      expect(entries.get(file)!, file).toContain(marker);
+      for (const [otherFile, otherMarker] of markers) {
+        if (otherFile === file) continue;
+        expect(
+          entries.get(file)!,
+          `${otherMarker} bled into ${file}`,
+        ).not.toContain(otherMarker);
+      }
+    }
+    // dialog ELEMENT: popup-text page owns one (type "text" cards are
+    // popup-capable by design — its OWN id, marker checks above prove no
+    // foreign content); non-popup types must ship none. The lb-popup-*
+    // CSS substring appears in every style block by design.
+    expect(entries.get("p-popup.html")).toContain("<dialog");
+    expect(entries.get("p-text.html")).toContain("lb-popup-2"); // own link id
+    for (const f of ["p-divider.html", "p-embed.html", "p-hl.html"]) {
+      expect(entries.get(f)!, f).not.toContain("<dialog");
+    }
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
