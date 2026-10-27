@@ -161,4 +161,30 @@ describe("computeAbEditorInitial (#81 E.40/E.46)", () => {
     expect(lib).toContain("weightA: z.number().int().min(1).max(99)");
     expect(lib).toContain("c.weightA + c.weightB === 100");
   });
+
+  it("E.134: a failed setAbTest surfaces the error and returns BEFORE closing — values persist", () => {
+    // Grounded (link-dialog.tsx:355-364): on abResult.success===false the
+    // handler sets the error and `return`s — onOpenChange(false) + the
+    // router.refresh() live only AFTER that guard, so the dialog (and its
+    // typed values / editor state) stays put for a correction retry.
+    const dialog = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/components/link-dialog.tsx"),
+      "utf8",
+    );
+    const start = dialog.indexOf("const abResult = await savedAction.run(setAbTest, abData)");
+    expect(start).toBeGreaterThan(-1);
+    const end = dialog.indexOf("setActionError(null);", start); // success-path clear
+    expect(end).toBeGreaterThan(start);
+    const guard = dialog.slice(start, end);
+
+    expect(guard).toContain("if (!abResult.success)");
+    expect(guard).toContain("setActionError(abResult.error ?? null)");
+    expect(guard).toContain("return;");
+    // Nothing that closes/refreshes may sit INSIDE the failure guard path:
+    expect(guard).not.toContain("onOpenChange(false)");
+    expect(guard).not.toContain("router.refresh()");
+    // ...and the close DOES happen after the guard, on the success path.
+    const afterGuard = dialog.slice(end, end + 200);
+    expect(afterGuard).toContain("onOpenChange(false)");
+  });
 });
