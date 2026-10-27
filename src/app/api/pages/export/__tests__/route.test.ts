@@ -953,6 +953,31 @@ describe("GET /api/pages/export", () => {
     expect(body).toContain("AfterFakeCloser");
   });
 
+  it("query-param surface: exactly id/all/embed, strict '1' values (E.223)", async () => {
+    // route.ts reads ONLY these three via sp.get (lines 167/172/213);
+    // unknown params are silently ignored — a typo'd ?embd=1 serves
+    // the PLAIN single export (documented current semantics, pinned so
+    // any future param addition shows up as a deliberate test edit)
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object) } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+
+    // embed must be exactly "1" — embed=0/off still plain
+    const embedZero = await GET(req("?id=1&embed=0"));
+    expect(embedZero.headers.get("Content-Type")).toContain("text/html");
+
+    // typo'd param: plain single .html (not zip)
+    const typo = await GET(req("?id=1&embd=1"));
+    expect(typo.status).toBe(200);
+    expect(typo.headers.get("Content-Type")).toContain("text/html");
+    expect(typo.headers.get("Content-Disposition")).toMatch(/\.html"$/);
+
+    // all must be exactly "1" — all=0 does NOT trigger batch
+    const allZero = await GET(req("?all=0&id=1"));
+    expect(allZero.headers.get("Content-Type")).toContain("text/html");
+    expect(allZero.headers.get("Content-Disposition")).toMatch(/\.html"$/);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
