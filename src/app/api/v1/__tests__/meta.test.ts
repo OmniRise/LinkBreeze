@@ -169,3 +169,31 @@ describe("E.54 docs HTML hand-review (render layer parity with the spec)", () =>
     expect(html).not.toContain("Authorization: Bearer");
   });
 });
+
+describe("E.76 docs rate-header split (documented exemption, anti-drift)", () => {
+  it("bearer path carries X-RateLimit-*; session path carries none but keeps no-store", async () => {
+    // Bearer path: per-key accounting applies (route spreads gate.rateHeaders).
+    const bearer = await getDocs(req(true));
+    expect(bearer.status).toBe(200);
+    expect(bearer.headers.get("x-ratelimit-limit")).toBeTruthy();
+    expect(bearer.headers.get("x-ratelimit-remaining")).toBeTruthy();
+    expect(bearer.headers.get("x-ratelimit-reset")).toBeTruthy();
+    expect(bearer.headers.get("cache-control")).toBe("no-store");
+
+    // Session path: the documented E.36 exemption — session viewers predate
+    // per-key accounting, so NO rate headers (spec's docs 200 declares
+    // CACHE_HEADERS only), but responses still never get cached.
+    mocks.getSession.mockResolvedValue({
+      userId: 1,
+      username: "admin",
+      exp: Date.now() + 60000,
+      pv: 1,
+    });
+    const session = await getDocs(req(false));
+    expect(session.status).toBe(200);
+    expect(session.headers.get("x-ratelimit-limit")).toBeNull();
+    expect(session.headers.get("x-ratelimit-remaining")).toBeNull();
+    expect(session.headers.get("x-ratelimit-reset")).toBeNull();
+    expect(session.headers.get("cache-control")).toBe("no-store");
+  });
+});
