@@ -63,6 +63,43 @@ describe("per-variant click attribution (#81)", () => {
     expect(stats!.totalClicks).toBe(3);
   });
 
+  it("E.71: labels PARTITION the range rows — a+b never exceeds totalClicks (nulls + backdated mix)", async () => {
+    // The breakdown must be a partition of range rows, not an addition on
+    // top of them: unlabeled pre-test history and window-excluded rows
+    // both keep a+b strictly BELOW totalClicks, and the remainder is
+    // EXACTLY the unlabeled in-window rows.
+    const link = seedLink({ abConfig: JSON.stringify({ v: 1, status: "running", labelA: "control", labelB: "variant", urlB: "https://example.com/b", weightA: 50, weightB: 50, winner: null }) });
+
+    // Labeled rows recorded FIRST (7 of them), then backdated past the
+    // 7d window — their labels must not leak into the breakdown.
+    for (let i = 0; i < 3; i++) await recordClick(link.id, `e71-oa-${i}`, null, "click", "A");
+    for (let i = 0; i < 4; i++) await recordClick(link.id, `e71-ob-${i}`, null, "click", "B");
+    const oldIds = db
+      .select({ id: analyticsClicks.id })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, link.id))
+      .limit(7)
+      .all()
+      .map((r) => r.id);
+    expect(oldIds).toHaveLength(7);
+    await db
+      .update(analyticsClicks)
+      .set({ createdAt: "2020-01-01 00:00:00" })
+      .where(inArray(analyticsClicks.id, oldIds));
+
+    // Recent mix: 5 unlabeled (pre-test history) + 4 A + 2 B.
+    for (let i = 0; i < 5; i++) await recordClick(link.id, `e71-u-${i}`, null, "click");
+    for (let i = 0; i < 4; i++) await recordClick(link.id, `e71-ra-${i}`, null, "click", "A");
+    for (let i = 0; i < 2; i++) await recordClick(link.id, `e71-rb-${i}`, null, "click", "B");
+
+    const stats = await getLinkStats(link.id, "7d");
+    expect(stats!.variants).toEqual({ a: 4, b: 2 }); // backdated labels excluded
+    expect(stats!.totalClicks).toBe(11); // 5 + 4 + 2 in-window clicks only
+    const sum = stats!.variants.a + stats!.variants.b;
+    expect(sum).toBeLessThanOrEqual(stats!.totalClicks); // never above
+    expect(stats!.totalClicks - sum).toBe(5); // remainder = EXACTLY the unlabeled
+  });
+
   it("promote-to-winner history: archived config, variant labels survive", async () => {
     const archived = JSON.stringify({ v: 1, status: "archived", labelA: "old", labelB: "new", urlB: "https://example.com/b", weightA: 50, weightB: 50, winner: "B" });
     const link = seedLink({ url: "https://example.com/b", abConfig: archived });
