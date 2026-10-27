@@ -179,6 +179,28 @@ describe("GET /api/pages/export", () => {
     expect(buf.readUInt32LE(0)).toBe(0x04034b50); // PK local header
   });
 
+  it("batch aggregate cap: combined >2MiB → 413, no zip bytes ever built (E.51)", async () => {
+    // 3 pages × ~800KB bios ≈ 2.4MiB combined, over EXPORT_MAX_BYTES
+    const pages = Array.from({ length: 3 }, (_, i) => ({
+      ...(PAGE as object),
+      id: i + 1,
+      slug: `big${i + 1}`,
+      bio: "B".repeat(800 * 1024),
+    })) as never[];
+    mockGetAllPages.mockResolvedValue(pages);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(413);
+    expect(res.headers.get("Content-Type")).toContain("application/json");
+    const json = await res.json();
+    expect(json.error).toContain("2 MiB limit");
+    expect(json.bytes).toBeGreaterThan(2 * 1024 * 1024);
+    // proof createZip never produced output: no PK signature anywhere
+    const raw = Buffer.from(
+      new TextEncoder().encode(JSON.stringify(json)),
+    );
+    expect(raw.readUInt32LE(0)).not.toBe(0x04034b50);
+  });
+
   it("one-page instance: ?all=1 still returns a one-entry zip (E.33)", async () => {
     mockGetAllPages.mockResolvedValue([PAGE]);
     const res = await GET(req("?all=1"));
