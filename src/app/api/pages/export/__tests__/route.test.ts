@@ -105,6 +105,20 @@ describe("GET /api/pages/export", () => {
     expect(res.status).toBe(404);
   });
 
+  it("guard precedence: 400 fires before the page lookup, 404 before any data read (E.41)", async () => {
+    // malformed id must never reach the page table…
+    const bad = await GET(req("?id=abc"));
+    expect(bad.status).toBe(400);
+    expect(mockGetPageById).not.toHaveBeenCalled();
+    // …and a missing page must short-circuit before links/sections fetch
+    mockGetPageById.mockResolvedValue(null);
+    const missing = await GET(req("?id=99"));
+    expect(missing.status).toBe(404);
+    expect(mockGetActiveLinks).not.toHaveBeenCalled();
+    expect(mockGetSections).not.toHaveBeenCalled();
+    expect(mockGetActiveTheme).not.toHaveBeenCalled();
+  });
+
   it("exports an UNPUBLISHED page too — admin-scoped, not public-scoped", async () => {
     // The public route 404s unpublished pages; the export route must not,
     // or admins could never snapshot drafts before publishing.
