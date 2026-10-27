@@ -229,3 +229,49 @@ describe("E.3: documented trust boundary", () => {
     expect(html).toContain(script);
   });
 });
+
+describe("E.46 JSON-LD script breakout", () => {
+  const PAYLOAD = "</script><img src=x onerror=alert(1)>";
+
+  it("hostile title never breaks the ld+json script element", () => {
+    const html = buildStaticExport({
+      ...INPUT,
+      page: { ...PAGE, title: PAYLOAD, bio: PAYLOAD },
+    });
+    const m = html.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/,
+    );
+    expect(m, "JSON-LD block missing").toBeTruthy();
+    const body = m![1];
+    // every `<` inside the JSON is unicode-escaped → raw markup impossible
+    expect(body).not.toContain("<");
+    expect(body).not.toContain("</script");
+    // …and the JSON still round-trips with the payload intact as DATA
+    const parsed = JSON.parse(body);
+    expect(parsed.name).toBe(PAYLOAD);
+    // the payload never appears as executable markup in the document
+    expect(html).not.toContain("<img src=x onerror=");
+    expect(html).not.toMatch(/<script[^>]*>[^<]*<\/script><img/);
+  });
+});
+
+describe("E.47 raw-script surface boundary", () => {
+  it("exactly two script KINDS ship: escaped JSON-LD + raw operator analytics; no app JS", () => {
+    const html = buildStaticExport({
+      ...INPUT,
+      page: {
+        ...PAGE,
+        title: "</script><script>alert(2)</script>",
+        analyticsScript: '<script>window.op=1</script>',
+      },
+    });
+    // app/runtime JS never ships (zero-JS architecture)
+    expect(html).not.toContain("<script src=");
+    expect(html).not.toContain("chunks/");
+    // operator analytics: raw by design (single occurrence)
+    expect(html.match(/window\.op=1/g) ?? []).toHaveLength(1);
+    // JSON-LD: escaped (its `<`s are all unicode-escaped — count raw
+    // `<script` openings: the ld+json one + the operator one = 2)
+    expect(html.match(/<script[\s>]/g) ?? []).toHaveLength(2);
+  });
+});
