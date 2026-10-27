@@ -255,6 +255,35 @@ describe("E.46 JSON-LD script breakout", () => {
   });
 });
 
+describe("E.105 entity balance round-trip", () => {
+  const SOURCE = 'Fish & <Chips> &amp; Co "Q" <b>not-tag</b>';
+
+  it("escapes exactly once and round-trips losslessly", () => {
+    const html = buildStaticExport({
+      ...INPUT,
+      page: { ...PAGE, title: SOURCE },
+    });
+    // exactly-once escaping in the <h1> text…
+    expect(html).toContain("Fish &amp; &lt;Chips&gt; &amp;amp; Co");
+    expect(html).toContain("&lt;b&gt;not-tag&lt;/b&gt;");
+    // no raw angle-bracketed source text survived
+    expect(html).not.toContain("<Chips>");
+    expect(html).not.toContain("<b>not-tag</b>");
+
+    // …and decoding the emitted text returns the ORIGINAL source:
+    // unescape in reverse order (lt/gt/quot first, &amp; LAST so
+    // &amp;amp; → &amp; exactly once, matching the source literal)
+    const m = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+    expect(m, "h1 missing").toBeTruthy();
+    const decoded = m![1]
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&");
+    expect(decoded).toBe(SOURCE);
+  });
+});
+
 describe("E.47 raw-script surface boundary", () => {
   it("exactly two script KINDS ship: escaped JSON-LD + raw operator analytics; no app JS", () => {
     const html = buildStaticExport({
