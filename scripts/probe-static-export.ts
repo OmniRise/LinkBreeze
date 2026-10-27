@@ -127,6 +127,14 @@ const checks: Array<[string, boolean]> = [
   ["custom css kept", html.includes(".probe { outline: none; }")],
   ["footer", html.includes("© 2026 Jane Doe")],
   ["json-ld", html.includes('application/ld+json')],
+  // E.76 — fixture surfaces that existed but were never asserted
+  ["seo title (seoTitle precedence)", html.includes("<title>Jane Doe - links</title>")],
+  [
+    "meta description (seoDescription)",
+    html.includes('name="description" content="All my links in one place"'),
+  ],
+  ["highlighted card label", html.includes("&#9733; Featured")],
+  ["badge text", html.includes(">Pro<")],
   // E.20 — structural validity of the document shell
   ["single <html> open", (html.match(/<html[\s>]/g) ?? []).length === 1],
   ["single </html> close", (html.match(/<\/html>/g) ?? []).length === 1],
