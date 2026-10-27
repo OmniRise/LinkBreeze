@@ -40,6 +40,7 @@ import {
   removeAbTest,
 } from "@/server/actions/links";
 import { serializeAbConfig, type AbConfig } from "@/lib/ab-test";
+import { computeAbEditorInitial } from "@/app/(admin)/links/components/ab-test-editor";
 
 function urlLink(abConfig: string | null = null): Record<string, unknown> {
   return {
@@ -105,6 +106,95 @@ describe("setAbTest", () => {
     expect(saved.weightB).toBe(30);
     expect(saved.labelA).toBe("control");
     expect(saved.labelB).toBe("short");
+  });
+
+  it("E.65: editor initial -> form -> setAbTest round-trips a WINDOWED config byte-for-byte", async () => {
+    // The full loop a user actually drives: stored config seeds the editor
+    // (computeAbEditorInitial), the form submits those values, the action
+    // rebuilds and serializes — the payload must be byte-identical to the
+    // canonical serialization of the original (window fields included).
+    const stored: AbConfig = {
+      v: 1,
+      status: "running",
+      labelA: "control",
+      labelB: "short",
+      urlB: "https://example.com/b",
+      weightA: 70,
+      weightB: 30,
+      winner: null,
+      startsAt: "2026-11-01T10:00",
+      endsAt: "2026-11-08T10:00",
+    };
+    mocks.getLink.mockResolvedValue(urlLink(JSON.stringify(stored)));
+
+    const init = computeAbEditorInitial(JSON.stringify(stored));
+    expect(init).toEqual({
+      urlB: "https://example.com/b",
+      labelA: "control",
+      labelB: "short",
+      weightA: 70,
+      startsAt: "2026-11-01T10:00",
+      endsAt: "2026-11-08T10:00",
+    });
+
+    const res = await setAbTest(
+      fd({
+        id: "7",
+        urlB: init!.urlB,
+        labelA: init!.labelA,
+        labelB: init!.labelB,
+        weightA: String(init!.weightA),
+        startsAt: init!.startsAt ?? "",
+        endsAt: init!.endsAt ?? "",
+      }),
+    );
+    expect(res.success).toBe(true);
+    const [, data] = mocks.updateLink.mock.calls[0] as unknown as [
+      number,
+      { abConfig: string },
+    ];
+    expect(data.abConfig).toBe(serializeAbConfig(stored)); // byte-equal
+  });
+
+  it("E.65: an ARCHIVED config's winner + window survive a re-save (status documented archived->paused)", async () => {
+    // The editor never edits `winner` — it must pass through untouched,
+    // and the action's archived->paused rule is the only status change.
+    const stored: AbConfig = {
+      v: 1,
+      status: "archived",
+      labelA: "old",
+      labelB: "new",
+      urlB: "https://example.com/b",
+      weightA: 60,
+      weightB: 40,
+      winner: "B",
+      startsAt: "2026-06-01T08:00",
+      endsAt: "2026-06-30T18:00",
+    };
+    mocks.getLink.mockResolvedValue(urlLink(JSON.stringify(stored)));
+
+    const init = computeAbEditorInitial(JSON.stringify(stored));
+    expect(init).not.toBeNull(); // fields seed fine; winner is NOT in the form
+
+    const res = await setAbTest(
+      fd({
+        id: "7",
+        urlB: init!.urlB,
+        labelA: init!.labelA,
+        labelB: init!.labelB,
+        weightA: String(init!.weightA),
+        startsAt: init!.startsAt ?? "",
+        endsAt: init!.endsAt ?? "",
+      }),
+    );
+    expect(res.success).toBe(true);
+    const [, data] = mocks.updateLink.mock.calls[0] as unknown as [
+      number,
+      { abConfig: string },
+    ];
+    expect(data.abConfig).toBe(
+      serializeAbConfig({ ...stored, status: "paused" }),
+    ); // winner + window byte-equal; only status changed, as documented
   });
 
   it("rejects a javascript: variant B URL (same validator as add-link)", async () => {
