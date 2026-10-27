@@ -165,6 +165,19 @@ describe("batch behavior", () => {
     expect(linkCount()).toBe(before + 99);
   });
 
+  it("E.117: same URL twice in ONE batch creates BOTH rows (URL is not unique by design)", async () => {
+    const before = linkCount();
+    const res = await importRoute(req({ items: [validItem(500), validItem(500)] }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()).data;
+    expect(body.created).toBe(2);
+    expect(body.failed).toBe(0);
+    expect(body.results).toHaveLength(2);
+    const ids = body.results.map((r: { id: number }) => r.id);
+    expect(ids[0]).not.toBe(ids[1]); // two distinct rows, plain create — no
+    expect(linkCount()).toBe(before + 2); // conflict check (links.url has no UNIQUE)
+  });
+
   it("strips id-shaped fields from every item (URL owns ids)", async () => {
     const res = await importRoute(
       req({
