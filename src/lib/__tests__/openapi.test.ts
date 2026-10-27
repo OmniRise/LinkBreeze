@@ -326,6 +326,23 @@ describe("spec hygiene (E.19)", () => {
     expect(ids.length).toBe(18);
   });
 
+  it("E.91: no orphan component schemas — every named schema is $ref'd somewhere", () => {
+    const names = Object.keys(
+      (doc as { components?: { schemas?: Record<string, unknown> } }).components?.schemas ?? {},
+    );
+    expect(names.length).toBeGreaterThan(0); // the component block exists
+    const serialized = JSON.stringify(doc);
+    for (const name of names) {
+      // The name appears once as its definition key — require at least one
+      // additional occurrence via a $ref, or the schema is dead weight.
+      const needle = `#/components/schemas/${name}`;
+      expect(
+        serialized.split(needle).length - 1,
+        `orphan schema (never $ref'd): ${name}`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
   it("E.84: README endpoints table maps 1:1 onto the spec (table ↔ operations)", () => {
     const readme = fs.readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     // Scope to the REST API section — other README tables are unrelated.
