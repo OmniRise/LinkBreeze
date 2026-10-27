@@ -513,6 +513,84 @@ describe("section heading edges (E.57)", () => {
   });
 });
 
+describe("icon fallback chain edges (E.108/E.109)", () => {
+  const link = (over: Record<string, unknown>) =>
+    ({
+      id: 1,
+      pageId: 1,
+      sectionId: null,
+      orderIndex: 0,
+      type: "url",
+      title: "Zebra",
+      description: null,
+      url: "https://example.com",
+      icon: null,
+      iconUrl: null,
+      customIconUrl: null,
+      iconMode: "auto",
+      autoIcon: true,
+      imageUrl: null,
+      isHighlighted: false,
+      isActive: true,
+      scheduleStart: null,
+      scheduleEnd: null,
+      clicksCount: 0,
+      cardStyle: "compact",
+      popupText: null,
+      ctaLabel: null,
+      redirectSlug: null,
+      createdAt: "2026-01-01 00:00:00",
+      ...over,
+    }) as unknown as LinkRow;
+
+  it("iconMode 'custom' with null URL falls back to letter, never empty src (E.108)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [
+        link({ iconMode: "custom", customIconUrl: null, autoIcon: false }),
+      ],
+    });
+    // guard at build-link-card.ts:75 requires the URL — null falls
+    // through to the first-letter avatar
+    expect(html).not.toContain('src=""');
+    expect(html).not.toContain("src=''");
+    // letter fallback rendered from the title initial
+    expect(html).toMatch(
+      /<span aria-hidden="true"[^>]*font-size:11px[^>]*>Z<\/span>/,
+    );
+  });
+
+  it("builder ignores schedule fields entirely (single-sourced filtering, E.109)", () => {
+    // The route's getActiveLinks applies the schedule window at query
+    // level; the builder has NO schedule logic — a row that reaches it
+    // renders regardless of its window values (never re-filters).
+    const expired = buildStaticExport({
+      ...baseInput,
+      links: [
+        link({
+          scheduleStart: "2000-01-01 00:00:00",
+          scheduleEnd: "2000-01-02 00:00:00",
+        }),
+      ],
+    });
+    const future = buildStaticExport({
+      ...baseInput,
+      links: [
+        link({
+          scheduleStart: "2099-01-01 00:00:00",
+          scheduleEnd: "2099-01-02 00:00:00",
+        }),
+      ],
+    });
+    // identical output: the window itself never influences rendering
+    expect(expired).toContain(">Zebra<");
+    expect(future).toContain(">Zebra<");
+    expect(expired).not.toContain("2000-01-01");
+    expect(future).not.toContain("2099-01-01");
+    // (in production the row would never arrive: query filters first)
+  });
+});
+
 describe("input-order preservation (E.49)", () => {
   const link = (id: number, title: string, orderIndex: number): LinkRow =>
     ({
