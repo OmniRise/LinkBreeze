@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { apiGate, apiOk, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
+import { apiGate, apiOk, apiOkConditional, apiError, parseJsonBody, ErrorCode } from "@/server/api-auth";
 import {
   getAllSections,
   getSectionsByPage,
@@ -49,7 +49,9 @@ export async function GET(request: NextRequest) {
     }
     try {
       const sections = await getSectionsByPage(Number(raw));
-      return apiOk(sections, { headers: gate.rateHeaders });
+      return apiOkConditional({ data: sections }, request, {
+        headers: gate.rateHeaders,
+      });
     } catch (err) {
       logError("api/v1/sections GET", err);
       return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
@@ -58,7 +60,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const sections = await getAllSections();
-    return apiOk(sections, { headers: gate.rateHeaders });
+    return apiOkConditional({ data: sections }, request, {
+      headers: gate.rateHeaders,
+    });
   } catch (err) {
     logError("api/v1/sections GET", err);
     return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);

@@ -601,7 +601,8 @@ export function buildOpenApiDocument(): Json {
           tags: ["sections"],
           summary: "List sections (all pages, display order)",
           description:
-            "Stable order (pageId, orderIndex, id). Filter to one page with ?pageId=N.",
+            "Stable order (pageId, orderIndex, id). Filter to one page with ?pageId=N. " +
+            "Conditional: carries an ETag; If-None-Match answers 304 while unchanged.",
           parameters: [
             {
               name: "pageId",
@@ -609,10 +610,16 @@ export function buildOpenApiDocument(): Json {
               schema: { type: "integer", minimum: 1 },
               description: "Only sections belonging to this page.",
             },
+            {
+              name: "If-None-Match",
+              in: "header",
+              schema: { type: "string" },
+              description: "Previous ETag → 304 Not Modified (empty body).",
+            },
           ],
           responses: {
             "200": {
-              description: "All sections (or those of ?pageId)",
+              description: "All sections (or those of ?pageId). Carries an ETag header.",
               content: {
                 "application/json": {
                   schema: {
@@ -623,6 +630,9 @@ export function buildOpenApiDocument(): Json {
                   },
                 },
               },
+            },
+            "304": {
+              description: "If-None-Match matched the current ETag; empty body.",
             },
             ...standardErrors,
           },
@@ -817,17 +827,25 @@ export function buildOpenApiDocument(): Json {
       "/api/v1/analytics": {
         get: {
           tags: ["analytics"],
-          summary: "Views, clicks and top links for a range",
+          summary: "Aggregate metrics (views, clicks, top links)",
+          description:
+            "Conditional: ETag covers the METRICS (since/exportedAt are per-response clock fields); unchanged numbers answer If-None-Match with 304.",
           parameters: [
             {
               name: "range",
               in: "query",
               schema: { type: "string", enum: ["7d", "30d", "90d"], default: "7d" },
             },
+            {
+              name: "If-None-Match",
+              in: "header",
+              schema: { type: "string" },
+              description: "Previous ETag → 304 Not Modified (empty body).",
+            },
           ],
           responses: {
             "200": {
-              description: "Analytics summary (windowed - check since/retentionDays)",
+              description: "Analytics summary (windowed - check since/retentionDays). Carries an ETag header.",
               content: {
                 "application/json": {
                   schema: {
@@ -836,6 +854,9 @@ export function buildOpenApiDocument(): Json {
                   },
                 },
               },
+            },
+            "304": {
+              description: "If-None-Match matched the metrics ETag; empty body.",
             },
             ...standardErrors,
           },

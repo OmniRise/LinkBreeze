@@ -13,7 +13,10 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { GET as listLinks, POST as createLinkRoute } from "@/app/api/v1/links/route";
 import { GET as getProfileRoute } from "@/app/api/v1/profile/route";
+import { GET as listSections } from "@/app/api/v1/sections/route";
+import { GET as getAnalyticsRoute } from "@/app/api/v1/analytics/route";
 import { createApiKey } from "@/server/api-keys";
+import { createSection } from "@/server/queries";
 
 let KEY = "";
 let pageId = 0;
@@ -138,5 +141,63 @@ describe("GET /api/v1/profile — conditional responses", () => {
     expect(changed.status).toBe(200);
     expect(changed.headers.get("etag")).not.toBe(etag);
     expect((await changed.json()).data.displayName).toBe("Ada Lovelace");
+  });
+});
+
+describe("E.15 conditional GET on remaining read endpoints", () => {
+  it("GET /sections: ETag → 304; creating a section invalidates it", async () => {
+    const section = await createSection({ pageId, title: "ETag section" });
+
+    const first = await listSections(req("/api/v1/sections"));
+    expect(first.status).toBe(200);
+    const etag = first.headers.get("etag")!;
+    expect(etag).toMatch(/^"[0-9a-f]{32}"$/);
+
+    const replay = await listSections(
+      req("/api/v1/sections", { "if-none-match": etag }),
+    );
+    expect(replay.status).toBe(304);
+    expect(await replay.text()).toBe("");
+
+    await createSection({ pageId, title: "ETag section 2" });
+    const afterCreate = await listSections(
+      req("/api/v1/sections", { "if-none-match": etag }),
+    );
+    expect(afterCreate.status).toBe(200);
+    expect(afterCreate.headers.get("etag")).not.toBe(etag);
+
+    // pageId-filtered lists are conditional too (different payload → different validator).
+    const filtered = await listSections(req(`/api/v1/sections?pageId=${pageId}`));
+    expect(filtered.headers.get("etag")).toBeTruthy();
+    expect(filtered.status).toBe(200);
+    void section;
+  });
+
+  it("GET /analytics: ETag covers metrics only — clock fields can't flap it", async () => {
+    const a = await getAnalyticsRoute(req("/api/v1/analytics?range=7d"));
+    expect(a.status).toBe(200);
+    const etagA = a.headers.get("etag");
+    const bodyA = await a.json();
+
+    const b = await getAnalyticsRoute(req("/api/v1/analytics?range=7d"));
+    const etagB = b.headers.get("etag");
+    const bodyB = await b.json();
+
+    // Same metrics → SAME validator even though exportedAt/since are fresh.
+    expect(etagA).toBe(etagB);
+    expect(bodyA.data.exportedAt).not.toBe(undefined);
+    if (bodyA.data.exportedAt !== bodyB.data.exportedAt) {
+      expect(etagA).toBe(etagB); // validator ignores the clock fields
+    }
+
+    const replay = await getAnalyticsRoute(
+      req("/api/v1/analytics?range=7d", { "if-none-match": etagA! }),
+    );
+    expect(replay.status).toBe(304);
+    expect(await replay.text()).toBe("");
+
+    // A different range is a different representation.
+    const other = await getAnalyticsRoute(req("/api/v1/analytics?range=30d"));
+    expect(other.headers.get("etag")).not.toBe(etagA);
   });
 });

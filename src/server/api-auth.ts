@@ -87,14 +87,18 @@ export function apiOk(
  * #4 E.8 — conditional success response: 200s carry a strong ETag over the
  * EXACT body; a matching If-None-Match returns an empty 304 with the same
  * ETag (poller bandwidth saving). `body` must be the full wire payload
- * (`{ data, meta? }`) so the hash matches serialization byte-for-byte.
+ * (`{ data, meta? }`) so the hash matches serialization byte-for-byte —
+ * UNLESS `etagPayload` is given (E.15): the validator then covers only the
+ * stable, data-derived subset while volatile per-response clock fields ride
+ * along in the 200 body (documented for GET /analytics: metrics unchanged →
+ * 304, and a full fetch refreshes the timestamps).
  */
 export function apiOkConditional(
   body: unknown,
   request: NextRequest,
-  init?: { headers?: Record<string, string> },
+  init?: { headers?: Record<string, string>; etagPayload?: unknown },
 ): NextResponse {
-  const etag = etagFor(body);
+  const etag = etagFor(init?.etagPayload !== undefined ? init.etagPayload : body);
   const base = init?.headers ?? {};
   if (etagNotModified(request.headers.get("if-none-match"), etag)) {
     return new NextResponse(null, {

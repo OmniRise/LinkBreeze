@@ -7,7 +7,7 @@
  * client can never mistake a windowed figure for all-time.
  */
 import { NextRequest } from "next/server";
-import { apiGate, apiOk, apiError, ErrorCode } from "@/server/api-auth";
+import { apiGate, apiOkConditional, apiError, ErrorCode } from "@/server/api-auth";
 import { getDashboardStats, getAnalyticsRetentionDays } from "@/server/queries";
 import { parseRange } from "@/lib/analytics-range";
 import { logError } from "@/lib/errors";
@@ -30,20 +30,32 @@ export async function GET(request: NextRequest) {
     const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
     const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
-    return apiOk(
+    const metrics = {
+      range,
+      retentionDays,
+      totalViews: stats.totalViews,
+      uniqueVisitors: stats.uniqueVisitors,
+      totalClicks: stats.totalClicks,
+      ctr: stats.ctr,
+      topLinks: stats.topLinks,
+      viewsPerDay: stats.viewsPerDay,
+    };
+    return apiOkConditional(
       {
-        range,
-        since,
-        exportedAt: new Date().toISOString(),
-        retentionDays,
-        totalViews: stats.totalViews,
-        uniqueVisitors: stats.uniqueVisitors,
-        totalClicks: stats.totalClicks,
-        ctr: stats.ctr,
-        topLinks: stats.topLinks,
-        viewsPerDay: stats.viewsPerDay,
+        data: {
+          ...metrics,
+          since,
+          exportedAt: new Date().toISOString(),
+        },
       },
-      { headers: gate.rateHeaders },
+      request,
+      {
+        headers: gate.rateHeaders,
+        // E.15: the validator covers the METRICS only — since/exportedAt are
+        // per-response clock fields, so identical numbers still 304 and a
+        // full fetch refreshes the timestamps.
+        etagPayload: { data: metrics },
+      },
     );
   } catch (err) {
     logError("api/v1/analytics GET", err, { range });
