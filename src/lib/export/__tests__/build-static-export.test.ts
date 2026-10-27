@@ -595,6 +595,74 @@ describe("popup CTA + divider in sections (E.144/E.145)", () => {
   });
 });
 
+describe("embed downgrade fidelity + empty socials array (E.147/E.148)", () => {
+  const mkLink = (over: Record<string, unknown>) =>
+    ({
+      id: 1,
+      pageId: 1,
+      sectionId: null,
+      orderIndex: 0,
+      type: "url",
+      title: "Widget",
+      description: null,
+      url: "https://www.youtube.com/watch?v=abc123",
+      icon: null,
+      iconUrl: null,
+      customIconUrl: null,
+      iconMode: "auto",
+      autoIcon: true,
+      imageUrl: null,
+      isHighlighted: false,
+      isActive: true,
+      scheduleStart: null,
+      scheduleEnd: null,
+      clicksCount: 0,
+      cardStyle: "compact",
+      popupText: null,
+      ctaLabel: null,
+      redirectSlug: null,
+      createdAt: "2026-01-01 00:00:00",
+      ...over,
+    }) as unknown as LinkRow;
+
+  it("embed widget downgrades to a full card: title, direct href, icon (E.147)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [mkLink({ id: 5, type: "embed", title: "My Video" })],
+    });
+    // no iframe/provider chrome
+    expect(html).not.toContain("<iframe");
+    // the card keeps every piece of identity
+    expect(html).toContain("My Video");
+    expect(html).toContain('href="https://www.youtube.com/watch?v=abc123"');
+    // icon slot still renders (letter fallback from title initial)
+    expect(html).toContain(">M<");
+    // card element intact
+    expect(html).toContain('class="lb-link-card"');
+    // embeds are NOT popup-capable types → no dialog shipped
+    expect(html).not.toContain("<dialog");
+  });
+
+  it("empty socials array behaves exactly like null (E.148)", () => {
+    const emptyArr = buildStaticExport(
+      baseInput.page
+        ? {
+            ...baseInput,
+            page: { ...baseInput.page, socialLinks: "[]" },
+          }
+        : baseInput,
+    );
+    const nulled = buildStaticExport(
+      baseInput.page
+        ? { ...baseInput, page: { ...baseInput.page, socialLinks: null } }
+        : baseInput,
+    );
+    expect(emptyArr).toBe(nulled);
+    expect(emptyArr).not.toContain('aria-label="Social links"');
+    expect(emptyArr).not.toContain('class="lb-social-icon"');
+  });
+});
+
 describe("section-header rule geometry (E.69)", () => {
   const headerFor = (alignment: "center" | "left" | "right") =>
     buildStaticExport({
