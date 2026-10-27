@@ -671,3 +671,35 @@ describe("error paths: invalid id + not-found (E.28)", () => {
     });
   }
 });
+
+describe("E.122: demoGuard runs FIRST in every A/B action", () => {
+  it("blocks all five before auth, validation, or any write", async () => {
+    // Grounded chain: demoGuard() (links.ts first line) -> demoBlock
+    // (@/lib/demo, mocked here) -> demoError(). Three actions had explicit
+    // demo tests; this pins ALL FIVE uniformly AND the ORDER claim the
+    // per-action tests never asserted: auth runs behind the guard.
+    mocks.demoBlock.mockReturnValue("Demo mode");
+    // Auth would ALSO fail (null session) — if the guard were not first,
+    // getSession would have been consulted before the block.
+    mocks.getSession.mockResolvedValue(null);
+
+    const calls: Array<[string, Promise<{ success: boolean }>]> = [
+      ["setAbTest", setAbTest(fd({ id: "7", urlB: "https://example.com/b", weightA: "50" }))],
+      ["setAbTestStatus", setAbTestStatus(fd({ id: "7", status: "paused" }))],
+      ["promoteAbVariant", promoteAbVariant(fd({ id: "7", winner: "A" }))],
+      ["removeAbTest", removeAbTest(fd({ id: "7" }))],
+      ["setAbAutoPromote", setAbAutoPromote(fd({ abAutoPromote: "on" }))],
+    ];
+    for (const [name, p] of calls) {
+      const res = await p;
+      expect(res.success, name).toBe(false);
+    }
+
+    // The guard sat BEFORE auth (requireAuth wraps getSession) and before
+    // every read/write — nothing else ran.
+    expect(mocks.getSession, "auth must never run under demo").not.toHaveBeenCalled();
+    expect(mocks.getLink).not.toHaveBeenCalled();
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+    expect(mocks.updateSetting).not.toHaveBeenCalled();
+  });
+});
