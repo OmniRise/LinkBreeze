@@ -238,4 +238,42 @@ describe("export CSV variant fidelity (#81 E.95)", () => {
     expect(rows[1].c).toBe("MA");
     expect(rows[1].d).toBe("desktop");
   });
+
+  it("E.110: all 6 metric×range combos 200 with exact filenames; unknown inputs fall back per parseRange", async () => {
+    // parseRange: only VALID tokens pass through, everything else → "7d";
+    // the route: metric === "clicks" ? "clicks" : "views" (any other token
+    // → views). The filename echoes the PARSED values, so fallbacks are
+    // observable from the Content-Disposition alone.
+    for (const metric of ["clicks", "views"]) {
+      for (const range of ["7d", "30d", "90d"]) {
+        const res = await GET(
+          new NextRequest(`http://localhost:3000/api/analytics/export?metric=${metric}&range=${range}`),
+        );
+        expect(res.status, `${metric}/${range}`).toBe(200);
+        expect(res.headers.get("Content-Disposition"), `${metric}/${range}`).toContain(
+          `linkbreeze-${metric}-${range}.csv`,
+        );
+        expect(res.headers.get("Cache-Control"), `${metric}/${range}`).toBe("no-store");
+      }
+    }
+
+    // Unknown range token → 7d (parseRange fallback), visible in the filename.
+    const badRange = await GET(
+      new NextRequest("http://localhost:3000/api/analytics/export?metric=clicks&range=999d"),
+    );
+    expect(badRange.status).toBe(200);
+    expect(badRange.headers.get("Content-Disposition")).toContain("linkbreeze-clicks-7d.csv");
+
+    // Missing range param → also 7d.
+    const noRange = await GET(
+      new NextRequest("http://localhost:3000/api/analytics/export?metric=clicks"),
+    );
+    expect(noRange.headers.get("Content-Disposition")).toContain("linkbreeze-clicks-7d.csv");
+
+    // Unknown metric token → views (the route's ternary), pinned as actual behavior.
+    const bogusMetric = await GET(
+      new NextRequest("http://localhost:3000/api/analytics/export?metric=bogus&range=7d"),
+    );
+    expect(bogusMetric.headers.get("Content-Disposition")).toContain("linkbreeze-views-7d.csv");
+  });
 });
