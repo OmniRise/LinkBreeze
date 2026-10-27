@@ -22,6 +22,21 @@ describe("exportFilename", () => {
     expect(exportFilename(".")).toBe("page.html");
   });
 
+  it("header injection class closed: hostile slug reduced to safe ASCII (E.190)", () => {
+    const hostile = 'a";\r\nX-Injected: evil\r\n';
+    const out = exportFilename(hostile);
+    // every byte outside the allowlist (quotes, CR, LF, colon, space,
+    // semicolon) is stripped — the Content-Disposition template
+    // (route.ts:257) can never receive a quote or newline from it.
+    // Hyphen survives (it's filename-safe; X-Injected keeps its dash)
+    expect(out).toBe("aX-Injectedevil.html");
+    expect(out).toMatch(/^[A-Za-z0-9\-_.@]+\.html$/);
+    expect(out).not.toContain('"');
+    expect(out).not.toMatch(/[\r\n;]/);
+    // second hostile shape: percent + backslash + angle brackets
+    expect(exportFilename("<script>%%\\x")).toBe("scriptx.html");
+  });
+
   it("falls back to page.html for empty/unsafe slugs", () => {
     expect(exportFilename("")).toBe("page.html");
     expect(exportFilename("../..")).toBe("page.html");
