@@ -461,6 +461,15 @@ curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json"
 curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
 ```
 
+```bash
+# Create a section, then bulk-import links (per-item results)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
 Follow `meta.nextCursor` (pass it back as `?cursor=`) to walk every page. The full machine-readable contract is at `$BASE/openapi.json`.
 
 </details>

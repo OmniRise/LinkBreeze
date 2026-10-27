@@ -461,6 +461,15 @@ curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json"
 curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
 ```
 
+```bash
+# Sektion anlegen, dann Links im Bulk importieren (Ergebnis pro Eintrag)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
 Folge `meta.nextCursor` (als `?cursor=` zurückgeben), um alle Seiten zu durchlaufen. Der vollständige maschinenlesbare Vertrag liegt unter `$BASE/openapi.json`.
 
 </details>

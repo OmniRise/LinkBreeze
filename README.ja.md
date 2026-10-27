@@ -461,6 +461,15 @@ curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json"
 curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
 ```
 
+```bash
+# セクションを作成し、リンクを一括インポート（項目ごとの結果）
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
 `meta.nextCursor`（`?cursor=` で渡す）を辿れば全ページを取得できます。機械可読の完全な契約は `$BASE/openapi.json` にあります。
 
 </details>
