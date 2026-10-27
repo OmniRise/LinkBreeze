@@ -16,14 +16,36 @@ import { describe, it, expect, beforeAll, vi } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+// ---- E.58: the restored row must drive REAL /go split serving ----
+// next/headers has no request scope in vitest; visitor is mocked only for
+// DETERMINISM (two opposite-side visitors); bot-detect + backup scheduler
+// and the auto-promote trigger are stubbed (fire-and-forget side paths —
+// the E.31 lesson); ab-auto-promote is PARTIAL so this file's
+// AB_AUTO_PROMOTE_SETTING import keeps working.
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+vi.mock("@/lib/visitor", () => ({
+  getVisitorHash: vi.fn(() => "unset"),
+  stripReferrer: vi.fn((r: string | null) => r ?? ""),
+}));
+vi.mock("@/lib/bot-detect", () => ({ isBot: vi.fn(() => false) }));
+vi.mock("@/server/backup-scheduler", () => ({ maybeRunScheduledBackup: vi.fn() }));
+vi.mock("@/server/ab-auto-promote", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/ab-auto-promote")>()),
+  maybeAutoPromoteAbTests: vi.fn(),
+}));
+
 import "./integration-setup";
 import { db, seedPage, seedLink } from "./integration-setup";
 import { applyBackupPayload, getBackupPayload } from "@/server/backup-restore";
 import { AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
 import { getSetting, updateSetting } from "@/server/queries";
-import { links } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { parseAbConfig, type AbConfig } from "@/lib/ab-test";
+import { links, analyticsClicks } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { parseAbConfig, assignVariant, type AbConfig } from "@/lib/ab-test";
+import { getVisitorHash } from "@/lib/visitor";
+import { isBot } from "@/lib/bot-detect";
+import { GET as goGET } from "@/app/go/[id]/route";
+import { NextRequest } from "next/server";
 
 const goodConfig: AbConfig = {
   v: 1,
@@ -313,5 +335,54 @@ describe("[integration] A/B config restore sanitization (#81)", () => {
     expect(inPayload).toBe(stored); // verbatim, window + winner intact
     expect(inPayload).toBe(live?.abConfig ?? null); // payload == live row, byte-for-byte
     await updateSetting(AB_AUTO_PROMOTE_SETTING, "off"); // do not leak into later tests
+  });
+
+  // ---- E.58: restore -> REAL /go split serving (end-to-end) ----
+
+  it("E.58: a restored ACTIVE ab_config actually splits /go serving end-to-end", async () => {
+    // E.13 pinned the JSON SURVIVES restore; nothing exercised the SPLIT
+    // with restored data. This restores a live 50/50 config, then serves
+    // two visitors picked (pure-assisted) to sit on OPPOSITE sides of the
+    // split: each must get ITS destination, and both clicks must be
+    // RECORDED from the restored row with the matching variant label.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+
+    const vA = Array.from({ length: 50 }, (_, i) => `e58-va-${i}`).find(
+      (v) => assignVariant(v, 501, 50, 50) === "A",
+    )!;
+    const vB = Array.from({ length: 50 }, (_, i) => `e58-vb-${i}`).find(
+      (v) => assignVariant(v, 501, 50, 50) === "B",
+    )!;
+
+    const res = await restoreWith([linkRow({ abConfig: JSON.stringify(goodConfig) })]);
+    expect(res.success).toBe(true);
+    expect((await restoredConfig(501))?.status).toBe("running"); // live after restore
+
+    const req = () =>
+      new NextRequest("http://localhost:3000/go/501");
+    const params = { params: Promise.resolve({ id: "501" }) };
+
+    vi.mocked(getVisitorHash).mockReturnValueOnce(vA);
+    const resA = await goGET(req(), params);
+    expect(resA.headers.get("location")).toBe("https://example.com/a");
+
+    vi.mocked(getVisitorHash).mockReturnValueOnce(vB);
+    const resB = await goGET(req(), params);
+    expect(resB.headers.get("location")).toBe("https://example.com/short");
+
+    // Real recordClick ran (prod + human) — labels attributed per split:
+    const rows = db
+      .select({ variant: analyticsClicks.variant, c: sql<number>`count(*)` })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, 501))
+      .groupBy(analyticsClicks.variant)
+      .all();
+    expect(rows).toEqual([
+      { variant: "A", c: 1 },
+      { variant: "B", c: 1 },
+    ]);
+
+    vi.unstubAllEnvs();
   });
 });
