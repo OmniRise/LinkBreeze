@@ -51,7 +51,7 @@ import { analyticsClicks, links } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { assignVariant, parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
 import { setAbTest, setAbTestStatus, promoteAbVariant, removeAbTest } from "@/server/actions/links";
-import { getLink, recordClick } from "@/server/queries";
+import { getLink, recordClick, getLinkStats } from "@/server/queries";
 import { getVisitorHash } from "@/lib/visitor";
 import { isBot } from "@/lib/bot-detect";
 import { GET as goGET } from "@/app/go/[id]/route";
@@ -401,6 +401,70 @@ describe("[integration] non-running states serve link.url, unlabeled (#81 E.61)"
     expect(cfg3?.winner).toBe("A"); // overwritten
     expect(cfg3?.status).toBe("archived");
     expect((await getLink(seeded.id))?.url).toBe("https://example.com/b"); // NOT re-pinned
+
+    vi.unstubAllEnvs();
+  });
+
+  it("E.80: getLinkStats.link AGREES with getLink at every lifecycle checkpoint", async () => {
+    // The stats detail page and the links table must render the SAME row:
+    // deep-equal the embedded link row against the raw fetch after every
+    // lifecycle action, plus explicit url/status cross-checks where an
+    // action has side effects.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+    const seeded = seedLink({ url: "https://example.com/own-stats" });
+    const checkpoint = async (label: string) => {
+      const raw = await getLink(seeded.id);
+      const stats = await getLinkStats(seeded.id, "7d");
+      expect(stats, `${label}: stats missing`).not.toBeNull();
+      expect(stats!.link, `${label}: stats link != raw link`).toEqual(raw);
+    };
+    const fd = (fields: Record<string, string>) => {
+      const f = new FormData();
+      for (const [k, v] of Object.entries(fields)) f.set(k, v);
+      return f;
+    };
+
+    await checkpoint("seed");
+
+    const created = await setAbTest(
+      fd({
+        id: String(seeded.id),
+        urlB: "https://example.com/b",
+        labelA: "control",
+        labelB: "short",
+        weightA: "50",
+      }),
+    );
+    if (!created.success) throw new Error(`create: ${created.error}`);
+    await checkpoint("created");
+    expect(
+      parseAbConfig((await getLinkStats(seeded.id, "7d"))!.link.abConfig ?? null)
+        ?.status,
+    ).toBe("running");
+
+    const paused = await setAbTestStatus(fd({ id: String(seeded.id), status: "paused" }));
+    if (!paused.success) throw new Error(`pause: ${paused.error}`);
+    await checkpoint("paused");
+
+    const resumed = await setAbTestStatus(fd({ id: String(seeded.id), status: "running" }));
+    if (!resumed.success) throw new Error(`resume: ${resumed.error}`);
+    await checkpoint("resumed");
+
+    const promoted = await promoteAbVariant(fd({ id: String(seeded.id), winner: "B" }));
+    if (!promoted.success) throw new Error(`promote: ${promoted.error}`);
+    await checkpoint("promoted");
+    // Both surfaces show the SAME pinned url after the promote side effect.
+    const statsAfterPromote = (await getLinkStats(seeded.id, "7d"))!.link;
+    expect(statsAfterPromote.url).toBe("https://example.com/b");
+    expect(statsAfterPromote.url).toBe((await getLink(seeded.id))?.url);
+
+    const removed = await removeAbTest(fd({ id: String(seeded.id) }));
+    if (!removed.success) throw new Error(`remove: ${removed.error}`);
+    await checkpoint("removed");
+    expect(
+      (await getLinkStats(seeded.id, "7d"))!.link.abConfig ?? null,
+    ).toBeNull();
 
     vi.unstubAllEnvs();
   });
