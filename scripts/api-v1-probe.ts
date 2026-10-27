@@ -164,6 +164,23 @@ async function main() {
       `status=${analytics.status} range=${analyticsBody.data?.range}`,
     );
 
+    // E.37: conditional analytics on the REAL db — the metrics-only
+    // etagPayload (clock fields excluded) must be stable across calls and
+    // answer If-None-Match with an empty 304.
+    const A_URL = "/api/v1/analytics?range=7d";
+    const a1 = await analyticsRoute.GET(req("GET", undefined, true, A_URL));
+    const etagA = a1.headers.get("etag");
+    const a2 = await analyticsRoute.GET(req("GET", undefined, true, A_URL));
+    const etagB = a2.headers.get("etag");
+    const condReq = req("GET", undefined, true, A_URL);
+    if (etagA) condReq.headers.set("if-none-match", etagA);
+    const a3 = await analyticsRoute.GET(condReq);
+    check(
+      "GET /analytics conditional (metrics-only etag)",
+      a1.status === 200 && etagA !== null && etagA === etagB && a3.status === 304,
+      `status=${a1.status} etagStable=${etagA === etagB} replay=${a3.status}`,
+    );
+
     const openapi = await openapiRoute.GET(req("GET"));
     const doc = await openapi.json();
     check(
