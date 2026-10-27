@@ -462,7 +462,9 @@ export function buildOpenApiDocument(): Json {
           tags: ["links"],
           summary: "Get one link by id",
           operationId: "getLink",
-          description: "Conditional: carries an ETag; send it back as If-None-Match for a 304 while unchanged.",
+          description:
+            "Conditional: carries an ETag; send it back as If-None-Match for a 304 while unchanged. " +
+            "?fields is a list-endpoint feature (E.75) — a single read always returns the full row.",
           parameters: [
             {
               name: "id",

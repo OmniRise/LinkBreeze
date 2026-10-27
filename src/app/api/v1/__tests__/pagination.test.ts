@@ -18,6 +18,7 @@ import { NextRequest } from "next/server";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { GET as listLinks } from "@/app/api/v1/links/route";
+import { GET as getLinkRoute } from "@/app/api/v1/links/[id]/route";
 import { parseListParams, encodeListCursor, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "@/server/api-links";
 import { createApiKey } from "@/server/api-keys";
 
@@ -294,5 +295,46 @@ describe("E.44 spec claim: ?cursor alone defaults limit to exactly 100", () => {
       expect(r.ok, `limit=${bad}`).toBe(false);
       if (!r.ok) expect(r.path).toBe("limit");
     }
+  });
+});
+
+describe("E.75 ?fields is LIST-only — single reads ignore it silently", () => {
+  it("GET /links/:id?fields=id,title returns the FULL row (no 400, no trimming)", async () => {
+    const listed = await listLinks(get("?limit=1"));
+    const firstId = (await listed.json()).data[0].id as number;
+
+    ipCounter += 1;
+    const withFields = await getLinkRoute(
+      new NextRequest(
+        `http://localhost:3000/api/v1/links/${firstId}?fields=id,title`,
+        {
+          headers: {
+            authorization: ["Bearer", KEY].join(" "),
+            "x-forwarded-for": `10.71.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`,
+          },
+        },
+      ),
+      { params: Promise.resolve({ id: String(firstId) }) },
+    );
+    expect(withFields.status).toBe(200); // ignored, never 400
+    const trimmed = await withFields.json();
+
+    ipCounter += 1;
+    const plain = await getLinkRoute(
+      new NextRequest(`http://localhost:3000/api/v1/links/${firstId}`, {
+        headers: {
+          authorization: ["Bearer", KEY].join(" "),
+          "x-forwarded-for": `10.71.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`,
+        },
+      }),
+      { params: Promise.resolve({ id: String(firstId) }) },
+    );
+    const full = await plain.json();
+
+    // Full 24-column row either way: single reads never project.
+    expect(Object.keys(trimmed.data).length).toBe(
+      Object.keys(full.data).length,
+    );
+    expect(trimmed.data).toEqual(full.data);
   });
 });
