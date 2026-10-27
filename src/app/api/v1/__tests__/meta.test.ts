@@ -95,4 +95,38 @@ describe("GET /api/v1/docs", () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("Endpoints");
   });
+
+  it("E.20: never echoes auth material or KV field names in the HTML", async () => {
+    const res = await getDocs(req(true));
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html.includes(KEY)).toBe(false); // the bearer token it just accepted
+    expect(html.includes(hashApiKey(KEY))).toBe(false); // its stored digest
+    expect(html).not.toContain("apiKeyHash");
+    expect(html).not.toContain("passwordHash");
+    expect(html).not.toContain("username");
+  });
+
+  it("E.20: reflected input never reaches the page (XSS inert) and no scripts run", async () => {
+    ipCounter += 1;
+    const hostile = new NextRequest(
+      "http://localhost:3000/api/v1/docs?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E&name=%22onload%3Dalert(2)",
+      {
+        headers: {
+          authorization: ["Bearer", KEY].join(" "),
+          "x-forwarded-for": `10.40.0.${(ipCounter % 250) + 1}`,
+        },
+      },
+    );
+    const res = await getDocs(hostile);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("alert(1)");
+    expect(html).not.toContain("alert(2)");
+    expect(html.toLowerCase()).not.toContain("javascript:");
+    // The page is pure HTML/CSS — no executable surface at all.
+    expect(html).not.toContain("onclick");
+    expect(html).not.toContain("onload=");
+  });
 });
