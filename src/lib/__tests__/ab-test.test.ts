@@ -140,6 +140,42 @@ describe("assignVariant", () => {
     expect(aCount).toBeGreaterThan(3400); // ~3600 expected
     expect(aCount).toBeLessThan(3900);
   });
+
+  it("slider boundary weightA=1 still yields BOTH variants (no dead bucket, N=2000)", () => {
+    // The slider allows 1/99 — the rarest legal minority. A dead/sticky
+    // bucket would give exactly 0 (or exactly all) of one side; fmix32
+    // must keep producing the minority in expectation (~20, 3σ = 4.45).
+    let aCount = 0;
+    const n = 2000;
+    for (let i = 0; i < n; i++) {
+      if (assignVariant(`bnd-lo-${i}`, 11, 1, 99) === "A") aCount++;
+    }
+    expect(aCount).toBeGreaterThanOrEqual(6); // minority not starved
+    expect(aCount).toBeLessThanOrEqual(60); // majority not universal
+  });
+
+  it("slider boundary weightA=99 mirrors the same guarantees (N=2000)", () => {
+    let aCount = 0;
+    const n = 2000;
+    for (let i = 0; i < n; i++) {
+      if (assignVariant(`bnd-hi-${i}`, 12, 99, 1) === "A") aCount++;
+    }
+    // Expected 1980 ± 3σ(4.45) -> [1966, 1994]; B (= n - a) must live.
+    expect(aCount).toBeGreaterThanOrEqual(1940);
+    expect(aCount).toBeLessThanOrEqual(1994);
+    expect(n - aCount).toBeGreaterThanOrEqual(6);
+  });
+
+  it("50/50 stays within ±4% absolute at N=2000", () => {
+    let aCount = 0;
+    const n = 2000;
+    for (let i = 0; i < n; i++) {
+      if (assignVariant(`bnd-eq-${i}`, 13, 50, 50) === "A") aCount++;
+    }
+    // sigma = sqrt(2000 * .25) = 22.4; ±80 ≈ 3.6σ.
+    expect(aCount).toBeGreaterThanOrEqual(920);
+    expect(aCount).toBeLessThanOrEqual(1080);
+  });
 });
 
 describe("resolveVariantUrl", () => {
