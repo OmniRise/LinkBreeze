@@ -11,7 +11,7 @@
  * stored). The resolver scenarios that write settings run afterwards — the
  * resolver itself is uncached, so it always sees the live value.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import "./integration-setup";
 import { db, seedPage, seedLink } from "./integration-setup";
 import {
@@ -156,5 +156,52 @@ describe("[integration] retention resolver", () => {
     expect(row.clicksCount).toBe(before + 1); // 16 — prune NEVER decrements
     expect(stats.totalClicks).toBe(remaining); // stats = rows actually present
     expect(row.clicksCount - stats.totalClicks).toBe(10); // gap == pruned, exactly
+  });
+
+  it("E.112: retention setting changes take effect after the 60s cache window — no restart", async () => {
+    // The abAutoPromote toggle has NO value cache (every scan re-reads the
+    // KV — covered by E.1's off/on tests); the retention reader caches for
+    // 60s (pruneAnalyticsIfDue). Pin the documented propagation delay with
+    // a faked Date: a change is honored by the FIRST read after the window
+    // on the same process, and a prior cached value never outlives it.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // Expire whatever the earlier tests cached (deterministic cold start).
+      vi.setSystemTime(Date.now() + 61_000);
+
+      const stamp = (n: number) =>
+        new Date(Date.now() - n * DAYS).toISOString().slice(0, 19).replace("T", " ");
+      const link = seedLink({ pageId: 1 });
+      db.insert(analyticsClicks)
+        .values([
+          { linkId: link.id, visitorHash: "e112-old-1", createdAt: stamp(100) },
+          { linkId: link.id, visitorHash: "e112-old-2", createdAt: stamp(100) },
+        ])
+        .run();
+
+      const oldCount = () =>
+        (
+          db
+            .select({ c: sql<number>`count(*)` })
+            .from(analyticsClicks)
+            .where(eq(analyticsClicks.visitorHash, "e112-old-1"))
+            .all() as { c: number }[]
+        )[0].c;
+
+      // 1) keep-forever (0): first read after the window caches 0 → no prune.
+      await updateSetting("analyticsRetentionDays", "0");
+      await recordClick(link.id, "e112-t1", null, "click");
+      expect(oldCount(), "retention=0 must preserve the old row").toBe(1);
+
+      // 2) switch to 7 days + expire the cache again → same process, next
+      //    trigger re-reads and NOW prunes: the change landed without restart.
+      await updateSetting("analyticsRetentionDays", "7");
+      vi.setSystemTime(Date.now() + 61_000);
+      await recordClick(link.id, "e112-t2", null, "click");
+      expect(oldCount(), "retention=7d must prune after cache expiry").toBe(0);
+    } finally {
+      vi.useRealTimers();
+      await updateSetting("analyticsRetentionDays", "0"); // harmless default for later tests
+    }
   });
 });
