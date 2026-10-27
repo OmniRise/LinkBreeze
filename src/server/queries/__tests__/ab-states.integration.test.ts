@@ -469,3 +469,43 @@ describe("[integration] non-running states serve link.url, unlabeled (#81 E.61)"
     vi.unstubAllEnvs();
   });
 });
+
+describe("archived vs running coexisting rows (#81 E.128)", () => {
+  it("one page, two rows: window-OPEN archived serves the pinned url, running splits — independently", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+
+    // Row 1: an OLD test (starts 100d ago) manually archived EARLY while
+    // its window is STILL OPEN (ends tomorrow) — status beats window:
+    // pinned winner url, never config.urlB, never the split.
+    const arch = seedLink({
+      url: "https://example.com/pinned-winner",
+      abConfig: serializeAbConfig({
+        ...base,
+        status: "archived",
+        winner: "B",
+        startsAt: new Date(Date.now() - 100 * 86_400_000).toISOString(),
+        endsAt: new Date(Date.now() + 86_400_000).toISOString(),
+      }),
+    });
+
+    // Row 2: a fresh RUNNING test on the same page.
+    const run = seedLink({ url: "https://example.com/a", abConfig: serializeAbConfig(base) });
+    const { a: runA, b: runB } = oppositePair(run.id);
+
+    // The SAME visitor (runB's hash) hits BOTH rows back to back:
+    expect((await go(arch.id, runB)).headers.get("location")).toBe(
+      "https://example.com/pinned-winner",
+    ); // archived ignores bucket + window
+    expect((await go(run.id, runB)).headers.get("location")).toBe("https://example.com/short");
+    expect((await go(run.id, runA)).headers.get("location")).toBe("https://example.com/a");
+
+    // Click attribution stays per-row: archived unlabeled, running labeled.
+    expect(counts(arch.id)).toEqual([{ variant: null, c: 1 }]);
+    expect(counts(run.id)).toEqual([
+      { variant: "A", c: 1 },
+      { variant: "B", c: 1 },
+    ]);
+    vi.unstubAllEnvs();
+  });
+});
