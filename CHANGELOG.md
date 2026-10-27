@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Migration wizard's import button and social chip were hardcoded English** — the confirm button (Import N items) and the fallback label for an unrecognized social profile (Social) rendered in English regardless of locale; both now come from the locale dictionaries across all ten non-English languages, with correct per-language ICU plurals (Russian four-form, Arabic six-form, Japanese and Chinese plural-less by design).
 
+### Security
+
+- **Update-check server actions skipped the demo guard** — the three update-check actions (the settings Recheck, the update-notification toggle, and the dashboard banner's refresh) checked the session but never called `demoGuard()`, unlike every other mutating action. On a public `DEMO_MODE` instance — where `DEMO_AUTO_LOGIN` hands every visitor a session — any visitor could flip update checks for all demo users and bypass the 24-hour cache on demand, driving uncached outbound fetches to the GitHub and website endpoints from the host server. All three now guard first and throw the standard read-only-demo message before touching the session or the network, covered by a new action test.
+
 ## [1.5.0] - 2026-10-24
 
 ### Added
