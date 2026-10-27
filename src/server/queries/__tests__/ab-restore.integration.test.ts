@@ -19,6 +19,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import "./integration-setup";
 import { db, seedPage, seedLink } from "./integration-setup";
 import { applyBackupPayload, getBackupPayload } from "@/server/backup-restore";
+import { AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
 import { getSetting, updateSetting } from "@/server/queries";
 import { links } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -281,5 +282,36 @@ describe("[integration] A/B config restore sanitization (#81)", () => {
     expect(
       p2.links.find((l) => l.id === seeded.id)?.abConfig,
     ).toBe(JSON.stringify(archived));
+  });
+
+  it("E.44: export side - payload carries the KV + the window/winner config byte-for-byte", async () => {
+    // E.13/E.18 pinned the IMPORT direction (restore sanitization + KV
+    // round-trip). This closes the loop from the EXPORT side:
+    // (1) the abAutoPromote settings row rides OUT of getBackupPayload;
+    // (2) a config carrying the NEW fields (startsAt/endsAt window +
+    //     winner) reaches the payload as the exact stored string — and
+    //     matches the live row read back through the DB, so the payload
+    //     can never be a re-serialized (key-reordered) variant of truth.
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+
+    const cfg: AbConfig = {
+      ...goodConfig,
+      status: "archived",
+      winner: "B",
+      startsAt: "2026-11-01T10:00",
+      endsAt: "2026-11-08T10:00",
+    };
+    const stored = JSON.stringify(cfg);
+    const link = seedLink({ title: "Export-side", abConfig: stored });
+
+    const payload = await getBackupPayload();
+    const kv = payload.settings.find((s) => s.key === AB_AUTO_PROMOTE_SETTING);
+    expect(kv?.value).toBe("on");
+
+    const inPayload = payload.links.find((l) => l.id === link.id)?.abConfig ?? null;
+    const live = db.select({ abConfig: links.abConfig }).from(links).where(eq(links.id, link.id)).get();
+    expect(inPayload).toBe(stored); // verbatim, window + winner intact
+    expect(inPayload).toBe(live?.abConfig ?? null); // payload == live row, byte-for-byte
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "off"); // do not leak into later tests
   });
 });
