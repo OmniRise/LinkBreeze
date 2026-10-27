@@ -40,6 +40,7 @@ import { GET as getDocs } from "@/app/api/v1/docs/route";
 import { createApiKey } from "@/server/api-keys";
 import { ErrorCode } from "@/lib/errors";
 import { getSession } from "@/lib/auth";
+import { getLink } from "@/server/queries";
 
 let KEY = "";
 let pageId = 0;
@@ -254,8 +255,9 @@ describe("E.30 error envelope across the whole surface", () => {
     );
   });
 
-  it("403 demo (mutations blocked in demo mode, same envelope)", async () => {
+  it("403 demo (EVERY mutating handler blocked, same envelope — full 10/10)", async () => {
     process.env.DEMO_MODE = "true";
+    // covered by the 403 set in E.30's scope check: 4 of 10 handlers
     await expectErrorEnvelope(
       "POST /links demo",
       await createLinkRoute(
@@ -282,5 +284,48 @@ describe("E.30 error envelope across the whole surface", () => {
       await deleteSectionRoute(req("/api/v1/sections/1", { method: "DELETE" }), idParams(1)),
       403,
     );
+    // the remaining 6 mutating handlers
+    await expectErrorEnvelope(
+      "PUT /links/:id demo",
+      await updateLinkRoute(
+        req(`/api/v1/links/${seedLinkId}`, { method: "PUT", body: { title: "t" } }),
+        idParams(seedLinkId),
+      ),
+      403,
+    );
+    await expectErrorEnvelope(
+      "DELETE /links/:id demo",
+      await deleteLinkRoute(req(`/api/v1/links/${seedLinkId}`, { method: "DELETE" }), idParams(seedLinkId)),
+      403,
+    );
+    await expectErrorEnvelope(
+      "POST /sections demo",
+      await createSectionRoute(
+        req("/api/v1/sections", { method: "POST", body: { pageId, title: "s" } }),
+      ),
+      403,
+    );
+    await expectErrorEnvelope(
+      "PUT /sections/:id demo",
+      await updateSectionRoute(
+        req("/api/v1/sections/1", { method: "PUT", body: { title: "t" } }),
+        idParams(1),
+      ),
+      403,
+    );
+    await expectErrorEnvelope(
+      "PUT /sections/reorder demo",
+      await reorderSectionsRoute(
+        req("/api/v1/sections/reorder", { method: "PUT", body: { ids: [1] } }),
+      ),
+      403,
+    );
+    await expectErrorEnvelope(
+      "PUT /profile demo",
+      await putProfileRoute(req("/api/v1/profile", { method: "PUT", body: { displayName: "x" } })),
+      403,
+    );
+    // and the seed row survived every blocked attempt (demo data safety)
+    expect(await getLink(seedLinkId)).toBeTruthy();
   });
 });
