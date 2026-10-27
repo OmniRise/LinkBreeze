@@ -167,4 +167,38 @@ describe("dedupeNames", () => {
     expect(cdOffset + cdSize).toBe(eocdStart);
     expect(cdSize).toBeGreaterThan(0);
   });
+
+  it("EFS bit ON + UTF-8 name bytes round-trip, ASCII and unicode (E.162)", () => {
+    // zip.ts sets FLAG_UTF8 (0x0800) unconditionally on both headers —
+    // spec-tolerated for ASCII names (python zipfile extracts cleanly,
+    // E.157) and REQUIRED for unicode. The invariant: bit 11 set AND
+    // the stored name bytes decode back exactly.
+    const names = ["plain.html", "@janedoe-export.html", "café-页面.html"];
+    const zip = createZip(names.map((n) => ({ name: n, content: "x" })));
+    let off = 0;
+    for (let i = 0; i < names.length; i += 1) {
+      const localFlags = zip.readUInt16LE(off + 6);
+      expect(localFlags & 0x0800, `local EFS ${names[i]}`).toBe(0x0800);
+      const nameLen = zip.readUInt16LE(off + 26);
+      const stored = zip.subarray(off + 30, off + 30 + nameLen).toString("utf8");
+      expect(stored, `local name ${names[i]}`).toBe(names[i]);
+      const extraLen = zip.readUInt16LE(off + 28);
+      const size = zip.readUInt32LE(off + 18);
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    // central directory carries the same flag + bytes
+    const eocdStart = zip.length - 22;
+    const cdOffset = zip.readUInt32LE(eocdStart + 16);
+    let cd = cdOffset;
+    for (const name of names) {
+      const cdFlags = zip.readUInt16LE(cd + 8);
+      expect(cdFlags & 0x0800, `cd EFS ${name}`).toBe(0x0800);
+      const nameLen = zip.readUInt16LE(cd + 28);
+      const stored = zip.subarray(cd + 46, cd + 46 + nameLen).toString("utf8");
+      expect(stored, `cd name ${name}`).toBe(name);
+      const extraLen = zip.readUInt16LE(cd + 30);
+      const commentLen = zip.readUInt16LE(cd + 32);
+      cd = cd + 46 + nameLen + extraLen + commentLen;
+    }
+  });
 });
