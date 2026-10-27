@@ -400,6 +400,67 @@ describe("title/SEO fallback chain (E.67)", () => {
   });
 });
 
+describe("section-header rule geometry (E.69)", () => {
+  const headerFor = (alignment: "center" | "left" | "right") =>
+    buildStaticExport({
+      ...baseInput,
+      links: [
+        {
+          id: 20,
+          pageId: 1,
+          sectionId: 3,
+          orderIndex: 0,
+          type: "url",
+          title: "Grouped",
+          description: null,
+          url: "https://example.com/g",
+          icon: null,
+          iconUrl: null,
+          customIconUrl: null,
+          iconMode: "auto",
+          autoIcon: true,
+          imageUrl: null,
+          isHighlighted: false,
+          isActive: true,
+          scheduleStart: null,
+          scheduleEnd: null,
+          clicksCount: 0,
+          cardStyle: "compact",
+          popupText: null,
+          ctaLabel: null,
+          redirectSlug: null,
+          createdAt: "2026-01-01 00:00:00",
+        } as unknown as LinkRow,
+      ],
+      sections: [{ id: 3, title: "Zone", icon: null, orderIndex: 0 }],
+      theme: { animationType: "none", alignment },
+    });
+
+  function headerRegion(html: string): string {
+    const i = html.indexOf("Zone");
+    expect(i, "section label not found").toBeGreaterThanOrEqual(0);
+    // the header band spans the label ± 800 chars
+    return html.slice(Math.max(0, i - 800), i + 800);
+  }
+
+  it("centered themes get BOTH mirrored rules (to left + to right)", () => {
+    const region = headerRegion(headerFor("center"));
+    expect((region.match(/height:1px/g) ?? []).length).toBe(2);
+    expect(region).toContain("linear-gradient(to right");
+    expect(region).toContain("linear-gradient(to left");
+  });
+
+  it("side-aligned themes get exactly ONE rule, stretched away from the label", () => {
+    for (const alignment of ["left", "right"] as const) {
+      const region = headerRegion(headerFor(alignment));
+      expect(region.match(/height:1px/g) ?? [], alignment).toHaveLength(1);
+      // complete markup: rule div opened and closed within the region
+      const rules = region.match(/<div[^>]*height:1px[^>]*><\/div>/g) ?? [];
+      expect(rules, alignment).toHaveLength(1);
+    }
+  });
+});
+
 describe("section heading edges (E.57)", () => {
   const link = (id: number, sectionId: number | null) =>
     ({
