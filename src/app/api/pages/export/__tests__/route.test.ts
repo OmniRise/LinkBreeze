@@ -641,6 +641,38 @@ describe("GET /api/pages/export", () => {
     expect(cardCount(htmls[2][1])).toBe(0);
   });
 
+  it("repeat themeId: 5 pages → linear theme reads, no N² blowup (E.150)", async () => {
+    mockGetAllPages.mockResolvedValue(
+      Array.from({ length: 5 }, (_, i) => ({
+        ...(PAGE as object),
+        id: i + 1,
+        slug: `same-theme-${i + 1}`,
+        themeId: 9,
+      })) as never[],
+    );
+    mockGetThemeById.mockResolvedValue({
+      id: 9,
+      name: "Shared",
+      animationType: "none",
+    } as never);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    // sequential per-page loop: exactly N theme reads (no memo, no N²)
+    expect(mockGetThemeById.mock.calls.length).toBe(5);
+    // and the batch still shipped 5 entries
+    const buf = Buffer.from(await res.arrayBuffer());
+    let count = 0;
+    let off = 0;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      const size = buf.readUInt32LE(off + 18);
+      count += 1;
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    expect(count).toBe(5);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
