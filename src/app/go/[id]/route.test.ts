@@ -98,6 +98,44 @@ describe("GET /go/[ref] (#96)", () => {
     expect(mocks.recordClick).not.toHaveBeenCalled();
   });
 
+  it("E.88: BOTH redirect sites send Cache-Control: no-store (no intermediary caches a split)", async () => {
+    // Split site: a CDN/proxy caching one visitor's variant redirect would
+    // serve it to everyone — assignment must never be cacheable.
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({
+        id: 7,
+        url: "https://example.com/a",
+        // Running config, split site (helpers are local to other tests).
+        abConfig: JSON.stringify({
+          v: 1,
+          status: "running",
+          labelA: null,
+          labelB: null,
+          urlB: "https://example.com/b",
+          weightA: 50,
+          weightB: 50,
+          winner: null,
+          startsAt: null,
+          endsAt: null,
+        }),
+      }),
+    );
+    const split = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(split.status).toBe(302);
+    expect(split.headers.get("location")).not.toBeNull(); // it IS a redirect
+    expect(split.headers.get("cache-control")).toBe("no-store");
+
+    // Off-link re-redirect site: a cached redirect could keep pinning a
+    // deactivated link to its old slug after it is fixed.
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ id: 8, isActive: false, redirectSlug: "paused-slug", pageId: 3 }),
+    );
+    mocks.getPageById.mockResolvedValue({ id: 3, slug: "about-me" });
+    const off = await GET(makeRequest("8"), { params: Promise.resolve({ id: "8" }) });
+    expect(off.status).toBe(302);
+    expect(off.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("a deactivated link whose page is gone falls back to 404", async () => {
     mocks.getLinkByRef.mockResolvedValue(
       activeLink({ isActive: false, redirectSlug: "orphan-slug", pageId: 99 }),
