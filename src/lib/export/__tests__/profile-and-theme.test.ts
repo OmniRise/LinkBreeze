@@ -384,6 +384,46 @@ describe("avatar/banner fit adjustments (E.123)", () => {
     // external links carry safe rel (tabnabbing)
     expect(html).toContain('rel="noopener noreferrer"');
   });
+  it("social URL normalization: scheme-less → https, email → mailto, http:// verbatim (E.135)", () => {
+    const input = pageWith({
+      socialLinks: JSON.stringify([
+        { platform: "youtube", url: "youtube.com/@bare" }, // no scheme
+        { platform: "email", url: "@handle" }, // handle form
+        { platform: "instagram", url: "http://instagram.com/legacy" }, // http verbatim
+      ]),
+    });
+    const html = buildStaticExport(input);
+    expect(html).toContain('href="https://youtube.com/@bare"');
+    expect(html).toContain('href="mailto:handle"');
+    // http:// passes through as stored (line 289 — no forced upgrade)
+    expect(html).toContain('href="http://instagram.com/legacy"');
+  });
+  it("footer variants: footerText, footer+socials, empty footer (E.136)", () => {
+    // footer alone
+    const footerOnly = buildStaticExport(pageWith({ footerText: "(c) 2026" }));
+    expect(footerOnly).toContain("(c) 2026");
+    expect(footerOnly).not.toContain('aria-label="Social links"');
+
+    // footer + socials together — both zones render in one export
+    const both = buildStaticExport(
+      pageWith({
+        footerText: "Both zones",
+        socialLinks: JSON.stringify([
+          { platform: "x", url: "https://x.com/h" },
+        ]),
+      }),
+    );
+    expect(both).toContain("Both zones");
+    expect(both).toContain('aria-label="Social links"');
+    // footer shell always ships; the TEXT paragraph is the conditional part
+    expect(both).toContain('class="lb-footer-text"');
+
+    // empty-string footer: shell remains (template line 534), text gone —
+    // identical to a null footerText export
+    const emptyFooter = buildStaticExport(pageWith({ footerText: "" }));
+    expect(emptyFooter).not.toContain('class="lb-footer-text"');
+    expect(emptyFooter).toBe(buildStaticExport(pageWith({})));
+  });
 });
 
 describe("page bio empty-string vs null (E.127)", () => {
