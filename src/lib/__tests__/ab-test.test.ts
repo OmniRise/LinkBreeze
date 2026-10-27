@@ -388,3 +388,53 @@ describe("version forward-compat contract (#81 E.26)", () => {
     expect(parseAbConfig(JSON.stringify({ ...base, v: 1 }))).not.toBeNull();
   });
 });
+
+describe("fleet-level assignment independence (#81 E.35)", () => {
+  // Generalizes the pairwise fmix32 test to a realistic page: ONE visitor
+  // hash assigned across 50 simultaneous links. A structurally broken hash
+  // (bucket determined by the link id's low bits — the historical FNV-1a
+  // failure mode) shows up as a constant or exact-parity sequence, or as
+  // two visitors correlating with each other instead of with their hashes.
+  const LINKS = Array.from({ length: 50 }, (_, i) => i + 1);
+  const seq = (vh: string) => LINKS.map((id) => assignVariant(vh, id, 50, 50));
+
+  it("one visitor's 50-link fleet is balanced, non-structural, and per-visitor", () => {
+    const s1 = seq("fleet-visitor-1");
+    const s2 = seq("fleet-visitor-2");
+
+    // (1) Balance: n=50, fair coin sd ~7% — [10,40] is ~3sd of headroom.
+    for (const s of [s1, s2]) {
+      const bCount = s.filter((v) => v === "B").length;
+      expect(bCount).toBeGreaterThanOrEqual(10);
+      expect(bCount).toBeLessThanOrEqual(40);
+    }
+
+    // (2) No id-structure: neither constant nor exact id-parity alternation
+    // (deterministic guards — a structural hash fails these every time).
+    const parity = LINKS.map((id) => (id % 2 === 0 ? "A" : "B"));
+    const parityInv = parity.map((v) => (v === "A" ? "B" : "A"));
+    expect(s1).not.toEqual(LINKS.map(() => "A"));
+    expect(s1).not.toEqual(LINKS.map(() => "B"));
+    expect(s1).not.toEqual(parity);
+    expect(s1).not.toEqual(parityInv);
+
+    // (3) Cross-visitor divergence: two different hashes must disagree on
+    // ~half the links (expected 25, sd ~3.5 — [12,38] is generous).
+    const differ = s1.filter((v, i) => v !== s2[i]).length;
+    expect(differ).toBeGreaterThanOrEqual(12);
+    expect(differ).toBeLessThanOrEqual(38);
+  });
+
+  it("weights apply per link: a 1/99 fleet honors the extreme skew", () => {
+    // Same visitor, extreme weights across 50 links: B should dominate
+    // (~49.5 expected) — P(B < 40) at n=50, p=0.99 is astronomically small,
+    // so this pins that per-link weights are honored at fleet scale (a
+    // weight-ignoring hash would center around 25). All-B is the LIKELY
+    // outcome at 99% (p^50 ≈ 0.60), so no degeneracy check belongs here —
+    // non-degeneracy is pinned by the 50/50 test above.
+    const s = LINKS.map((id) => assignVariant("fleet-visitor-3", id, 1, 99));
+    const bCount = s.filter((v) => v === "B").length;
+    expect(bCount).toBeGreaterThanOrEqual(40);
+    expect(bCount).toBeLessThanOrEqual(50);
+  });
+});
