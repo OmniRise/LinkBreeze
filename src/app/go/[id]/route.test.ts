@@ -411,4 +411,54 @@ describe("bot/crawler interaction (#41 x #81, E.31)", () => {
       [otherId, expOther],
     ]);
   });
+
+  it("E.56: /go emits no document head and no config strings for ANY variant or crawler", () => {
+    // Route Handlers never render a document: crawler-facing metadata for
+    // an A/B link lives ONLY in the public page's generateMetadata (which
+    // reads page fields alone — verified by audit) — /go must stay a pure
+    // redirect whose only config-derived output is the destination itself.
+    // Pin: non-HTML content-type, empty body, admin labels never present in
+    // ANY header, for variant A, variant B, and a crawler.
+    const withLabels = abConfigJson({
+      labelA: "CONTROL-ZONE-LEAK",
+      labelB: "SHORT-ZONE-LEAK",
+    });
+    const wForA = Array.from({ length: 99 }, (_, i) => i + 1).find(
+      (w) => assignVariant("hash", 7, w, 100 - w) === "A",
+    )!;
+    const mkLink = (w: number) =>
+      activeLink({
+        url: "https://example.com/a",
+        type: "url",
+        abConfig: JSON.stringify({
+          ...JSON.parse(withLabels),
+          weightA: w,
+          weightB: 100 - w,
+        }),
+      });
+
+    const check = async (res: Response) => {
+      expect(res.headers.get("content-type") ?? "").not.toContain("text/html");
+      expect(await res.text()).toBe(""); // redirects carry no document
+      const allHeaders = [...res.headers.entries()].map(([k, v]) => `${k}: ${v}`).join("\n");
+      expect(allHeaders).not.toContain("CONTROL-ZONE-LEAK");
+      expect(allHeaders).not.toContain("SHORT-ZONE-LEAK");
+    };
+
+    return (async () => {
+      vi.stubEnv("NODE_ENV", "production");
+
+      vi.mocked(isBot).mockReturnValue(false);
+      mocks.getLinkByRef.mockResolvedValue(mkLink(wForA));
+      await check(await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) }));
+
+      vi.mocked(isBot).mockReturnValue(false);
+      mocks.getLinkByRef.mockResolvedValue(mkLink(wForB));
+      await check(await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) }));
+
+      vi.mocked(isBot).mockReturnValue(true);
+      mocks.getLinkByRef.mockResolvedValue(mkLink(wForB));
+      await check(await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) }));
+    })();
+  });
 });
