@@ -457,6 +457,72 @@ describe("section emoji icon rendering (E.139)", () => {
   });
 });
 
+describe("highlighted-in-section + multibyte charset (E.141/E.142)", () => {
+  const sectionLink = (over: Record<string, unknown>) =>
+    ({
+      id: 1,
+      pageId: 1,
+      sectionId: 7,
+      orderIndex: 0,
+      type: "url",
+      title: "Section card",
+      description: null,
+      url: "https://example.com",
+      icon: null,
+      iconUrl: null,
+      customIconUrl: null,
+      iconMode: "auto",
+      autoIcon: true,
+      imageUrl: null,
+      isHighlighted: false,
+      isActive: true,
+      scheduleStart: null,
+      scheduleEnd: null,
+      clicksCount: 0,
+      cardStyle: "compact",
+      popupText: null,
+      ctaLabel: null,
+      redirectSlug: null,
+      createdAt: "2026-01-01 00:00:00",
+      ...over,
+    }) as unknown as LinkRow;
+
+  it("highlighted card in a section carries the featured padding (E.141)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [sectionLink({ id: 1, isHighlighted: true })],
+      sections: [{ id: 7, title: "Sec", icon: null, orderIndex: 0 }],
+    });
+    // featured padding on the card tag (build-link-card.ts:219-222)
+    expect(html).toContain(
+      "padding-top:calc(var(--lb-btn-padding-y) + 6px);padding-bottom:calc(var(--lb-btn-padding-y) + 6px)",
+    );
+    // same page's card is inside the section wrapper
+    expect(html).toContain("lb-section-header");
+
+    const plain = buildStaticExport({
+      ...baseInput,
+      links: [sectionLink({ id: 1, isHighlighted: false })],
+      sections: [{ id: 7, title: "Sec", icon: null, orderIndex: 0 }],
+    });
+    expect(plain).not.toContain("padding-top:calc(var(--lb-btn-padding-y) + 6px)");
+  });
+
+  it("multibyte title (CJK+Cyrillic+emoji) survives byte-exact with utf-8 meta (E.142)", () => {
+    const SOUP = "日本語 Привет 🌍 café";
+    const html = buildStaticExport({
+      ...baseInput,
+      page: { ...baseInput.page, title: SOUP },
+    });
+    // utf-8 declared, content byte-exact through a real buffer round-trip
+    expect(html).toContain('<meta charset="utf-8">');
+    expect(html).toContain(SOUP);
+    const round = Buffer.from(html, "utf-8").toString("utf-8");
+    expect(round).toBe(html);
+    expect(round).toContain(SOUP);
+  });
+});
+
 describe("section-header rule geometry (E.69)", () => {
   const headerFor = (alignment: "center" | "left" | "right") =>
     buildStaticExport({
