@@ -10,6 +10,7 @@ import {
   generateApiKey,
   hashApiKey,
   isApiKeyShaped,
+  isPrevKeyLive,
   parseBearerToken,
   rateLimitBucketKey,
 } from "@/lib/api-key";
@@ -123,5 +124,27 @@ describe("displayPrefix", () => {
     const prefix = displayPrefix(key);
     expect(key.includes(prefix)).toBe(true);
     expect(prefix.length).toBe(12);
+  });
+});
+
+describe("isPrevKeyLive — E.79 grace-expiry edges", () => {
+  const base = { prevHash: "abc", prevExpiresAt: 1_000 };
+
+  it("live inside the window (strict now < expiresAt)", () => {
+    expect(isPrevKeyLive(base, 999)).toBe(true);
+  });
+
+  it("EXPIRED after the window closes", () => {
+    expect(isPrevKeyLive(base, 1_001)).toBe(false);
+  });
+
+  it("the exact expiry boundary is DEAD (strict <, not <=)", () => {
+    expect(isPrevKeyLive(base, 1_000)).toBe(false);
+  });
+
+  it("fails closed on partial records (either grace field missing)", () => {
+    expect(isPrevKeyLive({ prevHash: "abc", prevExpiresAt: null }, 500)).toBe(false);
+    expect(isPrevKeyLive({ prevHash: null, prevExpiresAt: 1_000 }, 500)).toBe(false);
+    expect(isPrevKeyLive({ prevHash: null, prevExpiresAt: null }, 500)).toBe(false);
   });
 });
