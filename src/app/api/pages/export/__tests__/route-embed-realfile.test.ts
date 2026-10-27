@@ -173,4 +173,43 @@ describe("embed zip ships real uploads files (E.35/E.52)", () => {
     expect(names).not.toContain("uploads/second-file.txt");
     expect(names.filter((n) => n.startsWith("uploads/"))).toHaveLength(1);
   });
+
+  it("10 pages × 10 distinct uploads files: all collected exactly once (E.82)", async () => {
+    // one file per page — aggregation across htmls with DISTINCT refs
+    const pages = Array.from({ length: 10 }, (_, i) => {
+      const file = `sheet-${i + 1}.png`;
+      writeFileSync(join(tempUploads, file), Buffer.from(`payload-${i + 1}`));
+      return {
+        id: i + 1,
+        slug: `sheet-page-${i + 1}`,
+        title: `Page ${i + 1}`,
+        bio: null,
+        themeId: null,
+        avatarUrl: `/api/uploads/${file}`,
+        emailCapture: false,
+        shareEnabled: false,
+      };
+    }) as never[];
+    vi.mocked(auth.getSession).mockResolvedValue({ userId: 1, username: "jane" } as never);
+    vi.mocked(q.getAllPages).mockResolvedValue(pages);
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/pages/export?all=1&embed=1", {
+        headers: { host: "localhost:3000" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const entries = readLocalEntries(Buffer.from(await res.arrayBuffer()));
+    const uploadNames = entries
+      .map((e) => e.name)
+      .filter((n) => n.startsWith("uploads/"));
+    expect(uploadNames.sort()).toEqual(
+      Array.from({ length: 10 }, (_, i) => `uploads/sheet-${i + 1}.png`).sort(),
+    );
+    // byte-exact payloads, one entry each (no dupes, nothing dropped)
+    for (let i = 1; i <= 10; i++) {
+      const e = entries.find((x) => x.name === `uploads/sheet-${i}.png`)!;
+      expect(e.data.toString("utf8")).toBe(`payload-${i}`);
+    }
+    expect(uploadNames.length).toBe(new Set(uploadNames).size);
+  });
 });
