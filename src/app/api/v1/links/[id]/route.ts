@@ -212,6 +212,14 @@ export async function PUT(request: NextRequest, { params }: Params) {
     }
     if (redirectSlug !== undefined) patch.redirectSlug = redirectSlug;
 
+    // E.64: an empty effective patch ({} or only unknown/stripped keys) is a
+    // legal no-op — return the unchanged resource instead of hitting
+    // drizzle's "No values to set" (which used to 500).
+    if (Object.keys(patch).length === 0) {
+      const current = await getLink(id);
+      return apiOk(current ?? { id }, { headers: gate.rateHeaders });
+    }
+
     await updateLink(id, patch);
     revalidatePath("/links");
     revalidatePath("/");

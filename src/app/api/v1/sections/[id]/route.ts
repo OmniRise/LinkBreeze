@@ -59,7 +59,7 @@ export async function PUT(
   const parsed = sectionPatchSchema.safeParse(record);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    return apiError(ErrorCode.VALIDATION, issue?.message ?? "Invalid input", 400, {
+    return apiError(ErrorCode.VALIDATION, issue?.message ?? "Invalid input.", 400, {
       details: parsed.error.issues.map((i) => ({
         path: i.path.join(".") || "(root)",
         message: i.message,
@@ -76,6 +76,11 @@ export async function PUT(
         ? { orderIndex: parsed.data.orderIndex }
         : {}),
     };
+    // E.64: an empty patch ({} or only stripped keys) is a legal no-op —
+    // return the section unchanged instead of drizzle's "No values to set".
+    if (Object.keys(patch).length === 0) {
+      return apiOk(await getSectionById(id), { headers: gate.rateHeaders });
+    }
     await updateSection(id, patch);
     revalidatePath("/links");
     revalidatePath("/");
