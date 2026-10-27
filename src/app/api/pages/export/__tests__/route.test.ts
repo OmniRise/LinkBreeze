@@ -289,6 +289,8 @@ describe("GET /api/pages/export", () => {
       const json = await res.json();
       expect(typeof json.error, q).toBe("string");
       expect(json.error.length, q).toBeGreaterThan(0);
+      // E.163: EXACTLY one key — no extra fields leak into error bodies
+      expect(Object.keys(json).sort(), q).toEqual(["error"]);
     }
     // 413 shape (single page over cap) matches too
     mockGetActiveLinks.mockResolvedValue(
@@ -309,6 +311,8 @@ describe("GET /api/pages/export", () => {
     const bigJson = await big.json();
     expect(typeof bigJson.error).toBe("string");
     expect(bigJson.bytes).toBeGreaterThan(0);
+    // E.163: size errors carry EXACTLY {error, bytes} — no other keys
+    expect(Object.keys(bigJson).sort()).toEqual(["bytes", "error"]);
   });
 
   it("batch of 50 pages completes end-to-end in < 5s (E.79)", async () => {
