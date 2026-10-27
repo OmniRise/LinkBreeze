@@ -428,7 +428,7 @@ cloudflared tunnel --url http://localhost:3000
 | PUT | `/api/v1/profile` | 更新个人资料（部分） |
 | GET | `/api/v1/analytics` | 浏览量、点击量和热门链接（`?range=7d\|30d\|90d`） |
 
-成功响应将数据包装在 `data` 中；错误为 `{ "error": { "code", "message" } }` 并带有对应的 HTTP 状态码（401 密钥缺失或无效、400 校验、403 演示模式、429 超出限流）。链接写入经过与管理界面相同的校验 - 包括 URL 协议白名单。读取接口还会返回 `ETag`；在无变化时将其作为 `If-None-Match` 传回即可得到空的 `304`。
+成功响应将数据包装在 `data` 中；错误为 `{ "error": { "code", "message" } }` 并带有对应的 HTTP 状态码（401 密钥缺失或无效、400 校验、403 演示模式、429 超出限流）。链接写入经过与管理界面相同的校验 - 包括 URL 协议白名单。读取接口还会返回 `ETag`；在无变化时将其作为 `If-None-Match` 传回即可得到空的 `304`。每个响应还携带头部契约: `X-RateLimit-Limit`、`X-RateLimit-Remaining`、`X-RateLimit-Reset` 显示每分钟配额(`429` 还会发送 `Retry-After`)，`Cache-Control: no-store` 防止认证响应被缓存，`401` 则以 `WWW-Authenticate` 应答。
 
 </details>
 

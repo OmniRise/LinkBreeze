@@ -428,7 +428,7 @@ DNS、ワイルドカードTLS、Caddy・nginx・Traefik向けのコピペリバ
 | PUT | `/api/v1/profile` | プロフィールを更新（部分的） |
 | GET | `/api/v1/analytics` | ビュー、クリック、トップリンク（`?range=7d\|30d\|90d`） |
 
-成功レスポンスはペイロードを `data` でラップします。エラーは `{ "error": { "code", "message" } }` で、対応する HTTP ステータス（401 キーなし・無効、400 検証、403 デモモード、429 レート制限）が返ります。リンクの書き込みは管理画面と同じ検証（URL スキームの許可リストを含む）を通ります。読み取り系は `ETag` も返します。変わらない間は `If-None-Match` として返すと空の `304` が返ります。
+成功レスポンスはペイロードを `data` でラップします。エラーは `{ "error": { "code", "message" } }` で、対応する HTTP ステータス（401 キーなし・無効、400 検証、403 デモモード、429 レート制限）が返ります。リンクの書き込みは管理画面と同じ検証（URL スキームの許可リストを含む）を通ります。読み取り系は `ETag` も返します。変わらない間は `If-None-Match` として返すと空の `304` が返ります。全レスポンスにはヘッダー契約も付きます: `X-RateLimit-Limit`、`X-RateLimit-Remaining`、`X-RateLimit-Reset` が毎分の予算を示し(`429` は `Retry-After` も送信)、`Cache-Control: no-store` が認証済みレスポンスのキャッシュを防ぎ、`401` は `WWW-Authenticate` で応答します。
 
 </details>
 

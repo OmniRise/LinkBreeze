@@ -428,7 +428,7 @@ Gestiona enlaces, perfil y analíticas desde scripts, pipelines de CI o herramie
 | PUT | `/api/v1/profile` | Actualizar el perfil (parcial) |
 | GET | `/api/v1/analytics` | Vistas, clics y enlaces principales (`?range=7d\|30d\|90d`) |
 
-Las respuestas exitosas envuelven la carga en `data`; los errores son `{ "error": { "code", "message" } }` con los estados HTTP correspondientes (401 clave ausente o inválida, 400 validación, 403 modo demo, 429 límite excedido). Las escrituras de enlaces pasan por la misma validación que la interfaz de administración - incluida la lista permitida de esquemas de URL. Las lecturas también envían un `ETag`; devuélvelo como `If-None-Match` para recibir un `304` vacío mientras nada cambie.
+Las respuestas exitosas envuelven la carga en `data`; los errores son `{ "error": { "code", "message" } }` con los estados HTTP correspondientes (401 clave ausente o inválida, 400 validación, 403 modo demo, 429 límite excedido). Las escrituras de enlaces pasan por la misma validación que la interfaz de administración - incluida la lista permitida de esquemas de URL. Las lecturas también envían un `ETag`; devuélvelo como `If-None-Match` para recibir un `304` vacío mientras nada cambie. Cada respuesta también lleva el contrato de cabeceras: `X-RateLimit-Limit`, `X-RateLimit-Remaining` y `X-RateLimit-Reset` muestran el presupuesto por minuto (un `429` también envía `Retry-After`), `Cache-Control: no-store` mantiene fuera de la caché las respuestas autenticadas, y un `401` responde con `WWW-Authenticate`.
 
 </details>
 

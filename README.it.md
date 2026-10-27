@@ -428,7 +428,7 @@ Gestisci link, profilo e analisi da script, pipeline CI o strumenti di terze par
 | PUT | `/api/v1/profile` | Aggiorna il profilo (parziale) |
 | GET | `/api/v1/analytics` | Visualizzazioni, clic e link principali (`?range=7d\|30d\|90d`) |
 
-Le risposte di successo racchiudono il payload in `data`; gli errori sono `{ "error": { "code", "message" } }` con gli stati HTTP corrispondenti (401 chiave mancante o non valida, 400 validazione, 403 modalità demo, 429 limite). Le scritture dei link seguono la stessa validazione dell'interfaccia admin - lista consentita degli schemi URL inclusa. Anche le letture inviano un `ETag`; rimandalo come `If-None-Match` per ricevere un `304` vuoto finché non cambia nulla.
+Le risposte di successo racchiudono il payload in `data`; gli errori sono `{ "error": { "code", "message" } }` con gli stati HTTP corrispondenti (401 chiave mancante o non valida, 400 validazione, 403 modalità demo, 429 limite). Le scritture dei link seguono la stessa validazione dell'interfaccia admin - lista consentita degli schemi URL inclusa. Anche le letture inviano un `ETag`; rimandalo come `If-None-Match` per ricevere un `304` vuoto finché non cambia nulla. Ogni risposta porta anche il contratto delle intestazioni: `X-RateLimit-Limit`, `X-RateLimit-Remaining` e `X-RateLimit-Reset` mostrano il budget al minuto (un `429` invia anche `Retry-After`), `Cache-Control: no-store` tiene le risposte autenticate fuori dalla cache, e un `401` risponde con `WWW-Authenticate`.
 
 </details>
 

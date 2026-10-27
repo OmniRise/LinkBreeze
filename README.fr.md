@@ -428,7 +428,7 @@ Gérez vos liens, votre profil et vos statistiques depuis des scripts, des pipel
 | PUT | `/api/v1/profile` | Modifier le profil (partiel) |
 | GET | `/api/v1/analytics` | Vues, clics et liens populaires (`?range=7d\|30d\|90d`) |
 
-Les réponses de succès enveloppent la charge dans `data` ; les erreurs sont `{ "error": { "code", "message" } }` avec les codes HTTP correspondants (401 clé manquante ou invalide, 400 validation, 403 mode démo, 429 limite dépassée). Les écritures de liens passent par la même validation que l'interface d'administration - liste blanche des schémas d'URL incluse. Les lectures renvoient aussi un `ETag` ; renvoyez-le en `If-None-Match` pour un `304` vide tant que rien ne change.
+Les réponses de succès enveloppent la charge dans `data` ; les erreurs sont `{ "error": { "code", "message" } }` avec les codes HTTP correspondants (401 clé manquante ou invalide, 400 validation, 403 mode démo, 429 limite dépassée). Les écritures de liens passent par la même validation que l'interface d'administration - liste blanche des schémas d'URL incluse. Les lectures renvoient aussi un `ETag` ; renvoyez-le en `If-None-Match` pour un `304` vide tant que rien ne change. Chaque réponse porte aussi le contrat d'en-têtes : `X-RateLimit-Limit`, `X-RateLimit-Remaining` et `X-RateLimit-Reset` indiquent le budget par minute (un `429` envoie aussi `Retry-After`), `Cache-Control: no-store` empêche la mise en cache des réponses authentifiées, et un `401` répond avec `WWW-Authenticate`.
 
 </details>
 

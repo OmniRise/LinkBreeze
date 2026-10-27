@@ -428,7 +428,7 @@ Verwalte Links, Profil und Analysen aus Skripten, CI-Pipelines oder Drittanbiete
 | PUT | `/api/v1/profile` | Profil aktualisieren (partiell) |
 | GET | `/api/v1/analytics` | Aufrufe, Klicks und Top-Links (`?range=7d\|30d\|90d`) |
 
-Erfolgreiche Antworten verpacken die Nutzlast in `data`; Fehler sind `{ "error": { "code", "message" } }` mit passenden HTTP-Statuscodes (401 fehlender oder ungültiger Schlüssel, 400 Validierung, 403 Demo-Modus, 429 Limit). Link-Schreibvorgänge durchlaufen dieselbe Validierung wie die Admin-Oberfläche - inklusive URL-Schema-Allowlist. Leseendpunkte senden zusätzlich ein `ETag`; sende es als `If-None-Match` zurück für einen leeren `304`, solange sich nichts ändert.
+Erfolgreiche Antworten verpacken die Nutzlast in `data`; Fehler sind `{ "error": { "code", "message" } }` mit passenden HTTP-Statuscodes (401 fehlender oder ungültiger Schlüssel, 400 Validierung, 403 Demo-Modus, 429 Limit). Link-Schreibvorgänge durchlaufen dieselbe Validierung wie die Admin-Oberfläche - inklusive URL-Schema-Allowlist. Leseendpunkte senden zusätzlich ein `ETag`; sende es als `If-None-Match` zurück für einen leeren `304`, solange sich nichts ändert. Jede Antwort trägt außerdem den Header-Vertrag: `X-RateLimit-Limit`, `X-RateLimit-Remaining` und `X-RateLimit-Reset` zeigen das Budget pro Minute (ein `429` sendet zusätzlich `Retry-After`), `Cache-Control: no-store` hält authentifizierte Antworten aus dem Cache, und `401` antwortet mit `WWW-Authenticate`.
 
 </details>
 

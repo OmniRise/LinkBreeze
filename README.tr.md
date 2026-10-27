@@ -428,7 +428,7 @@ Bağlantıları, profili ve analitiği betiklerden, CI boru hatlarından veya ü
 | PUT | `/api/v1/profile` | Profili güncelle (kısmi) |
 | GET | `/api/v1/analytics` | Görüntülenmeler, tıklamalar ve üst bağlantılar (`?range=7d\|30d\|90d`) |
 
-Başarılı yanıtlar yükü `data` içinde paketler; hatalar `{ "error": { "code", "message" } }` biçimindedir ve eşleş HTTP durumlarıyla gelir (401 anahtar eksik veya geçersiz, 400 doğrulama, 403 demo modu, 429 sınır). Bağlantı yazımları, yönetim arayüzüyle aynı doğrulamadan geçer - URL şeması izin listesi dahil. Okuma uçları da bir `ETag` döner; değişene kadar boş `304` almak için onu `If-None-Match` olarak geri gönderin.
+Başarılı yanıtlar yükü `data` içinde paketler; hatalar `{ "error": { "code", "message" } }` biçimindedir ve eşleş HTTP durumlarıyla gelir (401 anahtar eksik veya geçersiz, 400 doğrulama, 403 demo modu, 429 sınır). Bağlantı yazımları, yönetim arayüzüyle aynı doğrulamadan geçer - URL şeması izin listesi dahil. Okuma uçları da bir `ETag` döner; değişene kadar boş `304` almak için onu `If-None-Match` olarak geri gönderin. Her yanıt başlık sözleşmesini de taşır: `X-RateLimit-Limit`, `X-RateLimit-Remaining` ve `X-RateLimit-Reset` dakikalık bütçeyi gösterir (`429` ayrıca `Retry-After` gönderir), `Cache-Control: no-store` kimlik doğrulamalı yanıtları önbellekte tutmaz ve `401` `WWW-Authenticate` ile yanıt verir.
 
 </details>
 

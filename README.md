@@ -428,7 +428,7 @@ Manage links, your profile and analytics from scripts, CI pipelines or third-par
 | PUT | `/api/v1/profile` | Update the profile (partial) |
 | GET | `/api/v1/analytics` | Views, clicks and top links (`?range=7d\|30d\|90d`) |
 
-Success responses wrap the payload in `data`; errors are `{ "error": { "code", "message" } }` with matching HTTP statuses (401 missing or invalid key, 400 validation, 403 demo mode, 429 rate limited). Link writes run the same validation as the admin UI - URL scheme allowlist included. Read endpoints also send an `ETag`; send it back as `If-None-Match` to receive an empty `304` until something changes.
+Success responses wrap the payload in `data`; errors are `{ "error": { "code", "message" } }` with matching HTTP statuses (401 missing or invalid key, 400 validation, 403 demo mode, 429 rate limited). Link writes run the same validation as the admin UI - URL scheme allowlist included. Read endpoints also send an `ETag`; send it back as `If-None-Match` to receive an empty `304` until something changes. Every response also carries the header contract: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` show the per-minute budget (a `429` also sends `Retry-After`), `Cache-Control: no-store` keeps authenticated responses out of caches, and `401` answers with `WWW-Authenticate`.
 
 </details>
 
