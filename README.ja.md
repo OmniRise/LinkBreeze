@@ -477,6 +477,12 @@ curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json
   "$BASE/links/import" | jq '.data.results'
 ```
 
+```bash
+# 条件付き読み取り: ETag を再送 → 変わらなければ空の 304
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
 `meta.nextCursor`（`?cursor=` で渡す）を辿れば全ページを取得できます。機械可読の完全な契約は `$BASE/openapi.json` にあります。
 
 </details>

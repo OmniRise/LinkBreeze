@@ -477,6 +477,12 @@ curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json
   "$BASE/links/import" | jq '.data.results'
 ```
 
+```bash
+# Koşullu okuma: ETag'i tekrar gönder → değişene kadar boş 304
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
 Tüm sayfaları dolaşmak için `meta.nextCursor` değerini (`?cursor=` olarak) geri gönderin. Makineyle okunabilir tam sözleşme `$BASE/openapi.json` adresinde.
 
 </details>

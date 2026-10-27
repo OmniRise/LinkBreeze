@@ -477,6 +477,12 @@ curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json
   "$BASE/links/import" | jq '.data.results'
 ```
 
+```bash
+# Условное чтение: отправьте ETag повторно → пустой 304, пока ничего не меняется
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
 Следуйте `meta.nextCursor` (передавайте обратно как `?cursor=`), чтобы пройти все страницы. Полная машиночитаемая спецификация — `$BASE/openapi.json`.
 
 </details>

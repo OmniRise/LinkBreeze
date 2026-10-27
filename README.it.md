@@ -477,6 +477,12 @@ curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json
   "$BASE/links/import" | jq '.data.results'
 ```
 
+```bash
+# Lettura condizionale: riproduci l'ETag → 304 vuoto finché non cambia nulla
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
 Segui `meta.nextCursor` (rimandalo come `?cursor=`) per scorrere tutte le pagine. Il contratto completo leggibile da macchina è su `$BASE/openapi.json`.
 
 </details>
