@@ -971,4 +971,24 @@ describe("stats detail surface contract (#81 E.125)", () => {
     expect(route).toContain("isAbActive");
     expect(route).toContain("const abActive = isAbActive(abConfig);");
   });
+
+  it("E.139: card shows the winner post-promotion and gates its action buttons on archived", () => {
+    // Coverage map: the PROMOTION half is integration-pinned already
+    // (ab-auto-promote.integration.test.ts: status→archived + winner
+    // "B"/"A" after a significant scan, lines 85-86/110; never-rescanned
+    // at 159-165). This closes the DISPLAY half on the card: winner note
+    // renders only for archived+winner with the variant injected, and the
+    // promote/pause action buttons are gated OUT for archived rows (the
+    // card's line 145/164/208 branches) — so an auto-promoted test lands
+    // on a read-only winner display, not a re-promotable one.
+    const card = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/[id]/ab-test-card.tsx"),
+      "utf8",
+    );
+
+    expect(card).toContain('config.status === "archived" && config.winner');
+    expect(card).toContain('t("abArchivedNote", { variant: config.winner })');
+    expect(card).toContain("config.status !== \"archived\"");
+    expect(card).toContain('config.status === "archived" ? (');
+  });
 });
