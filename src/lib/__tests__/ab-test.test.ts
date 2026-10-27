@@ -608,3 +608,51 @@ describe("fleet-level assignment independence (#81 E.35)", () => {
     expect(bCount).toBeLessThanOrEqual(50);
   });
 });
+
+describe("e2e spec static contract (#81 E.83)", () => {
+  // The live e2e run is operator-gated (AB_LINK_SLUG), so nothing here
+  // executes it — this pins that everything the spec REFERENCES still
+  // exists: the route, the 302 it asserts, the selectors it drives, and
+  // that it stays free of translated-string dependencies (public-page
+  // strings are English-only by policy).
+  const spec = readFileSync(resolve(process.cwd(), "e2e/ab-testing.spec.ts"), "utf8");
+  const routeSrc = readFileSync(
+    resolve(process.cwd(), "src/app/go/[id]/route.ts"),
+    "utf8",
+  );
+  const publicPage = readFileSync(
+    resolve(process.cwd(), "src/app/(public)/[slug]/page.tsx"),
+    "utf8",
+  );
+
+  it("the /go route the spec calls exists and exports GET", () => {
+    expect(spec).toContain("/go/");
+    expect(routeSrc).toContain("export async function GET");
+  });
+
+  it("the 302 the spec asserts matches every REDIRECT in the route", () => {
+    expect(spec).toContain("expect(res.status()).toBe(302)");
+    // Scope to NextResponse.redirect sites — the route also has 400/404
+    // JSON responses whose status must NOT be lumped into this claim.
+    const statuses = [
+      ...routeSrc.matchAll(/NextResponse\.redirect\([\s\S]{0,160}?status:\s*(\d+)/g),
+    ].map((m) => m[1]);
+    expect(statuses.length).toBeGreaterThanOrEqual(2); // off-link + main
+    for (const s of statuses) expect(s).toBe("302");
+  });
+
+  it("every page.locator selector's tags exist in the public page it drives", () => {
+    const selectors = [...spec.matchAll(/page\.locator\("([^"]+)"\)/g)].map((m) => m[1]);
+    expect(selectors.length).toBeGreaterThan(0); // the scan must find some
+    for (const sel of selectors) {
+      for (const tag of sel.match(/[a-z]+/g) ?? []) {
+        expect(publicPage, `selector "${sel}" -> <${tag}`).toContain(`<${tag}`);
+      }
+    }
+  });
+
+  it("the spec carries NO translated-string dependencies (English-only public surface)", () => {
+    expect(spec).not.toMatch(/getByText\(|getByRole\(|getByLabel\(/);
+    expect(spec).not.toMatch(/useTranslations|getTranslations/);
+  });
+});
