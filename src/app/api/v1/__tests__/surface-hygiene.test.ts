@@ -30,6 +30,7 @@ import { PUT as reorderSectionsRoute } from "@/app/api/v1/sections/reorder/route
 import { GET as getProfileRoute, PUT as putProfileRoute } from "@/app/api/v1/profile/route";
 import { GET as getAnalyticsRoute } from "@/app/api/v1/analytics/route";
 import { GET as getOpenapiRoute } from "@/app/api/v1/openapi/route";
+import { getDefaultPage } from "@/server/queries";
 import { createApiKey } from "@/server/api-keys";
 
 let KEY = "";
@@ -230,5 +231,38 @@ describe("surface hygiene (E.17)", () => {
     }
     expect(seenGets).toBeGreaterThanOrEqual(7); // census has material
     expect(offenders).toEqual([]);
+  });
+
+  it("E.137: links create implicitly targets the default page; sections REQUIRE an existing pageId", async () => {
+    // Side A — POST /links with NO pageId → 201, row lands on the default page
+    // (api-links:198-201 getDefaultPage() fallback — implicit, not "uncategorized").
+    const linkRes = await createLinkRoute(
+      req("/api/v1/links", {
+        method: "POST",
+        body: { title: "No pageId link", url: "https://nopageid.example" },
+      }),
+    );
+    expect(linkRes.status).toBe(201);
+    const link = (await linkRes.json()).data;
+    // The invariant is the getDefaultPage() fallback (api-links:198-201),
+    // NOT fixture identity — the fixture page happens to not be the default.
+    expect(link.pageId).toBe((await getDefaultPage()).id);
+    expect(link.pageId).toBeTypeOf("number");
+
+    // Side B — POST /sections with an unknown pageId → 404 (route comment:
+    // "mirrors saveSection") — the asymmetry is deliberate: sections have no
+    // implicit target because an uncategorized section would have no list.
+    const secRes = await createSectionRoute(
+      req("/api/v1/sections", {
+        method: "POST",
+        body: { pageId: 999999, title: "Orphan" },
+      }),
+    );
+    expect(secRes.status).toBe(404);
+    const secBody = await secRes.json();
+    expect(Object.keys(secBody)).toEqual(["error"]);
+    expect(secBody.error.code).toBe("not_found");
+    expect(secBody.error.message).toBe("Page not found.");
+    expect(secRes.headers.get("x-ratelimit-limit")).toBeTruthy();
   });
 });
