@@ -13,8 +13,8 @@
 import { describe, it, expect, vi } from "vitest";
 import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
-import { recordClick, getLinkStats } from "@/server/queries";
-import { analyticsClicks } from "@/db/schema";
+import { recordClick, getLinkStats, recordPageview } from "@/server/queries";
+import { analyticsClicks, analyticsPageviews } from "@/db/schema";
 import { inArray, like, eq } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -190,5 +190,52 @@ describe("export CSV variant fidelity (#81 E.95)", () => {
     const rangeSrc = readFileSync(resolve(process.cwd(), "src/lib/analytics-range.ts"), "utf8");
     expect(rangeSrc).toContain("datetime('now'");
     expect(rangeSrc).not.toContain("toISOString");
+  });
+
+  it("E.109: views CSV maps raw analytics_pageviews rows correctly (incl. nulls)", async () => {
+    // The mirror of E.95's clicks-side pin: the views branch was only ever
+    // exercised with mocked rows (header + formatting). Drive the REAL
+    // route over pageviews seeded through the real recordPageview — with
+    // null country/device AND filled values — and compare row-for-row with
+    // the raw table (no ORDER BY → rowid order on both sides).
+    await db.delete(analyticsPageviews);
+    const seeds: Array<{ h: string; r: string | null; d: string | null; c: string | null }> = [
+      { h: "e109-a", r: null, d: null, c: null },
+      { h: "e109-b", r: "https://news.example.com", d: "desktop", c: "MA" },
+      { h: "e109-c", r: "https://blog.example.org/post", d: "mobile", c: null },
+    ];
+    for (const s of seeds) await recordPageview(s.h, s.r, s.d, s.c);
+
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/analytics/export?metric=views&range=30d"),
+    );
+    expect(res.status).toBe(200);
+    const lines = (await res.text()).split("\n").filter(Boolean);
+    expect(lines[0]).toBe("timestamp,visitor_hash,referrer,country,device");
+
+    const raw = await db
+      .select({
+        h: analyticsPageviews.visitorHash,
+        c: analyticsPageviews.country,
+        d: analyticsPageviews.deviceType,
+      })
+      .from(analyticsPageviews);
+    expect(raw.length).toBe(seeds.length); // every pageview exported once
+
+    const rows = lines.slice(1).map((l) => {
+      const cols = l.split(",");
+      expect(cols.length).toBe(5); // constant column count (comma-free seeds)
+      return { h: cols[1], c: cols[3], d: cols[4] };
+    });
+    for (let i = 0; i < raw.length; i++) {
+      expect(rows[i].h, `row ${i} visitor`).toBe(raw[i].h);
+      expect(rows[i].c, `row ${i} country`).toBe(raw[i].c ?? ""); // null -> empty
+      expect(rows[i].d, `row ${i} device`).toBe(raw[i].d ?? "");
+    }
+    // Non-vacuity on both null and filled cells.
+    expect(rows[0].c).toBe("");
+    expect(rows[0].d).toBe("");
+    expect(rows[1].c).toBe("MA");
+    expect(rows[1].d).toBe("desktop");
   });
 });
