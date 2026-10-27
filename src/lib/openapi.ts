@@ -97,8 +97,12 @@ export function buildOpenApiDocument(): Json {
         "API key generated in Settings > Security and sent in the Authorization " +
         "header (HTTP Bearer authentication). " +
         "Success responses are { data }; errors are { error: { code, message, details? } }. " +
-        "Rate limit: 120 requests/minute per key (plus a per-IP pre-auth guard). " +
-        "Mutating endpoints are blocked in demo mode.",
+        "Rate limit: 120 requests/minute per key (plus a per-IP pre-auth guard); " +
+        "every response carries X-RateLimit-* and Cache-Control: no-store. " +
+        "Read endpoints send strong ETags; replay If-None-Match for an empty 304 " +
+        "until data changes. List endpoints paginate with ?limit/?cursor and trim " +
+        "with ?fields=. Mutating endpoints are blocked in demo mode. " +
+        "Paths are versioned (/api/v1); changes inside v1 stay additive.",
     },
     servers: [{ url: "/" }],
     tags: [{ name: "links" }, { name: "sections" }, { name: "profile" }, { name: "analytics" }, { name: "meta" }],
