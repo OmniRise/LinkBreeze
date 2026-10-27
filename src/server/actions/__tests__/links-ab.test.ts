@@ -538,6 +538,28 @@ describe("setAbAutoPromote (#81 E.1)", () => {
     const empty = new FormData(); // field absent -> off, never "on"
     expect((await setAbAutoPromote(empty)).success).toBe(true);
     expect(mocks.updateSetting).toHaveBeenLastCalledWith("abAutoPromote", "off");
+
+    // E.101: the claim "any other value" pinned against REAL garbage —
+    // the action COERCES (checkbox semantics), it never rejects and it
+    // never stores the raw string: only the exact literal "on" wins.
+    for (const junk of ["yes", "ON", "On", "on ", "true", "1", "", "off "]) {
+      const g = new FormData();
+      g.set("abAutoPromote", junk);
+      const r = await setAbAutoPromote(g);
+      expect(r.success, `value ${JSON.stringify(junk)}`).toBe(true);
+      expect(
+        mocks.updateSetting.mock.calls[mocks.updateSetting.mock.calls.length - 1],
+        `stored for ${JSON.stringify(junk)}`,
+      ).toEqual(["abAutoPromote", "off"]);
+    }
+    // ...and "on" is the ONLY value that ever flips it on (case-sensitive).
+    const exact = new FormData();
+    exact.set("abAutoPromote", "on");
+    await setAbAutoPromote(exact);
+    expect(mocks.updateSetting.mock.calls[mocks.updateSetting.mock.calls.length - 1]).toEqual([
+      "abAutoPromote",
+      "on",
+    ]);
   });
 });
 
