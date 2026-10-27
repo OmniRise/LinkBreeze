@@ -13,8 +13,9 @@
 import { describe, it, expect, vi } from "vitest";
 import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
-import { recordClick } from "@/server/queries";
+import { recordClick, getLinkStats } from "@/server/queries";
 import { analyticsClicks } from "@/db/schema";
+import { inArray, like } from "drizzle-orm";
 
 vi.mock("@/lib/auth", () => ({
   getSession: vi.fn(async () => ({ userId: 1 })),
@@ -75,5 +76,78 @@ describe("export CSV variant fidelity (#81 E.95)", () => {
     expect(csvRows.filter((r) => r.v === "A").length).toBe(2);
     expect(csvRows.filter((r) => r.v === "B").length).toBe(2);
     expect(csvRows.filter((r) => r.v === "").length).toBe(2); // null -> ""
+  });
+
+  it("E.103: stats range-breakdown and the SAME-range CSV export tell one story", async () => {
+    // Both surfaces build their window from the SAME sinceExpr(range) with
+    // the SAME strict gt() operator — so one range token means one window.
+    // Grounded difference pinned here too: getLinkStats filters
+    // eventType='click' while the export is RAW analytics rows (docblock),
+    // and /api/track writes 'open' rows that carry NO variant label — so
+    // variant counts must agree exactly, while the raw CSV shows the
+    // unlabeled open row the clicks-scoped stats deliberately omits.
+    await db.delete(analyticsClicks);
+    const title = "E103-window-story";
+    const link = seedLink({ title, url: "https://example.com/e103" });
+
+    // In-window (fresh): 2 A, 1 B, 1 unlabeled click, 1 'open' event.
+    const fresh = [
+      { h: "e103-i-a1", v: "A" as const },
+      { h: "e103-i-a2", v: "A" as const },
+      { h: "e103-i-b1", v: "B" as const },
+      { h: "e103-i-u", v: null },
+    ];
+    for (const s of fresh) await recordClick(link.id, s.h, null, "click", s.v);
+    await recordClick(link.id, "e103-open", null, "open"); // unlabeled, raw-only
+
+    // Out-of-window: 5 A + 1 B backdated 60 days (past the 30d range).
+    const out = [
+      { h: "e103-o-a1", v: "A" as const },
+      { h: "e103-o-a2", v: "A" as const },
+      { h: "e103-o-a3", v: "A" as const },
+      { h: "e103-o-a4", v: "A" as const },
+      { h: "e103-o-a5", v: "A" as const },
+      { h: "e103-o-b1", v: "B" as const },
+    ];
+    for (const s of out) await recordClick(link.id, s.h, null, "click", s.v);
+    const outIds = db
+      .select({ id: analyticsClicks.id })
+      .from(analyticsClicks)
+      .where(like(analyticsClicks.visitorHash, "e103-o-%"))
+      .all()
+      .map((r) => r.id);
+    const stamp60 = new Date(Date.now() - 60 * 86_400_000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+    db.update(analyticsClicks)
+      .set({ createdAt: stamp60 })
+      .where(inArray(analyticsClicks.id, outIds))
+      .run();
+
+    // Surface 1: the stats page's range-scoped breakdown.
+    const stats = (await getLinkStats(link.id, "30d"))!;
+    expect(stats.variants).toEqual({ a: 2, b: 1 });
+    expect(stats.totalClicks).toBe(4); // clicks only: open excluded
+
+    // Surface 2: the REAL export over the SAME range token.
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/analytics/export?metric=clicks&range=30d"),
+    );
+    expect(res.status).toBe(200);
+    const lines = (await res.text()).split("\n").slice(1).filter(Boolean);
+    const mine = lines.filter((l) => l.split(",")[3] === title);
+    const cells = mine.map((l) => l.split(",")[5]);
+
+    // ONE story on the variant breakdown — equal across surfaces...
+    expect(cells.filter((v) => v === "A").length).toBe(stats.variants.a);
+    expect(cells.filter((v) => v === "B").length).toBe(stats.variants.b);
+    // ...and the out-of-window rows are excluded from BOTH (6 old rows gone).
+    expect(cells.filter((v) => v === "A" || v === "B").length).toBe(3);
+
+    // ...while the RAW export legitimately shows the unlabeled 'open' row
+    // the clicks-scoped stats omits (raw-rows vs clicks by design).
+    expect(cells.filter((v) => v === "").length).toBe(2); // unlabeled click + open
+    expect(mine.length).toBe(stats.totalClicks + 1); // exactly the one open
   });
 });
