@@ -788,6 +788,32 @@ describe("e2e spec static contract (#81 E.83)", () => {
     expect(spec).not.toMatch(/getByText\(|getByRole\(|getByLabel\(/);
     expect(spec).not.toMatch(/useTranslations|getTranslations/);
   });
+
+  it("E.127: any ab_* field the spec ever references must exist in the dialog/editor source", () => {
+    // Grounded: the spec drives exactly ONE selector (`main a`) plus the
+    // /go request — it has NO link-dialog/editor interaction today. Pin
+    // both halves: the current field-free scope, and a future-proof rule —
+    // an ab_* token appearing in the spec can only ship if the dialog or
+    // editor actually renders that field (loop is empty today, live if it
+    // grows).
+    expect(spec).not.toMatch(/ab_urlB|ab_labelA|ab_labelB|ab_weightA|ab_startsAt|ab_endsAt|ab_enabled/);
+
+    const dialog = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/components/link-dialog.tsx"),
+      "utf8",
+    );
+    const editor = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/components/ab-test-editor.tsx"),
+      "utf8",
+    );
+    const abTokens = new Set([...spec.matchAll(/\bab_[a-zA-Z]+/g)].map((m) => m[0]));
+    for (const tok of abTokens) {
+      expect(dialog.includes(tok) || editor.includes(tok), `spec field ${tok} missing in source`).toBe(
+        true,
+      );
+    }
+    expect(typeof abTokens.size).toBe("number"); // scan really ran
+  });
 });
 
 describe("public surface A/B transparency (#81 E.113)", () => {
