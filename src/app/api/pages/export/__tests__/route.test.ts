@@ -764,6 +764,69 @@ describe("GET /api/pages/export", () => {
     expect(sawCta).toBe(true);
   });
 
+  it("every url() in embed html is uploads/-relative, incl. fonts (E.177)", async () => {
+    const fontReq = (q: string) =>
+      new NextRequest(`http://localhost:3000/api/pages/export${q}`, {
+        headers: { host: "localhost:3000" },
+      });
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object), themeId: 9 } as never);
+    mockGetThemeById.mockResolvedValue({
+      id: 9, name: "CustomFontTheme", fontFamily: "custom:7",
+      cardFontFamily: null, animationType: "none",
+    } as never);
+    mockGetCustomFont.mockResolvedValue({
+      id: 7, family: "My Uploaded", url: "/api/uploads/f-abc.woff2",
+      format: "woff2",
+    } as never);
+    const embed = await GET(fontReq("?id=1&embed=1"));
+    expect(embed.status).toBe(200);
+    const html = await embed.text();
+    // strip whole data: URIs FIRST — their SVG payloads contain nested
+    // url(%23n) filter refs that are part of the data string, not URLs
+    const withoutData = html.replace(/url\("data:[^"]*"\)/g, "");
+    const urls = [...withoutData.matchAll(/url\((['"]?)([^)'"]+)\1\)/g)].map(
+      (m) => m[2],
+    );
+    expect(urls.length).toBeGreaterThan(0); // non-vacuous (font src exists)
+    for (const u of urls) {
+      // embed: no origin hosts, no /api/ server paths — only bundled
+      // uploads/ refs (or inline data:)
+      expect(u, u).not.toMatch(/^https?:/);
+      expect(u, u).not.toContain("/api/");
+      expect(
+        u.startsWith("uploads/") || u.startsWith("data:"),
+        u,
+      ).toBe(true);
+    }
+    // and the font url specifically landed in the collector's path
+    expect(urls.some((u) => u === "uploads/f-abc.woff2")).toBe(true);
+  });
+
+  it("batch html escapes < inside JSON-LD as \\u003c (E.178)", async () => {
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "ldpage", bio: "A < B and </script>" },
+    ] as never[]);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const nameLen = buf.readUInt16LE(26);
+    const extraLen = buf.readUInt16LE(28);
+    const size = buf.readUInt32LE(18);
+    const html = buf
+      .subarray(30 + nameLen + extraLen, 30 + nameLen + extraLen + size)
+      .toString("utf8");
+    const m = html.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/,
+    );
+    expect(m, "ld+json block").toBeTruthy();
+    const block = m![1];
+    expect(block).toContain("A \\u003c B"); // raw < never inside the block
+    expect(block).not.toContain("A < B");
+    expect(block).not.toContain("</script");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
