@@ -8,11 +8,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
-import { recordClick, updateSetting, getLink } from "@/server/queries";
+import { recordClick, updateSetting, getLink, getLinkStats } from "@/server/queries";
 import { analyticsClicks, links } from "@/db/schema";
 import { runAbAutoPromoteScan, maybeAutoPromoteAbTests, _resetAbAutoPromoteThrottle, AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
 import { parseAbConfig, serializeAbConfig, autoPromotableWinner, AB_AUTO_PROMOTE_MIN_CLICKS, type AbConfig } from "@/lib/ab-test";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 const running: AbConfig = {
   v: 1,
@@ -234,6 +234,60 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     const cfg = parseAbConfig((await getLink(link.id))?.abConfig ?? null);
     expect(cfg?.status).toBe("archived");
     expect(cfg?.winner).toBe("B");
+  });
+
+  it("E.64: breakdown==scanner when the range covers all; scanner follows rows when the three surfaces diverge", async () => {
+    // Three count surfaces exist: the range-scoped detail breakdown
+    // (getLinkStats), the lifetime denormalized clicksCount, and the
+    // scanner's ALL-TIME row counts. Pin their relationship end-to-end:
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    const link = await seedRunningTest();
+    await clickVariants(link.id, 60, 140); // 200 rows, all recent
+
+    // (a) EQUALITY: range(7d) covers everything and nothing was pruned ->
+    // breakdown == raw rows == clicksCount == the scanner's input pool.
+    const s0 = await getLinkStats(link.id, "7d");
+    expect(s0!.variants).toEqual({ a: 60, b: 140 });
+    expect(s0!.totalClicks).toBe(200);
+    const raw0 = db
+      .select({ c: sql<number>`count(*)` })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, link.id))
+      .get();
+    expect(raw0?.c).toBe(200);
+    expect((await getLink(link.id))?.clicksCount).toBe(200);
+
+    // (b) DIVERGE: backdate 30 A rows past the 7d window.
+    const oldA = db
+      .select({ id: analyticsClicks.id })
+      .from(analyticsClicks)
+      .where(and(eq(analyticsClicks.linkId, link.id), eq(analyticsClicks.variant, "A")))
+      .limit(30)
+      .all()
+      .map((r) => r.id);
+    expect(oldA).toHaveLength(30);
+    await db
+      .update(analyticsClicks)
+      .set({ createdAt: "2020-01-01 00:00:00" })
+      .where(inArray(analyticsClicks.id, oldA));
+
+    const s1 = await getLinkStats(link.id, "7d");
+    expect(s1!.variants).toEqual({ a: 30, b: 140 }); // range now 170
+    expect(s1!.totalClicks).toBe(170);
+    expect((await getLink(link.id))?.clicksCount).toBe(200); // lifetime untouched
+
+    // (c) The scanner must follow the ALL-TIME rows: the range view
+    // (170 < the 200 floor) would refuse; all-time (exactly 200,
+    // 60/140 significant) promotes. If the scanner read the breakdown
+    // OR any rolled-up counter instead of rows, this would return 0.
+    expect(await runAbAutoPromoteScan()).toBe(1);
+    const cfg = parseAbConfig((await getLink(link.id))?.abConfig ?? null);
+    expect(cfg?.status).toBe("archived");
+    expect(cfg?.winner).toBe("B");
+
+    // The archived view keeps its range-scoped numbers (never rewritten).
+    const s2 = await getLinkStats(link.id, "7d");
+    expect(s2!.variants).toEqual({ a: 30, b: 140 });
   });
 
   it("E.26: a future-version (v:2) config is never scanned — prefilter matches, re-parse rejects", async () => {
