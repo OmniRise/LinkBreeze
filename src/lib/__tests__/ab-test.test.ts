@@ -384,6 +384,31 @@ describe("E.2 time box (startsAt/endsAt)", () => {
     });
     expect(offenders).toEqual([]);
   });
+
+  it("no bidi-control characters in any ab* value across all 11 locales (E.68)", () => {
+    // Bidi overrides (RLO/LRO/PDI/LRI...) can silently flip the rendered
+    // order of mixed RTL/LTR text — a translation pasted from an RTL tool
+    // could smuggle one in and mis-render the admin UI while every other
+    // gate stays green. E.17 covered angle brackets and placeholders;
+    // this covers the Unicode bidirectional-control class.
+    const BIDI = /[\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/;
+    const localeFiles = readdirSync(resolve(process.cwd(), "src/locales")).filter(
+      (f) => f.endsWith(".ts"),
+    );
+    expect(localeFiles.length).toBe(11);
+    const offenders: string[] = [];
+    for (const f of localeFiles) {
+      const src = readFileSync(resolve(process.cwd(), "src/locales", f), "utf8");
+      const values = [...src.matchAll(/(\bab[A-Za-z0-9]+:\s*")([^"]*)"/g)];
+      // 30 distinct ab* keys exist in every locale — fewer means the scan
+      // regex silently missed the file's shape.
+      expect(values.length, `${f} ab-key count`).toBeGreaterThanOrEqual(30);
+      for (const m of values) {
+        if (BIDI.test(m[2])) offenders.push(`${f}: ${m[1]}${m[2]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });
 
 describe("docs-drift tripwire (#81 E.19)", () => {
