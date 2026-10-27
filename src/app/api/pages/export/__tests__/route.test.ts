@@ -727,6 +727,43 @@ describe("GET /api/pages/export", () => {
     });
   });
 
+  it("batch html strips /go/ everywhere incl. popup CTAs (E.175)", async () => {
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "poppage" },
+    ] as never[]);
+    mockGetActiveLinks.mockResolvedValue([
+      {
+        id: 7, pageId: 1, sectionId: null, orderIndex: 0, type: "text",
+        title: "PopupCard", description: null, url: "https://dest.example/x",
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        cardStyle: "compact", popupText: "Body", ctaLabel: "Go now",
+        redirectSlug: null, createdAt: "2026-01-01 00:00:00",
+      },
+    ] as never[]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    // walk entries, assert NO /go/ path anywhere in any html
+    let off = 0;
+    let sawCta = false;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const size = buf.readUInt32LE(off + 18);
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      const html = buf
+        .subarray(off + 30 + nameLen + extraLen, off + 30 + nameLen + extraLen + size)
+        .toString("utf8");
+      expect(html).not.toContain("/go/");
+      if (html.includes('class="lb-popup-cta')) sawCta = true;
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    // the CTA really was in there (assertion above wasn't vacuous)
+    expect(sawCta).toBe(true);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
