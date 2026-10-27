@@ -301,6 +301,16 @@ describe("spec hygiene (E.19)", () => {
     expect(doc.servers).toEqual([{ url: "/" }]);
   });
 
+  it("E.65: info carries the MIT SPDX license (spec is legally self-describing)", () => {
+    const info = doc.info as {
+      license?: { name?: string; identifier?: string };
+    };
+    expect(info.license?.identifier).toBe("MIT");
+    expect(info.license?.name).toBe("MIT");
+    // contact/externalDocs deliberately omitted: no stable public contact
+    // channel is published by the repo (churn-prone data beats none).
+  });
+
   it("E.63: every operation has a unique camelCase operationId (SDK generators key off them)", () => {
     const ids: string[] = [];
     for (const [p, methods] of Object.entries(doc.paths)) {

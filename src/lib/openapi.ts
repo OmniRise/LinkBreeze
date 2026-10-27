@@ -92,6 +92,7 @@ export function buildOpenApiDocument(): Json {
     info: {
       title: "LinkBreeze API",
       version,
+      license: { name: "MIT", identifier: "MIT" },
       description:
         "Public REST API for programmatic link management. Authenticate with an " +
         "API key generated in Settings > Security and sent in the Authorization " +
