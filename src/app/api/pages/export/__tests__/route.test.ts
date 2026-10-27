@@ -1263,6 +1263,32 @@ describe("GET /api/pages/export", () => {
     expect(body).toContain('href="https://maps.example.com/@hq"');
   });
 
+  it("batch entries preserve getAllPages ORDER (E.249)", async () => {
+    // fixture order zebra → alpha → mango; alphabetical or reversed
+    // archive steps would change the sequence — names must match GIVEN
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "zebra" },
+      { ...(PAGE as object), id: 2, slug: "alpha" },
+      { ...(PAGE as object), id: 3, slug: "mango" },
+    ] as never[]);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const names: string[] = [];
+    let off = 0;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const size = buf.readUInt32LE(off + 18);
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      names.push(buf.subarray(off + 30, off + 30 + nameLen).toString("utf8"));
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    expect(names).toEqual(["zebra.html", "alpha.html", "mango.html"]);
+    expect(names).not.toEqual([...names].sort()); // not alphabetical
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
