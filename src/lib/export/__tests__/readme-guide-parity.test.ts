@@ -44,6 +44,16 @@ describe("README hosting-guide structure across all locales (E.30)", () => {
       expect(seg.match(/^- /gm) ?? []).toHaveLength(5);
       // get-the-file, stays-home (×2) and size bullets all cite embed=1
       expect(seg.match(/\?embed=1/g) ?? []).toHaveLength(4);
+      // E.60: the three hosting brands + local-check command survive every
+      // translation (count-based — translators can't drop or invent one)
+      for (const brand of [
+        /github pages/i,
+        /netlify/i,
+        /cloudflare pages/i,
+        /python3 -m http\.server/,
+      ]) {
+        expect(seg.match(brand) ?? [], `${file}: ${brand}`).toHaveLength(1);
+      }
       // balanced section: heading opens, docs heading is the boundary
       expect(seg.startsWith("## 📦")).toBe(true);
     });
