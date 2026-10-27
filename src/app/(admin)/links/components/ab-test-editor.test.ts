@@ -134,4 +134,31 @@ describe("computeAbEditorInitial (#81 E.40/E.46)", () => {
     expect(new Set(readKeys)).toEqual(new Set(setKeys));
     for (const k of readKeys) expect(setKeys).toContain(k);
   });
+
+  it("E.130: weight input client bounds match the schema (1-99, integer, B = 100 − A)", () => {
+    // Grounded: the slider is type="range" min={1} max={99} (range default
+    // step = 1 → integers only), B is displayed/derived as 100 − weightA,
+    // and the schema demands z.number().int().min(1).max(99) + sum === 100.
+    // A UI loosening (e.g. max=100) would submit values the schema rejects
+    // (weightB would hit 0) — this pins both sides together.
+    const editor = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/components/ab-test-editor.tsx"),
+      "utf8",
+    );
+    const lib = readFileSync(resolve(process.cwd(), "src/lib/ab-test.ts"), "utf8");
+
+    const anchor = editor.indexOf('name="ab_weightA"');
+    expect(anchor).toBeGreaterThan(-1);
+    const block = editor.slice(anchor, anchor + 240);
+    expect(block).toContain('type="range"');
+    expect(block).toContain("min={1}");
+    expect(block).toContain("max={99}");
+
+    // The B side is always derived, never independently editable.
+    expect(editor).toContain("100 - weightA");
+
+    // Schema side of the same contract.
+    expect(lib).toContain("weightA: z.number().int().min(1).max(99)");
+    expect(lib).toContain("c.weightA + c.weightB === 100");
+  });
 });
