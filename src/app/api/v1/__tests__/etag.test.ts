@@ -253,6 +253,14 @@ describe("E.41 HEAD interplay (framework derives HEAD from GET)", () => {
     expect(res.headers.get("x-ratelimit-reset")).toBeTruthy();
     expect(res.headers.get("cache-control")).toBe("no-store");
 
+    // E.88 body contract: at THIS boundary the GET body still flows — HEAD
+    // body-stripping is the framework's job (Next strips at the server layer;
+    // untestable without a banned build). Do NOT "fix" the handler into
+    // stripping: GET and HEAD share it, and GET needs the JSON.
+    const headBody = await res.json();
+    expect(headBody.data.length).toBeGreaterThan(0);
+    expect(headBody.data[0].id).toBeDefined();
+
     // RFC 9110: conditional HEAD behaves like conditional GET → 304.
     const etag = res.headers.get("etag")!;
     const cond = new NextRequest("http://localhost:3000/api/v1/links", {
