@@ -254,6 +254,27 @@ describe("GET /api/v1/links — sparse fieldsets", () => {
     expect(empty.status).toBe(400);
   });
 
+  it("E.119: a sparse fields=id cursor walk pages to exhaustion (meta + id-only rows throughout)", async () => {
+    const seen: number[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 10; page++) {
+      const qs = cursor
+        ? `?limit=2&fields=id&cursor=${encodeURIComponent(cursor)}`
+        : "?limit=2&fields=id";
+      const res = await listLinks(get(qs));
+      expect(res.status, `page ${page}`).toBe(200);
+      const body = await res.json();
+      expect(Object.keys(body).sort()).toEqual(["data", "meta"]);
+      for (const row of body.data) expect(Object.keys(row)).toEqual(["id"]);
+      for (const row of body.data) seen.push(row.id);
+      cursor = body.meta.nextCursor;
+      if (cursor === null) break;
+    }
+    expect(cursor).toBeNull(); // walk terminated on its own
+    expect(seen.length).toBe(5); // the whole fixture, once each
+    expect(new Set(seen).size).toBe(5);
+  });
+
   it("fields combines with pagination", async () => {
     const res = await listLinks(get("?limit=2&fields=title"));
     const body = await res.json();
