@@ -320,6 +320,57 @@ describe("avatar/banner fit adjustments (E.123)", () => {
     expect(avatar).toContain("object-position:50% 50%"); // defaults
     expect(avatar).not.toContain("transform:scale");
   });
+
+  it("hero layout renders full overlay structure (E.126)", () => {
+    const input = pageWith({
+      bannerUrl: "/api/uploads/hero.png",
+      badgeText: "Pro",
+      bio: "Hero bio",
+    });
+    const html = buildStaticExport({
+      ...input,
+      theme: { ...input.theme, profileLayout: "hero" },
+    });
+    // banner + scrim + absolute name layer + badge (line 251-262 block)
+    expect(html).toContain('class="lb-export-banner"');
+    expect(html).toContain(
+      'style="position:absolute;inset:0;background:linear-gradient(to top',
+    );
+    expect(html).toContain(
+      'style="position:absolute;bottom:0;left:0;width:100%',
+    );
+    expect(html).toContain(">Pro<");
+    expect(html).toContain("Hero bio");
+    // overflow-hidden frame around the banner (scale clipping)
+    expect(html).toContain("max-height:240px");
+  });
+});
+
+describe("page bio empty-string vs null (E.127)", () => {
+  const bioInput = (bio: string | null): ExportInput => ({
+    page: {
+      slug: "biopage",
+      title: "Bio",
+      bio,
+      socialLinks: null,
+      avatarUrl: null,
+      bannerUrl: null,
+      footerText: null,
+    } as unknown as ExportPageInput,
+    links: [],
+    sections: [],
+    theme: { animationType: "none" },
+    baseUrl: "https://links.example.com",
+  });
+
+  it("empty string and null produce byte-identical bio-free output", () => {
+    const empty = buildStaticExport(bioInput(""));
+    const nulled = buildStaticExport(bioInput(null));
+    expect(empty).toBe(nulled);
+    // and neither carries a bio ELEMENT (the .lb-export-bio CSS rule
+    // ships unconditionally per E.115 — match the element form)
+    expect(empty).not.toContain('class="lb-export-bio"');
+  });
 });
 
 describe("keyframes completeness (theme-tokens ↔ EXPORT_CSS drift guard)", () => {
