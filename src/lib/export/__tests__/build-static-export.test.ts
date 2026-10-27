@@ -555,6 +555,66 @@ describe("section heading edges (E.57)", () => {
   });
 });
 
+describe("cardStyle variants (E.124)", () => {
+  const cardLink = (over: Record<string, unknown>) =>
+    ({
+      id: 1,
+      pageId: 1,
+      sectionId: null,
+      orderIndex: 0,
+      type: "url",
+      title: "Rich Card",
+      description: null,
+      url: "https://example.com",
+      icon: null,
+      iconUrl: null,
+      customIconUrl: null,
+      iconMode: "auto",
+      autoIcon: true,
+      imageUrl: null,
+      isHighlighted: false,
+      isActive: true,
+      scheduleStart: null,
+      scheduleEnd: null,
+      clicksCount: 0,
+      cardStyle: "compact",
+      popupText: null,
+      ctaLabel: null,
+      redirectSlug: null,
+      createdAt: "2026-01-01 00:00:00",
+      ...over,
+    }) as unknown as LinkRow;
+
+  it("cardStyle 'rich' + imageUrl → full-bleed image card; no image → compact fallthrough", () => {
+    const rich = buildStaticExport({
+      ...baseInput,
+      links: [
+        cardLink({ id: 1, cardStyle: "rich", imageUrl: "/api/uploads/rc.png" }),
+      ],
+    });
+    const noImg = buildStaticExport({
+      ...baseInput,
+      links: [cardLink({ id: 3, title: "RichNoImg", cardStyle: "rich" })],
+    });
+
+    // rich WITH image: full-bleed image block renders (hasImage path)
+    expect(rich).toContain("rc.png");
+    // distinct card body: the image card carries a media block the
+    // compact card does not
+    expect(rich).not.toEqual(noImg);
+
+    // rich WITHOUT image: documented fallthrough to standard compact
+    // (build-link-card.ts:316-318) — same card shape as a plain link
+    const cardBody = (html: string) =>
+      (html.match(/<a[^>]*class="lb-link-card[^"]*"[^>]*/g) ?? []).join("");
+    const noImgTag = cardBody(noImg);
+    expect(noImgTag).toContain("var(--lb-card-radius)");
+    expect(noImgTag).not.toContain("var(--lb-media-radius)");
+    // rich WITH image uses the media radius (full-bleed branch)
+    expect(cardBody(rich)).toContain("var(--lb-media-radius)");
+  });
+});
+
 describe("icon fallback chain edges (E.108/E.109)", () => {
   const link = (over: Record<string, unknown>) =>
     ({
