@@ -72,6 +72,24 @@ describe("rateLimit", () => {
     }
   });
 
+  it("E.123: remaining walks limit-1 → 0; the LAST allowed reports 0, refusals floor at 0", () => {
+    const key = "test-floor-" + Math.random();
+    const limit = 5;
+    const seen: number[] = [];
+    for (let i = 0; i < limit; i++) {
+      const r = rateLimit(key, limit, 60_000);
+      expect(r.ok, `call ${i}`).toBe(true);
+      expect(r.remaining, `call ${i}`).toBe(limit - 1 - i);
+      seen.push(r.remaining);
+    }
+    expect(seen).toEqual([4, 3, 2, 1, 0]); // boundary: last allowed = 0, not -1
+
+    const refused = rateLimit(key, limit, 60_000);
+    expect(refused.ok).toBe(false);
+    expect(refused.remaining).toBe(0);
+    expect(refused.remaining).toBeGreaterThanOrEqual(0); // never negative, ever
+  });
+
   it("E.27: after the window elapses the FULL budget returns", async () => {
     const key = "test-refill-" + Math.random();
     for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 5).ok).toBe(true);
