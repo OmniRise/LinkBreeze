@@ -202,7 +202,11 @@ GDPR Article 33 (72 hours to the supervisory authority).
    sha256 hash is stored, so it cannot be recovered, only regenerated.
    Send it in the `Authorization` header over HTTPS only. Rotating
    (Regenerate) invalidates the old key immediately - do that if a key ever
-   lands in a log, shell history, or a public repo. Requests are rate limited
+   lands in a log, shell history, or a public repo. If the optional one-hour
+   rotation grace is enabled (off by default), the PREVIOUS key keeps
+   working until the window closes - Regenerating without grace or Revoking
+   ends it early, and the admin card shows a live countdown plus a
+   revoke-previous control. Requests are rate limited
    per key (120/min) and mutations are blocked in demo mode; the API surface
    runs the same URL-scheme validation as the admin UI.
    **Scope**: the key is admin-equivalent for *public-site content* of this

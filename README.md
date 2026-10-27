@@ -405,7 +405,7 @@ Full setup — DNS, wildcard TLS and copy-paste reverse-proxy configs for Caddy,
 
 ## 🔌 REST API
 
-Manage links, your profile and analytics from scripts, CI pipelines or third-party tools. Generate an API key in **Settings → Security → API access** (the full key is shown once - store it securely), then send it in the `Authorization` header using the HTTP Bearer scheme. Rate limit: 120 requests/minute per key, plus a per-IP guard. Mutating endpoints are blocked in demo mode. Every instance serves its own OpenAPI 3.1 reference at `/api/v1/docs` and `/api/v1/openapi.json`.
+Manage links, your profile and analytics from scripts, CI pipelines or third-party tools. Generate an API key in **Settings → Security → API access** (the full key is shown once - store it securely), then send it in the `Authorization` header using the HTTP Bearer scheme. Rotation is instant by default; if the admin enabled the optional one-hour grace, the previous key may keep working until the window closes or the admin revokes it. Rate limit: 120 requests/minute per key, plus a per-IP guard. Mutating endpoints are blocked in demo mode. Every instance serves its own OpenAPI 3.1 reference at `/api/v1/docs` and `/api/v1/openapi.json`.
 
 <details>
 <summary>🔗 &nbsp;Endpoints</summary>

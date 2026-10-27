@@ -405,7 +405,7 @@ Configuração completa - DNS, TLS curinga e configurações de proxy reverso pr
 
 ## 🔌 API REST
 
-Gerencie links, perfil e análises a partir de scripts, pipelines de CI ou ferramentas de terceiros. Gere uma chave de API em **Settings → Security → API access** (a chave completa é exibida uma única vez - guarde-a em um local seguro) e envie-a no cabeçalho `Authorization` com o esquema HTTP Bearer. Limite: 120 requisições/minuto por chave, mais uma guarda por IP. Os endpoints de escrita são bloqueados no modo demo. Cada instância serve a própria referência OpenAPI 3.1 em `/api/v1/docs` e `/api/v1/openapi.json`.
+Gerencie links, perfil e análises a partir de scripts, pipelines de CI ou ferramentas de terceiros. Gere uma chave de API em **Settings → Security → API access** (a chave completa é exibida uma única vez - guarde-a em um local seguro) e envie-a no cabeçalho `Authorization` com o esquema HTTP Bearer. A rotação é imediata por padrão; se o admin habilitou a janela opcional de uma hora, a chave anterior pode continuar funcionando até a janela fechar ou ser revogada. Limite: 120 requisições/minuto por chave, mais uma guarda por IP. Os endpoints de escrita são bloqueados no modo demo. Cada instância serve a própria referência OpenAPI 3.1 em `/api/v1/docs` e `/api/v1/openapi.json`.
 
 <details>
 <summary>🔗 &nbsp;Endpoints</summary>

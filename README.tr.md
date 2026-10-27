@@ -405,7 +405,7 @@ Eksiksiz kurulum - DNS, wildcard TLS ve Caddy, nginx ve Traefik için kopyala-ya
 
 ## 🔌 REST API
 
-Bağlantıları, profili ve analitiği betiklerden, CI boru hatlarından veya üçüncü taraf araçlardan yönetin. **Settings → Security → API access** bölümünde bir API anahtarı oluşturun (tam anahtar yalnızca bir kez gösterilir - güvenli bir yerde saklayın) ve HTTP Bearer şemasıyla `Authorization` başlığında gönderin. Sınır: anahtar başına dakikada 120 istek, ayrıca IP başına bir koruma. Yazma uç noktaları demo modunda engellenir. Her kendi örneği `/api/v1/docs` ve `/api/v1/openapi.json` adreslerinde kendi OpenAPI 3.1 referansını sunar.
+Bağlantıları, profili ve analitiği betiklerden, CI boru hatlarından veya üçüncü taraf araçlardan yönetin. **Settings → Security → API access** bölümünde bir API anahtarı oluşturun (tam anahtar yalnızca bir kez gösterilir - güvenli bir yerde saklayın) ve HTTP Bearer şemasıyla `Authorization` başlığında gönderin. Dönüşüm varsayılan olarak anlıktır; yönetici isteğe bağlı bir saatlik geçiş süresini etkinleştirdiyse eski anahtar, pencere kapanana veya yönetici iptal edene kadar çalışmaya devam edebilir. Sınır: anahtar başına dakikada 120 istek, ayrıca IP başına bir koruma. Yazma uç noktaları demo modunda engellenir. Her kendi örneği `/api/v1/docs` ve `/api/v1/openapi.json` adreslerinde kendi OpenAPI 3.1 referansını sunar.
 
 <details>
 <summary>🔗 &nbsp;Uç noktalar</summary>

@@ -405,7 +405,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## 🔌 REST API
 
-从脚本、CI 流水线或第三方工具管理链接、个人资料和统计数据。在 **Settings → Security → API access** 中创建 API 密钥（完整密钥只显示一次 - 请妥善保管），并在 `Authorization` 请求头中以 HTTP Bearer 方式发送。速率限制：每个密钥每分钟 120 次请求，另有按 IP 的防护。写入类接口在演示模式下被阻止。每个实例都在 `/api/v1/docs` 和 `/api/v1/openapi.json` 提供自己的 OpenAPI 3.1 参考文档。
+从脚本、CI 流水线或第三方工具管理链接、个人资料和统计数据。在 **Settings → Security → API access** 中创建 API 密钥（完整密钥只显示一次 - 请妥善保管），并在 `Authorization` 请求头中以 HTTP Bearer 方式发送。默认情况下轮换立即生效；若管理员启用了可选的一小时宽限期，旧密钥可能在窗口结束或被撤销前继续有效。速率限制：每个密钥每分钟 120 次请求，另有按 IP 的防护。写入类接口在演示模式下被阻止。每个实例都在 `/api/v1/docs` 和 `/api/v1/openapi.json` 提供自己的 OpenAPI 3.1 参考文档。
 
 <details>
 <summary>🔗 &nbsp;接口列表</summary>

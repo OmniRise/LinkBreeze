@@ -405,7 +405,7 @@ Configuration complète - DNS, TLS wildcard et configs reverse-proxy prêtes à 
 
 ## 🔌 API REST
 
-Gérez vos liens, votre profil et vos statistiques depuis des scripts, des pipelines CI ou des outils tiers. Générez une clé API dans **Settings → Security → API access** (la clé complète est affichée une seule fois - stockez-la en sécurité), puis envoyez-la dans l'en-tête `Authorization` avec le schéma HTTP Bearer. Limite : 120 requêtes/minute par clé, plus une garde par IP. Les endpoints d'écriture sont bloqués en mode démo. Chaque instance sert sa propre référence OpenAPI 3.1 sur `/api/v1/docs` et `/api/v1/openapi.json`.
+Gérez vos liens, votre profil et vos statistiques depuis des scripts, des pipelines CI ou des outils tiers. Générez une clé API dans **Settings → Security → API access** (la clé complète est affichée une seule fois - stockez-la en sécurité), puis envoyez-la dans l'en-tête `Authorization` avec le schéma HTTP Bearer. La rotation est instantanée par défaut ; si l'admin a activé l'heure de grâce facultative, l'ancienne clé peut continuer de fonctionner jusqu'à la fin de la fenêtre ou sa révocation. Limite : 120 requêtes/minute par clé, plus une garde par IP. Les endpoints d'écriture sont bloqués en mode démo. Chaque instance sert sa propre référence OpenAPI 3.1 sur `/api/v1/docs` et `/api/v1/openapi.json`.
 
 <details>
 <summary>🔗 &nbsp;Points d'entrée</summary>

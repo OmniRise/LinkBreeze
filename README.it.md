@@ -405,7 +405,7 @@ Setup completo - DNS, TLS wildcard e configurazioni reverse proxy copia-e-incoll
 
 ## 🔌 API REST
 
-Gestisci link, profilo e analisi da script, pipeline CI o strumenti di terze parti. Genera una chiave API in **Settings → Security → API access** (la chiave completa viene mostrata una sola volta - conservala in un posto sicuro) e inviala nell'header `Authorization` con lo schema HTTP Bearer. Limite: 120 richieste/minuto per chiave, più una guardia per IP. Gli endpoint di scrittura sono bloccati in modalità demo. Ogni istanza serve il proprio riferimento OpenAPI 3.1 su `/api/v1/docs` e `/api/v1/openapi.json`.
+Gestisci link, profilo e analisi da script, pipeline CI o strumenti di terze parti. Genera una chiave API in **Settings → Security → API access** (la chiave completa viene mostrata una sola volta - conservala in un posto sicuro) e inviala nell'header `Authorization` con lo schema HTTP Bearer. La rotazione è immediata per impostazione predefinita; se l'admin ha abilitato l'ora di grazia opzionale, la chiave precedente può continuare a funzionare fino alla chiusura della finestra o alla revoca. Limite: 120 richieste/minuto per chiave, più una guardia per IP. Gli endpoint di scrittura sono bloccati in modalità demo. Ogni istanza serve il proprio riferimento OpenAPI 3.1 su `/api/v1/docs` e `/api/v1/openapi.json`.
 
 <details>
 <summary>🔗 &nbsp;Endpoint</summary>

@@ -405,7 +405,7 @@ Configuración completa - DNS, TLS comodín y configuraciones de proxy inverso l
 
 ## 🔌 API REST
 
-Gestiona enlaces, perfil y analíticas desde scripts, pipelines de CI o herramientas de terceros. Genera una clave API en **Settings → Security → API access** (la clave completa se muestra una sola vez - guárdala en un lugar seguro), y envíala en la cabecera `Authorization` con el esquema HTTP Bearer. Límite: 120 peticiones/minuto por clave, más una guarda por IP. Los endpoints de escritura están bloqueados en modo demo. Cada instancia sirve su propia referencia OpenAPI 3.1 en `/api/v1/docs` y `/api/v1/openapi.json`.
+Gestiona enlaces, perfil y analíticas desde scripts, pipelines de CI o herramientas de terceros. Genera una clave API en **Settings → Security → API access** (la clave completa se muestra una sola vez - guárdala en un lugar seguro), y envíala en la cabecera `Authorization` con el esquema HTTP Bearer. La rotación es instantánea por defecto; si el administrador activó la ventana opcional de una hora, la clave anterior puede seguir funcionando hasta que la ventana termine o el admin la revoque. Límite: 120 peticiones/minuto por clave, más una guarda por IP. Los endpoints de escritura están bloqueados en modo demo. Cada instancia sirve su propia referencia OpenAPI 3.1 en `/api/v1/docs` y `/api/v1/openapi.json`.
 
 <details>
 <summary>🔗 &nbsp;Endpoints</summary>

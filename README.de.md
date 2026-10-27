@@ -405,7 +405,7 @@ Komplette Einrichtung - DNS, Wildcard-TLS und Copy-Paste-Reverse-Proxy-Konfigura
 
 ## 🔌 REST-API
 
-Verwalte Links, Profil und Analysen aus Skripten, CI-Pipelines oder Drittanbieter-Tools. Erstelle einen API-Schlüssel unter **Settings → Security → API access** (der volle Schlüssel wird nur einmal angezeigt - sicher speichern) und sende ihn im `Authorization`-Header über das HTTP-Bearer-Schema. Limit: 120 Anfragen/Minute pro Schlüssel, dazu ein IP-Schutz. Schreibende Endpunkte sind im Demo-Modus gesperrt. Jede Instanz bietet ihre eigene OpenAPI-3.1-Referenz unter `/api/v1/docs` und `/api/v1/openapi.json`.
+Verwalte Links, Profil und Analysen aus Skripten, CI-Pipelines oder Drittanbieter-Tools. Erstelle einen API-Schlüssel unter **Settings → Security → API access** (der volle Schlüssel wird nur einmal angezeigt - sicher speichern) und sende ihn im `Authorization`-Header über das HTTP-Bearer-Schema. Die Rotation ist standardmäßig sofort; wenn der Admin die optionale einstündige Gnadenfrist aktiviert hat, kann der alte Schlüssel weiterarbeiten, bis das Fenster endet oder der Admin ihn widerruft. Limit: 120 Anfragen/Minute pro Schlüssel, dazu ein IP-Schutz. Schreibende Endpunkte sind im Demo-Modus gesperrt. Jede Instanz bietet ihre eigene OpenAPI-3.1-Referenz unter `/api/v1/docs` und `/api/v1/openapi.json`.
 
 <details>
 <summary>🔗 &nbsp;Endpunkte</summary>
