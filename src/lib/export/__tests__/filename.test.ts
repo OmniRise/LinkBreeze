@@ -24,6 +24,23 @@ describe("exportFilename", () => {
     expect(exportFilename("x".repeat(200))).toBe(`${"x".repeat(64)}.html`);
   });
 
+  it("backslash slugs never yield separators (Windows traversal, E.88)", () => {
+    // `[^A-Za-z0-9-_.@]` allowlist strips \ by construction — pin it:
+    // Windows extractors treat \ as a path separator (zip-slip on unzip)
+    const cases: Array<[string, string]> = [
+      ["C:\\evil", "Cevil.html"],
+      ["dir\\file", "dirfile.html"],
+      ["..\\..\\windows\\system32", "windowssystem32.html"],
+      ["mixed/slash\\both", "mixedslashboth.html"],
+    ];
+    for (const [slug, expected] of cases) {
+      const name = exportFilename(slug);
+      expect(name, slug).toBe(expected);
+      expect(name, slug).not.toContain("\\");
+      expect(name, slug).not.toContain("/");
+    }
+  });
+
   it("unicode slugs degrade to pure-ASCII names, never throw (E.42)", () => {
     // three scripts: latin-diacritic, CJK, cyrillic
     const cases: Array<[string, string]> = [
