@@ -5,6 +5,7 @@ import {
   type ExportPageInput,
 } from "@/lib/export/build-static-export";
 import type { LinkRow } from "@/server/queries";
+import { EXPORT_CSS } from "@/lib/export/export-css";
 
 // Fixture helpers — LinkRow is a full drizzle row; the builder reads a
 // handful of fields, so partials get cast once here.
@@ -397,6 +398,47 @@ describe("title/SEO fallback chain (E.67)", () => {
     const parsed = JSON.parse(m![1]);
     expect(parsed.name).toBe("Plain Title");
     expect(parsed.description).toBe("Plain bio");
+  });
+});
+
+describe("E.115 EXPORT_CSS selector prefix discipline", () => {
+  it("only resets/tokens/keyframes/shared-skin families may be non-.lb-", () => {
+    const css = EXPORT_CSS;
+    // capture every selector opener: text between } (or start) and {
+    const selectors = [...css.matchAll(/(?:^|\})\s*([^{}]+)\{/g)].map((m) =>
+      m[1].trim(),
+    );
+    expect(selectors.length).toBeGreaterThan(40); // non-vacuous
+
+    // Legitimate forms: reset elements + universal (normalize-style),
+    // :root tokens, keyframe steps (single or comma groups), at-rules,
+    // any .lb- namespaced selector (incl. main.lb-* skin scopes), and
+    // the .aurora-* family — a VERBATIM globals.css port shared with the
+    // live page (renaming it only here would break parity, E.69 precedent).
+    const ALLOWED_ELEMENTS = new Set([
+      "html",
+      "body",
+      "img,svg,video",
+      "button",
+      "a",
+      "*,*::before,*::after",
+      ":root",
+    ]);
+    const offenders: string[] = [];
+    for (const sel of selectors) {
+      if (ALLOWED_ELEMENTS.has(sel)) continue;
+      if (sel.startsWith("@")) continue;
+      if (sel.split(",").every((p) => /^(\d+%|from|to)$/.test(p.trim())))
+        continue;
+      if (/(^|[,\s])\.lb-/.test(sel) || sel.includes("main.lb-")) continue;
+      if (sel.startsWith(".aurora-")) continue;
+      offenders.push(sel);
+    }
+    expect(offenders, "selectors outside the documented families").toEqual([]);
+    // and .lb- discipline carries the bulk of the weight
+    expect(selectors.filter((s) => s.includes(".lb-")).length).toBeGreaterThanOrEqual(
+      100,
+    );
   });
 });
 
