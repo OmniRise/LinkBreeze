@@ -32,6 +32,18 @@ npm run docs:check -- --update   # after re-syncing a translation: rewrite hashe
 After updating a translation, re-record the hash in this table and commit both
 together.
 
+## API section (REST)
+
+The `## 🔌 REST API` section is translated in all files, with one rule that
+overrides usual prose translation: everything inside ```bash blocks must be
+byte-identical across locales (commands, `--oauth2-bearer "$LB_API_KEY"`,
+`$BASE/...` paths, `If-None-Match`/`ETag` header names, `jq` filters) — only
+the `# comment` lines are translated. Table descriptions and paragraph prose
+translate freely; endpoint paths, HTTP verbs, and header names never
+translate. The endpoints table and cookbook have grown several times (single
+reads, sections, import, conditional GET, header contract) — when re-syncing,
+diff section-by-section rather than assuming the old block list.
+
 ## Reviewing
 
 Maintainer-reviewed languages (fr, es, de, zh, ar, pt-BR) are translated and reviewed by the
