@@ -146,6 +146,19 @@ describe("GET /api/pages/export", () => {
     expect(body).toContain("<title>Jane</title>");
   });
 
+  it("unicode slug: Content-Disposition stays pure ASCII (E.42)", async () => {
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      slug: "日本語",
+    } as never);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const cd = res.headers.get("Content-Disposition")!;
+    expect(cd).toBe('attachment; filename="page.html"');
+    // eslint-disable-next-line no-control-regex
+    expect(/^[\x20-\x7e]*$/.test(cd)).toBe(true);
+  });
+
   it("404 when no pages exist for ?all=1", async () => {
     mockGetAllPages.mockResolvedValue([]);
     const res = await GET(req("?all=1"));
