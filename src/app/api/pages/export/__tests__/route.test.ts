@@ -1060,6 +1060,74 @@ describe("GET /api/pages/export", () => {
     expect(body).not.toContain("undefined</a>");
   });
 
+  it("batch entry carries <dialog> + escape script intact (E.234)", async () => {
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "popbatch" },
+    ] as never[]);
+    mockGetActiveLinks.mockResolvedValue([
+      {
+        id: 9, pageId: 1, sectionId: null, orderIndex: 0, type: "text",
+        title: "PopupInBatch", description: null,
+        url: "https://dest.example/p", icon: null, iconUrl: null,
+        customIconUrl: null, iconMode: "auto", autoIcon: true,
+        imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        cardStyle: "compact", popupText: "Batch popup body",
+        ctaLabel: "Go", redirectSlug: null,
+        createdAt: "2026-01-01 00:00:00",
+      },
+    ] as never[]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const nameLen = buf.readUInt16LE(26);
+    const extraLen = buf.readUInt16LE(28);
+    const size = buf.readUInt32LE(18);
+    const html = buf
+      .subarray(30 + nameLen + extraLen, 30 + nameLen + extraLen + size)
+      .toString("utf8");
+    expect(html).toContain('<dialog id="lb-popup-9"');
+    expect(html).toContain("Batch popup body");
+    expect(html).toContain("showModal()");
+    // close affordances: × button + backdrop-tap (native <dialog> gives
+    // Esc-close for free — no custom keydown exists, by design)
+    expect(html).toContain("close('x')");
+    // dialog content sits in the DOM regardless of JS (progressive)
+    expect(html.indexOf("<dialog")).toBeLessThan(html.indexOf("</html>"));
+  });
+
+  it("core content survives script removal (no-JS resilience, E.235)", async () => {
+    // Strip every <script>…</script> block: profile heading + link
+    // anchors must still be in the DOM as literal tags — JS only
+    // enhances (popups/showModal), never renders core content.
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      bio: "visible bio line",
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([
+      {
+        id: 4, pageId: 1, sectionId: null, orderIndex: 0, type: "url",
+        title: "NoJsLink", description: null, url: "https://nojs.example/",
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        createdAt: "2026-01-01 00:00:00",
+      },
+    ] as never[]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    const noScripts = body.replace(/<script[\s\S]*?<\/script>/g, "");
+    expect(noScripts).toContain("<h1");
+    expect(noScripts).toContain("visible bio line");
+    expect(noScripts).toContain('href="https://nojs.example/"');
+    expect(noScripts).toContain("NoJsLink");
+    // script blocks DO exist (progressive enhancement present too)
+    expect(body).toContain("<script");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
