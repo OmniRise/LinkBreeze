@@ -755,3 +755,35 @@ describe("e2e spec static contract (#81 E.83)", () => {
     expect(spec).not.toMatch(/useTranslations|getTranslations/);
   });
 });
+
+describe("public surface A/B transparency (#81 E.113)", () => {
+  it("renders from the current link row only — zero abConfig, zero i18n anywhere public", () => {
+    // Promote pins the winner INTO link.url at action time (E.76/E.80), so
+    // the public page never needs ab state: it passes the CURRENT row value
+    // and the card resolves the href from it. Grounded: page.tsx has no
+    // useTranslations, passes url={link.url}; build-link-card reads
+    // link.url and routes http(s) through /go/:id (archived tests serve
+    // the pinned url with no split). Pin the whole surface, not a sample.
+    const page = readFileSync(resolve(process.cwd(), "src/app/(public)/[slug]/page.tsx"), "utf8");
+    const compDir = resolve(process.cwd(), "src/components/public");
+    const comps = readdirSync(compDir, { recursive: true })
+      .map(String)
+      .filter((f) => (f.endsWith(".ts") || f.endsWith(".tsx")) && !f.includes(".test."));
+    expect(comps.length).toBeGreaterThan(5); // scan is real
+
+    const sources: Array<[string, string]> = [
+      ["public page", page],
+      ...comps.map((f) => [f, readFileSync(resolve(compDir, f), "utf8")] as [string, string]),
+    ];
+    for (const [name, src] of sources) {
+      expect(/abConfig|parseAbConfig/.test(src), `ab state in ${name}`).toBe(false);
+      expect(/useTranslations|getTranslations/.test(src), `i18n in ${name}`).toBe(false);
+    }
+
+    // The winner path: current row value -> card -> /go recorder.
+    expect(page).toContain("url={link.url}");
+    const card = readFileSync(resolve(compDir, "build-link-card.ts"), "utf8");
+    expect(card).toContain("const rawUrl = link.url");
+    expect(card).toContain("/go/");
+  });
+});
