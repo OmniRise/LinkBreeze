@@ -434,7 +434,7 @@ Download any page from the page switcher as a single self-contained `.html` file
 - **Where to host** - GitHub Pages, Netlify, Cloudflare Pages, or any static file server; `python3 -m http.server` works for a quick local check
 - **What travels** - your theme, custom CSS and third-party analytics snippets keep working, and every link points straight at its destination
 - **What stays home** - built-in view/click analytics and email capture need your instance; without `?embed=1`, images load from your instance via absolute URLs, so keep it reachable or export with `?embed=1`
-- **Size** - a 50-link page exports at ~107 KB raw (~8 KB gzipped), capped at 2 MiB (25 MiB with `?embed=1`)
+- **Size** - a 50-link page exports at ~107 KB raw (~8 KB gzipped), capped at 2 MiB per page file and 25 MiB per zip bundle (all pages or `?embed=1`)
 
 </details>
 

@@ -434,7 +434,7 @@ Téléchargez n'importe quelle page depuis le sélecteur de pages en un seul fic
 - **Où héberger** - GitHub Pages, Netlify, Cloudflare Pages ou tout serveur de fichiers statiques ; `python3 -m http.server` suffit pour une vérification locale rapide
 - **Ce qui voyage** - votre thème, votre CSS personnalisé et les extraits d'analytics tiers continuent de fonctionner, et chaque lien pointe directement vers sa destination
 - **Ce qui reste** - les statistiques intégrées de vues/clics et la collecte d'e-mails ont besoin de votre instance ; sans `?embed=1`, les images se chargent depuis votre instance via des URLs absolues : gardez-la accessible ou exportez avec `?embed=1`
-- **Taille** - une page de 50 liens s'exporte à ~107 Ko brut (~8 Ko gzippé), avec un plafond de 2 Mio (25 Mio avec `?embed=1`)
+- **Taille** - une page de 50 liens s'exporte à ~107 Ko brut (~8 Ko gzippé), avec un plafond de 2 Mio par fichier de page et 25 Mio par archive zip (toutes les pages ou `?embed=1`)
 
 </details>
 

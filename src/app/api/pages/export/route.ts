@@ -188,7 +188,11 @@ export async function GET(request: NextRequest) {
       content: html,
     }));
     const uploadEntries = embed ? collectUploadEntries(htmls) : [];
-    const maxBytes = embed ? EXPORT_EMBED_MAX_BYTES : EXPORT_MAX_BYTES;
+    // Batch zips scale with N pages: the 2 MiB single-file cap is the
+    // WRONG bound here (a plain 50-page batch legitimately lands ~2.5 MiB,
+    // E.79 proved it 413s) — every zip response uses the existing 25 MiB
+    // zip bound regardless of embed (decision logged in BURN-BACKLOG).
+    const maxBytes = EXPORT_EMBED_MAX_BYTES;
     const totalBytes = [...htmlEntries, ...uploadEntries].reduce(
       (sum, entry) =>
         sum +

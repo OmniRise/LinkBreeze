@@ -434,7 +434,7 @@ Sayfa değiştiriciden herhangi bir sayfayı tek bir bağımsız `.html` dosyas�
 - **Nerede barındırılır** - GitHub Pages, Netlify, Cloudflare Pages veya herhangi bir statik dosya sunucusu; hızlı yerel kontrol için `python3 -m http.server` yeterlidir
 - **Yanınızda gidenler** - temanız, özel CSS ve üçüncü taraf analitik parçaları çalışmaya devam eder ve her bağlantı doğrudan hedefine gider
 - **Evde kalanlar** - yerleşik görüntülenme ve tıklama analitiği ve e-posta toplama örneğinizi gerektirir; `?embed=1` olmadan görseller örneğinizden mutlak URL'lerle yüklenir - erişilebilir tutun ya da `?embed=1` ile dışa aktarın
-- **Boyut** - 50 bağlantılı bir sayfa ~107 KB ham (~8 KB gzip) olarak dışa aktarılır; sınır 2 MiB (`?embed=1` ile 25 MiB)
+- **Boyut** - 50 bağlantılı bir sayfa ~107 KB ham (~8 KB gzip) olarak dışa aktarılır; sayfa dosyası başına 2 MiB, zip paketi başına 25 MiB sınırı (tüm sayfalar veya `?embed=1`)
 
 </details>
 

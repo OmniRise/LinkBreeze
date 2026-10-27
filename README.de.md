@@ -434,7 +434,7 @@ Laden Sie jede Seite im Seiten-Umschalter als eine eigenständige `.html`-Datei 
 - **Wo hosten** - GitHub Pages, Netlify, Cloudflare Pages oder jeder statische Dateiserver; `python3 -m http.server` eignet sich für einen schnellen Lokaltest
 - **Was mitreist** - Ihr Theme, eigenes CSS und Drittanbieter-Analytics-Snippets funktionieren weiter, und jeder Link zeigt direkt auf sein Ziel
 - **Was zu Hause bleibt** - Die integrierte Aufruf- und Klick-Analytics sowie die E-Mail-Erfassung brauchen Ihre Instanz; ohne `?embed=1` laden Bilder über absolute URLs von Ihrer Instanz - halten Sie sie erreichbar oder exportieren Sie mit `?embed=1`
-- **Größe** - Eine Seite mit 50 Links exportiert mit ~107 KB roh (~8 KB gzip), Limit 2 MiB (25 MiB mit `?embed=1`)
+- **Größe** - Eine Seite mit 50 Links exportiert mit ~107 KB roh (~8 KB gzip), Limit 2 MiB pro Seiten-Datei und 25 MiB pro Zip-Paket (alle Seiten oder `?embed=1`)
 
 </details>
 

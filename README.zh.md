@@ -434,7 +434,7 @@ cloudflared tunnel --url http://localhost:3000
 - **托管位置** - GitHub Pages、Netlify、Cloudflare Pages 或任意静态文件服务器；`python3 -m http.server` 可用于本地快速检查
 - **随行内容** - 你的主题、自定义 CSS 和第三方统计代码照常工作，每个链接都直接指向目标地址
 - **留在本机的部分** - 内置的浏览/点击统计和邮件收集需要你的实例；不加 `?embed=1` 时，图片通过绝对 URL 从你的实例加载，请保持其可访问，或使用 `?embed=1` 导出
-- **体积** - 50 个链接的页面导出约 107 KB 原始大小（gzip 后约 8 KB），上限 2 MiB（加 `?embed=1` 为 25 MiB）
+- **体积** - 50 个链接的页面导出约 107 KB 原始大小（gzip 后约 8 KB），单页文件上限 2 MiB，zip 包上限 25 MiB（全部页面或 `?embed=1`）
 
 </details>
 

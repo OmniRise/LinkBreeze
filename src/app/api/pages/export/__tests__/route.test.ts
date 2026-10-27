@@ -193,21 +193,22 @@ describe("GET /api/pages/export", () => {
     expect(buf.readUInt32LE(0)).toBe(0x04034b50); // PK local header
   });
 
-  it("batch aggregate cap: combined >2MiB → 413, no zip bytes ever built (E.51)", async () => {
-    // 3 pages × ~800KB bios ≈ 2.4MiB combined, over EXPORT_MAX_BYTES
-    const pages = Array.from({ length: 3 }, (_, i) => ({
+  it("batch aggregate cap: combined >25MiB → 413, no zip bytes ever built (E.51)", async () => {
+    // Zip-bound decision (logged): batch zips use the 25 MiB bound, NOT
+    // the 2 MiB single-file cap — 36 pages × ~750KB bios ≈ 27MiB combined
+    const pages = Array.from({ length: 36 }, (_, i) => ({
       ...(PAGE as object),
       id: i + 1,
       slug: `big${i + 1}`,
-      bio: "B".repeat(800 * 1024),
+      bio: "B".repeat(750 * 1024),
     })) as never[];
     mockGetAllPages.mockResolvedValue(pages);
     const res = await GET(req("?all=1"));
     expect(res.status).toBe(413);
     expect(res.headers.get("Content-Type")).toContain("application/json");
     const json = await res.json();
-    expect(json.error).toContain("2 MiB limit");
-    expect(json.bytes).toBeGreaterThan(2 * 1024 * 1024);
+    expect(json.error).toContain("25 MiB limit");
+    expect(json.bytes).toBeGreaterThan(25 * 1024 * 1024);
     // proof createZip never produced output: no PK signature anywhere
     const raw = Buffer.from(
       new TextEncoder().encode(JSON.stringify(json)),
@@ -306,6 +307,35 @@ describe("GET /api/pages/export", () => {
     const bigJson = await big.json();
     expect(typeof bigJson.error).toBe("string");
     expect(bigJson.bytes).toBeGreaterThan(0);
+  });
+
+  it("batch of 50 pages completes end-to-end in < 5s (E.79)", async () => {
+    const pages = Array.from({ length: 50 }, (_, i) => ({
+      ...(PAGE as object),
+      id: i + 1,
+      slug: `page-${i + 1}`,
+    })) as never[];
+    mockGetAllPages.mockResolvedValue(pages);
+    mockGetActiveLinks.mockResolvedValue(
+      Array.from({ length: 20 }, (_, i) => ({
+        id: i + 1, pageId: 1, sectionId: null, orderIndex: i, type: "url",
+        title: `Link ${i}`, description: "d", url: `https://e.com/${i}`,
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        cardStyle: "compact", popupText: null, ctaLabel: null,
+        redirectSlug: null, createdAt: "2026-01-01 00:00:00",
+      })) as never,
+    );
+    const t0 = performance.now();
+    const res = await GET(req("?all=1"));
+    const ms = performance.now() - t0;
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    expect(buf.readUInt32LE(0)).toBe(0x04034b50);
+    // generous wall tripwire (typical: well under 1s); catches a
+    // pathological per-page re-render or accidental N+1 into sync work
+    expect(ms, `batch of 50 took ${Math.round(ms)}ms`).toBeLessThan(5000);
   });
 
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {

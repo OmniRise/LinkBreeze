@@ -434,7 +434,7 @@ Scarica qualsiasi pagina dal selettore pagine come un unico file `.html` autonom
 - **Dove ospitare** - GitHub Pages, Netlify, Cloudflare Pages o qualsiasi server di file statici; `python3 -m http.server` va bene per un rapido controllo locale
 - **Cosa viaggia** - il tuo tema, il CSS personalizzato e gli snippet analytics di terze parti continuano a funzionare, e ogni link punta direttamente alla destinazione
 - **Cosa resta a casa** - le statistiche integrate di visualizzazioni/click e la raccolta email richiedono la tua istanza; senza `?embed=1` le immagini si caricano dalla tua istanza tramite URL assoluti, quindi tienila raggiungibile o esporta con `?embed=1`
-- **Dimensione** - una pagina con 50 link si esporta a ~107 KB grezzi (~8 KB gzip), con limite di 2 MiB (25 MiB con `?embed=1`)
+- **Dimensione** - una pagina con 50 link si esporta a ~107 KB grezzi (~8 KB gzip), con limite di 2 MiB per file di pagina e 25 MiB per archivio zip (tutte le pagine o `?embed=1`)
 
 </details>
 
