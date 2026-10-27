@@ -375,6 +375,10 @@ describe("GET /api/pages/export", () => {
       off = start + size;
     }
     expect(entries).toHaveLength(30);
+    // archive-level order: local headers follow page-query order (E.97)
+    expect(entries.map((e) => e.name)).toEqual(
+      Array.from({ length: 30 }, (_, i) => `bulk-${i + 1}.html`),
+    );
     for (const { name, data } of entries) {
       const html = data.toString("utf8");
       expect(html.startsWith("<!DOCTYPE html>"), name).toBe(true);
