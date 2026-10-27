@@ -212,4 +212,38 @@ describe("embed zip ships real uploads files (E.35/E.52)", () => {
     }
     expect(uploadNames.length).toBe(new Set(uploadNames).size);
   });
+
+  it("10-page embed batch: every html entry is fully origin-free (E.90)", async () => {
+    const pages = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      slug: `rel-${i + 1}`,
+      title: `Rel ${i + 1}`,
+      bio: `Body ${i + 1}`,
+      themeId: null,
+      avatarUrl: `/api/uploads/sheet-${i + 1}.png`,
+      emailCapture: false,
+      shareEnabled: false,
+    })) as never[];
+    vi.mocked(q.getAllPages).mockResolvedValue(pages);
+    vi.mocked(q.getActiveLinks).mockResolvedValue([]);
+    vi.mocked(q.getSectionsByPage).mockResolvedValue([]);
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/pages/export?all=1&embed=1", {
+        headers: { host: "localhost:3000" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const entries = readLocalEntries(Buffer.from(await res.arrayBuffer()));
+    const htmls = entries.filter((e) => e.name.endsWith(".html"));
+    expect(htmls).toHaveLength(10);
+    for (const { name, data } of htmls) {
+      const html = data.toString("utf8");
+      // single-page embed invariants, held at batch scale
+      expect(html, name).not.toContain("https://links.example.com");
+      expect(html, name).not.toContain("http://localhost");
+      expect(html, name).not.toContain("/api/uploads/");
+      expect(html, name).toContain(`uploads/sheet-`);
+      expect(html.startsWith("<!DOCTYPE html>"), name).toBe(true);
+    }
+  });
 });
