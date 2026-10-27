@@ -325,4 +325,45 @@ describe("spec hygiene (E.19)", () => {
     expect(new Set(ids).size).toBe(ids.length); // globally unique
     expect(ids.length).toBe(18);
   });
+
+  it("E.84: README endpoints table maps 1:1 onto the spec (table ↔ operations)", () => {
+    const readme = fs.readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+    // Scope to the REST API section — other README tables are unrelated.
+    const start = readme.indexOf("## 🔌 REST API");
+    expect(start).toBeGreaterThan(-1);
+    const rest = readme.slice(start);
+    const section = rest.slice(0, rest.indexOf("\n## "));
+
+    const rows: Array<[string, string]> = [];
+    for (const m of section.matchAll(/^\| (GET|POST|PUT|PATCH|DELETE) \| `([^`]+)` \|/gm)) {
+      rows.push([m[1], m[2]]);
+    }
+    expect(rows.length).toBe(15);
+
+    const documented = new Set<string>();
+    for (const [p, methods] of Object.entries(doc.paths)) {
+      for (const method of Object.keys(methods)) {
+        documented.add(`${method.toUpperCase()} ${p}`);
+      }
+    }
+    // The three meta ops are documented in the section prose, not the table.
+    const meta = new Set([
+      "GET /api/v1/docs",
+      "GET /api/v1/openapi",
+      "GET /api/v1/openapi.json",
+    ]);
+
+    const fromTable = new Set(
+      rows.map(([verb, p]) => `${verb} ${p.replace(/:([A-Za-z]+)/g, "{$1}")}`),
+    );
+    for (const key of fromTable) {
+      expect(documented.has(key), `README row not in spec: ${key}`).toBe(true);
+    }
+    for (const key of documented) {
+      expect(
+        fromTable.has(key) || meta.has(key),
+        `spec op missing from README table: ${key}`,
+      ).toBe(true);
+    }
+  });
 });
