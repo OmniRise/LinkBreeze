@@ -50,7 +50,7 @@ import { db, seedLink } from "./integration-setup";
 import { analyticsClicks } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { assignVariant, parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
-import { setAbTestStatus } from "@/server/actions/links";
+import { setAbTestStatus, removeAbTest } from "@/server/actions/links";
 import { getLink } from "@/server/queries";
 import { getVisitorHash } from "@/lib/visitor";
 import { isBot } from "@/lib/bot-detect";
@@ -203,6 +203,44 @@ describe("[integration] non-running states serve link.url, unlabeled (#81 E.61)"
     );
     expect((await go(link.id, b)).headers.get("location")).toBe(base.urlB);
     expect(tally()).toEqual({ A: 2, B: 2, null: 2 });
+
+    vi.unstubAllEnvs();
+  });
+
+  it("E.70: removeAbTest through the real action -> /go serves the bare link, history labels survive", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+    const link = seedLink({
+      url: "https://example.com/own-plain",
+      abConfig: serializeAbConfig(base),
+    });
+    const { a, b } = oppositePair(link.id);
+    const tally = () =>
+      Object.fromEntries(counts(link.id).map((r) => [String(r.variant), r.c]));
+
+    // RUNNING: split serves, both labels recorded.
+    expect((await go(link.id, a)).headers.get("location")).toBe(
+      "https://example.com/own-plain",
+    );
+    expect((await go(link.id, b)).headers.get("location")).toBe(base.urlB);
+    expect(tally()).toEqual({ A: 1, B: 1 });
+
+    // REMOVE through the REAL action -> config NULL in the DB.
+    const fd = new FormData();
+    fd.set("id", String(link.id));
+    const res = await removeAbTest(fd);
+    if (!res.success) throw new Error(`remove failed: ${res.error}`);
+    expect((await getLink(link.id))?.abConfig ?? null).toBeNull();
+
+    // The SAME visitors next get the bare link (no split ever again) and
+    // record UNLABELED; the pre-removal labels are NOT rewritten/deleted.
+    expect((await go(link.id, a)).headers.get("location")).toBe(
+      "https://example.com/own-plain",
+    );
+    expect((await go(link.id, b)).headers.get("location")).toBe(
+      "https://example.com/own-plain",
+    );
+    expect(tally()).toEqual({ A: 1, B: 1, null: 2 });
 
     vi.unstubAllEnvs();
   });
