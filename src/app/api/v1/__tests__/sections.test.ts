@@ -257,6 +257,17 @@ describe("DELETE /api/v1/sections/:id", () => {
     expect(again.status).toBe(404);
   });
 
+  it("E.98: hostile path ids 400 on DELETE before any lookup (parseId gate mirrors PUT)", async () => {
+    for (const hostile of ["abc", "-1", "1.5", "99999999999999", "0"]) {
+      const res = await deleteSectionRoute(
+        req(`/api/v1/sections/${hostile}`, { method: "DELETE" }),
+        { params: Promise.resolve({ id: hostile }) },
+      );
+      expect(res.status, hostile).toBe(400);
+      expect((await res.json()).error.code).toBe("validation");
+    }
+  });
+
   it("403s in demo mode", async () => {
     const s = await createVia("Demo-proof section", pageId);
     process.env.DEMO_MODE = "true";
