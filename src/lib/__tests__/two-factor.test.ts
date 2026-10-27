@@ -33,7 +33,12 @@ describe("TOTP secret encryption at rest", () => {
   it("returns null on tampered ciphertext", () => {
     const enc = encryptSecret("MYSECRET");
     const parts = enc.split(":");
-    parts[2] = parts[2].replace(/^../, "ff"); // flip ciphertext bytes
+    // XOR the first ciphertext byte — writing a FIXED "ff" was flaky:
+    // when the random byte already WAS ff the tamper was a no-op, the
+    // GCM decrypt succeeded, and the test failed (~1/256 runs observed).
+    const firstByte = parseInt(parts[2].slice(0, 2), 16);
+    const flipped = (firstByte ^ 0xff).toString(16).padStart(2, "0");
+    parts[2] = flipped + parts[2].slice(2);
     expect(decryptSecret(parts.join(":"))).toBeNull();
   });
 
