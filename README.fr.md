@@ -412,16 +412,23 @@ Gérez vos liens, votre profil et vos statistiques depuis des scripts, des pipel
 
 | Méthode | Chemin | Description |
 |---------|--------|-------------|
-| GET | `/api/v1/links` | Lister tous les liens |
+| GET | `/api/v1/links` | Lister les liens (`?limit`/`?cursor` pages, `?fields=` champs réduits) |
+| GET | `/api/v1/links/:id` | Obtenir un lien par son id |
 | POST | `/api/v1/links` | Créer un lien |
 | PUT | `/api/v1/links/:id` | Modifier un lien (partiel - seuls les champs envoyés changent) |
 | DELETE | `/api/v1/links/:id` | Supprimer un lien |
 | PUT | `/api/v1/links/reorder` | Réordonner les liens (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Créer des liens en lot (1-100 éléments, résultats par élément) |
+| GET | `/api/v1/sections` | Lister les sections (`?pageId=N` filtre) |
+| POST | `/api/v1/sections` | Créer une section |
+| PUT | `/api/v1/sections/:id` | Modifier une section (partiel) |
+| DELETE | `/api/v1/sections/:id` | Supprimer une section (ses liens repassent hors catégorie) |
+| PUT | `/api/v1/sections/reorder` | Réordonner les sections (`{ "ids": [3, 1, 2] }`) |
 | GET | `/api/v1/profile` | Obtenir le profil |
 | PUT | `/api/v1/profile` | Modifier le profil (partiel) |
 | GET | `/api/v1/analytics` | Vues, clics et liens populaires (`?range=7d\|30d\|90d`) |
 
-Les réponses de succès enveloppent la charge dans `data` ; les erreurs sont `{ "error": { "code", "message" } }` avec les codes HTTP correspondants (401 clé manquante ou invalide, 400 validation, 403 mode démo, 429 limite dépassée). Les écritures de liens passent par la même validation que l'interface d'administration - liste blanche des schémas d'URL incluse.
+Les réponses de succès enveloppent la charge dans `data` ; les erreurs sont `{ "error": { "code", "message" } }` avec les codes HTTP correspondants (401 clé manquante ou invalide, 400 validation, 403 mode démo, 429 limite dépassée). Les écritures de liens passent par la même validation que l'interface d'administration - liste blanche des schémas d'URL incluse. Les lectures renvoient aussi un `ETag` ; renvoyez-le en `If-None-Match` pour un `304` vide tant que rien ne change.
 
 </details>
 

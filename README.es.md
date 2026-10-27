@@ -412,16 +412,23 @@ Gestiona enlaces, perfil y analíticas desde scripts, pipelines de CI o herramie
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/api/v1/links` | Listar todos los enlaces |
+| GET | `/api/v1/links` | Listar enlaces (`?limit`/`?cursor` páginas, `?fields=` campos reducidos) |
+| GET | `/api/v1/links/:id` | Obtener un enlace por id |
 | POST | `/api/v1/links` | Crear un enlace |
 | PUT | `/api/v1/links/:id` | Actualizar un enlace (parcial - solo cambian los campos enviados) |
 | DELETE | `/api/v1/links/:id` | Eliminar un enlace |
 | PUT | `/api/v1/links/reorder` | Reordenar enlaces (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Crear enlaces por lotes (1-100 elementos, resultados por elemento) |
+| GET | `/api/v1/sections` | Listar secciones (`?pageId=N` filtra) |
+| POST | `/api/v1/sections` | Crear una sección |
+| PUT | `/api/v1/sections/:id` | Actualizar una sección (parcial) |
+| DELETE | `/api/v1/sections/:id` | Eliminar una sección (sus enlaces vuelven a sin categoría) |
+| PUT | `/api/v1/sections/reorder` | Reordenar secciones (`{ "ids": [3, 1, 2] }`) |
 | GET | `/api/v1/profile` | Obtener el perfil |
 | PUT | `/api/v1/profile` | Actualizar el perfil (parcial) |
 | GET | `/api/v1/analytics` | Vistas, clics y enlaces principales (`?range=7d\|30d\|90d`) |
 
-Las respuestas exitosas envuelven la carga en `data`; los errores son `{ "error": { "code", "message" } }` con los estados HTTP correspondientes (401 clave ausente o inválida, 400 validación, 403 modo demo, 429 límite excedido). Las escrituras de enlaces pasan por la misma validación que la interfaz de administración - incluida la lista permitida de esquemas de URL.
+Las respuestas exitosas envuelven la carga en `data`; los errores son `{ "error": { "code", "message" } }` con los estados HTTP correspondientes (401 clave ausente o inválida, 400 validación, 403 modo demo, 429 límite excedido). Las escrituras de enlaces pasan por la misma validación que la interfaz de administración - incluida la lista permitida de esquemas de URL. Las lecturas también envían un `ETag`; devuélvelo como `If-None-Match` para recibir un `304` vacío mientras nada cambie.
 
 </details>
 

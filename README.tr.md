@@ -412,16 +412,23 @@ Bağlantıları, profili ve analitiği betiklerden, CI boru hatlarından veya ü
 
 | Yöntem | Yol | Açıklama |
 |--------|-----|----------|
-| GET | `/api/v1/links` | Tüm bağlantıları listele |
+| GET | `/api/v1/links` | Bağlantıları listele (`?limit`/`?cursor` sayfalar, `?fields=` azaltılmış alanlar) |
+| GET | `/api/v1/links/:id` | Id ile bir bağlantı getir |
 | POST | `/api/v1/links` | Bağlantı oluştur |
 | PUT | `/api/v1/links/:id` | Bağlantıyı güncelle (kısmi - yalnızca gönderilen alanlar değişir) |
 | DELETE | `/api/v1/links/:id` | Bağlantıyı sil |
 | PUT | `/api/v1/links/reorder` | Bağlantıları yeniden sırala (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Toplu bağlantı oluşturma (1-100 öğe, öğe başına sonuç) |
+| GET | `/api/v1/sections` | Bölümleri listele (`?pageId=N` filtreler) |
+| POST | `/api/v1/sections` | Bölüm oluştur |
+| PUT | `/api/v1/sections/:id` | Bölümü güncelle (kısmi) |
+| DELETE | `/api/v1/sections/:id` | Bölümü sil (bağlantıları kategorisiz kalır) |
+| PUT | `/api/v1/sections/reorder` | Bölümleri yeniden sırala (`{ "ids": [3, 1, 2] }`) |
 | GET | `/api/v1/profile` | Profili al |
 | PUT | `/api/v1/profile` | Profili güncelle (kısmi) |
 | GET | `/api/v1/analytics` | Görüntülenmeler, tıklamalar ve üst bağlantılar (`?range=7d\|30d\|90d`) |
 
-Başarılı yanıtlar yükü `data` içinde paketler; hatalar `{ "error": { "code", "message" } }` biçimindedir ve eşleş HTTP durumlarıyla gelir (401 anahtar eksik veya geçersiz, 400 doğrulama, 403 demo modu, 429 sınır). Bağlantı yazımları, yönetim arayüzüyle aynı doğrulamadan geçer - URL şeması izin listesi dahil.
+Başarılı yanıtlar yükü `data` içinde paketler; hatalar `{ "error": { "code", "message" } }` biçimindedir ve eşleş HTTP durumlarıyla gelir (401 anahtar eksik veya geçersiz, 400 doğrulama, 403 demo modu, 429 sınır). Bağlantı yazımları, yönetim arayüzüyle aynı doğrulamadan geçer - URL şeması izin listesi dahil. Okuma uçları da bir `ETag` döner; değişene kadar boş `304` almak için onu `If-None-Match` olarak geri gönderin.
 
 </details>
 

@@ -412,16 +412,23 @@ Gestisci link, profilo e analisi da script, pipeline CI o strumenti di terze par
 
 | Metodo | Percorso | Descrizione |
 |--------|----------|-------------|
-| GET | `/api/v1/links` | Elenca tutti i link |
+| GET | `/api/v1/links` | Elenca link (`?limit`/`?cursor` pagine, `?fields=` campi ridotti) |
+| GET | `/api/v1/links/:id` | Ottieni un link per id |
 | POST | `/api/v1/links` | Crea un link |
 | PUT | `/api/v1/links/:id` | Aggiorna un link (parziale - cambiano solo i campi inviati) |
 | DELETE | `/api/v1/links/:id` | Elimina un link |
 | PUT | `/api/v1/links/reorder` | Riordina i link (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Crea link in blocco (1-100 elementi, risultati per elemento) |
+| GET | `/api/v1/sections` | Elenca sezioni (`?pageId=N` filtra) |
+| POST | `/api/v1/sections` | Crea una sezione |
+| PUT | `/api/v1/sections/:id` | Aggiorna una sezione (parziale) |
+| DELETE | `/api/v1/sections/:id` | Elimina una sezione (i suoi link tornano senza categoria) |
+| PUT | `/api/v1/sections/reorder` | Riordina le sezioni (`{ "ids": [3, 1, 2] }`) |
 | GET | `/api/v1/profile` | Ottieni il profilo |
 | PUT | `/api/v1/profile` | Aggiorna il profilo (parziale) |
 | GET | `/api/v1/analytics` | Visualizzazioni, clic e link principali (`?range=7d\|30d\|90d`) |
 
-Le risposte di successo racchiudono il payload in `data`; gli errori sono `{ "error": { "code", "message" } }` con gli stati HTTP corrispondenti (401 chiave mancante o non valida, 400 validazione, 403 modalità demo, 429 limite). Le scritture dei link seguono la stessa validazione dell'interfaccia admin - lista consentita degli schemi URL inclusa.
+Le risposte di successo racchiudono il payload in `data`; gli errori sono `{ "error": { "code", "message" } }` con gli stati HTTP corrispondenti (401 chiave mancante o non valida, 400 validazione, 403 modalità demo, 429 limite). Le scritture dei link seguono la stessa validazione dell'interfaccia admin - lista consentita degli schemi URL inclusa. Anche le letture inviano un `ETag`; rimandalo come `If-None-Match` per ricevere un `304` vuoto finché non cambia nulla.
 
 </details>
 

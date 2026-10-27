@@ -412,16 +412,23 @@ Gerencie links, perfil e análises a partir de scripts, pipelines de CI ou ferra
 
 | Método | Caminho | Descrição |
 |--------|---------|-----------|
-| GET | `/api/v1/links` | Listar todos os links |
+| GET | `/api/v1/links` | Listar links (`?limit`/`?cursor` páginas, `?fields=` campos reduzidos) |
+| GET | `/api/v1/links/:id` | Obter um link por id |
 | POST | `/api/v1/links` | Criar um link |
 | PUT | `/api/v1/links/:id` | Atualizar um link (parcial - só os campos enviados mudam) |
 | DELETE | `/api/v1/links/:id` | Excluir um link |
 | PUT | `/api/v1/links/reorder` | Reordenar links (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Criar links em lote (1-100 itens, resultados por item) |
+| GET | `/api/v1/sections` | Listar seções (`?pageId=N` filtra) |
+| POST | `/api/v1/sections` | Criar uma seção |
+| PUT | `/api/v1/sections/:id` | Atualizar uma seção (parcial) |
+| DELETE | `/api/v1/sections/:id` | Excluir uma seção (seus links voltam a sem categoria) |
+| PUT | `/api/v1/sections/reorder` | Reordenar seções (`{ "ids": [3, 1, 2] }`) |
 | GET | `/api/v1/profile` | Obter o perfil |
 | PUT | `/api/v1/profile` | Atualizar o perfil (parcial) |
 | GET | `/api/v1/analytics` | Visualizações, cliques e links principais (`?range=7d\|30d\|90d`) |
 
-Respostas de sucesso envolvem o payload em `data`; erros são `{ "error": { "code", "message" } }` com os status HTTP correspondentes (401 chave ausente ou inválida, 400 validação, 403 modo demo, 429 limite excedido). As gravações de links passam pela mesma validação da interface de administração - incluindo a lista permitida de esquemas de URL.
+Respostas de sucesso envolvem o payload em `data`; erros são `{ "error": { "code", "message" } }` com os status HTTP correspondentes (401 chave ausente ou inválida, 400 validação, 403 modo demo, 429 limite excedido). As gravações de links passam pela mesma validação da interface de administração - incluindo a lista permitida de esquemas de URL. As leituras também enviam um `ETag`; devolva-o como `If-None-Match` para receber um `304` vazio enquanto nada muda.
 
 </details>
 

@@ -412,16 +412,23 @@ Verwalte Links, Profil und Analysen aus Skripten, CI-Pipelines oder Drittanbiete
 
 | Methode | Pfad | Beschreibung |
 |---------|------|--------------|
-| GET | `/api/v1/links` | Alle Links auflisten |
+| GET | `/api/v1/links` | Links auflisten (`?limit`/`?cursor` Seiten, `?fields=` reduzierte Felder) |
+| GET | `/api/v1/links/:id` | Ein Link per ID abrufen |
 | POST | `/api/v1/links` | Link erstellen |
 | PUT | `/api/v1/links/:id` | Link aktualisieren (partiell - nur gesendete Felder ändern sich) |
 | DELETE | `/api/v1/links/:id` | Link löschen |
 | PUT | `/api/v1/links/reorder` | Links neu ordnen (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Links im Bulk erstellen (1-100 Einträge, Ergebnis pro Eintrag) |
+| GET | `/api/v1/sections` | Sektionen auflisten (`?pageId=N` filtert) |
+| POST | `/api/v1/sections` | Sektion anlegen |
+| PUT | `/api/v1/sections/:id` | Sektion aktualisieren (partiell) |
+| DELETE | `/api/v1/sections/:id` | Sektion löschen (deren Links fallen zurück auf unkategorisiert) |
+| PUT | `/api/v1/sections/reorder` | Sektionen neu ordnen (`{ "ids": [3, 1, 2] }`) |
 | GET | `/api/v1/profile` | Profil abrufen |
 | PUT | `/api/v1/profile` | Profil aktualisieren (partiell) |
 | GET | `/api/v1/analytics` | Aufrufe, Klicks und Top-Links (`?range=7d\|30d\|90d`) |
 
-Erfolgreiche Antworten verpacken die Nutzlast in `data`; Fehler sind `{ "error": { "code", "message" } }` mit passenden HTTP-Statuscodes (401 fehlender oder ungültiger Schlüssel, 400 Validierung, 403 Demo-Modus, 429 Limit). Link-Schreibvorgänge durchlaufen dieselbe Validierung wie die Admin-Oberfläche - inklusive URL-Schema-Allowlist.
+Erfolgreiche Antworten verpacken die Nutzlast in `data`; Fehler sind `{ "error": { "code", "message" } }` mit passenden HTTP-Statuscodes (401 fehlender oder ungültiger Schlüssel, 400 Validierung, 403 Demo-Modus, 429 Limit). Link-Schreibvorgänge durchlaufen dieselbe Validierung wie die Admin-Oberfläche - inklusive URL-Schema-Allowlist. Leseendpunkte senden zusätzlich ein `ETag`; sende es als `If-None-Match` zurück für einen leeren `304`, solange sich nichts ändert.
 
 </details>
 

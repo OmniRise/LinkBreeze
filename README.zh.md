@@ -412,16 +412,23 @@ cloudflared tunnel --url http://localhost:3000
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/v1/links` | 列出所有链接 |
+| GET | `/api/v1/links` | 列出链接（`?limit`/`?cursor` 分页，`?fields=` 精简字段） |
+| GET | `/api/v1/links/:id` | 按 id 获取单个链接 |
 | POST | `/api/v1/links` | 创建链接 |
 | PUT | `/api/v1/links/:id` | 更新链接（部分 - 只有发送的字段会更改） |
 | DELETE | `/api/v1/links/:id` | 删除链接 |
 | PUT | `/api/v1/links/reorder` | 重新排序链接（`{ "ids": [3, 1, 2] }`） |
+| POST | `/api/v1/links/import` | 批量创建链接（1-100 项，逐项结果） |
+| GET | `/api/v1/sections` | 列出分节（`?pageId=N` 过滤） |
+| POST | `/api/v1/sections` | 创建分节 |
+| PUT | `/api/v1/sections/:id` | 更新分节（部分） |
+| DELETE | `/api/v1/sections/:id` | 删除分节（其链接回到未分类） |
+| PUT | `/api/v1/sections/reorder` | 重新排序分节（`{ "ids": [3, 1, 2] }`） |
 | GET | `/api/v1/profile` | 获取个人资料 |
 | PUT | `/api/v1/profile` | 更新个人资料（部分） |
 | GET | `/api/v1/analytics` | 浏览量、点击量和热门链接（`?range=7d\|30d\|90d`） |
 
-成功响应将数据包装在 `data` 中；错误为 `{ "error": { "code", "message" } }` 并带有对应的 HTTP 状态码（401 密钥缺失或无效、400 校验、403 演示模式、429 超出限流）。链接写入经过与管理界面相同的校验 - 包括 URL 协议白名单。
+成功响应将数据包装在 `data` 中；错误为 `{ "error": { "code", "message" } }` 并带有对应的 HTTP 状态码（401 密钥缺失或无效、400 校验、403 演示模式、429 超出限流）。链接写入经过与管理界面相同的校验 - 包括 URL 协议白名单。读取接口还会返回 `ETag`；在无变化时将其作为 `If-None-Match` 传回即可得到空的 `304`。
 
 </details>
 

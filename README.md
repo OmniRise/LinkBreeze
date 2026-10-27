@@ -412,16 +412,23 @@ Manage links, your profile and analytics from scripts, CI pipelines or third-par
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/links` | List all links |
+| GET | `/api/v1/links` | List links (`?limit`/`?cursor` pages, `?fields=` sparse rows) |
+| GET | `/api/v1/links/:id` | Get one link by id |
 | POST | `/api/v1/links` | Create a link |
 | PUT | `/api/v1/links/:id` | Update a link (partial - only fields you send change) |
 | DELETE | `/api/v1/links/:id` | Delete a link |
 | PUT | `/api/v1/links/reorder` | Reorder links (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Bulk-create links (1-100 items, per-item results) |
+| GET | `/api/v1/sections` | List sections (`?pageId=N` filters) |
+| POST | `/api/v1/sections` | Create a section |
+| PUT | `/api/v1/sections/:id` | Update a section (partial) |
+| DELETE | `/api/v1/sections/:id` | Delete a section (its links fall back to uncategorized) |
+| PUT | `/api/v1/sections/reorder` | Reorder sections (`{ "ids": [3, 1, 2] }`) |
 | GET | `/api/v1/profile` | Get the profile |
 | PUT | `/api/v1/profile` | Update the profile (partial) |
 | GET | `/api/v1/analytics` | Views, clicks and top links (`?range=7d\|30d\|90d`) |
 
-Success responses wrap the payload in `data`; errors are `{ "error": { "code", "message" } }` with matching HTTP statuses (401 missing or invalid key, 400 validation, 403 demo mode, 429 rate limited). Link writes run the same validation as the admin UI - URL scheme allowlist included.
+Success responses wrap the payload in `data`; errors are `{ "error": { "code", "message" } }` with matching HTTP statuses (401 missing or invalid key, 400 validation, 403 demo mode, 429 rate limited). Link writes run the same validation as the admin UI - URL scheme allowlist included. Read endpoints also send an `ETag`; send it back as `If-None-Match` to receive an empty `304` until something changes.
 
 </details>
 
