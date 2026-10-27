@@ -19,10 +19,12 @@ import {
   updateSetting,
   recordPageview,
   recordClick,
+  getLink,
+  getLinkStats,
   DEFAULT_ANALYTICS_RETENTION_DAYS,
 } from "@/server/queries";
 import { analyticsPageviews, analyticsClicks } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { sql, eq, inArray } from "drizzle-orm";
 
 const DAYS = 24 * 60 * 60 * 1000;
 
@@ -100,5 +102,59 @@ describe("[integration] retention resolver", () => {
   it("falls back to the default on a non-numeric stored value", async () => {
     await updateSetting("analyticsRetentionDays", "forever");
     expect(await getAnalyticsRetentionDays()).toBe(DEFAULT_ANALYTICS_RETENTION_DAYS);
+  });
+
+  it("E.97: post-prune counter honesty — clicksCount stays monotone, stats recomputes from rows", async () => {
+    // Design pinned (#83-era, pre-existing): links.clicksCount is the
+    // LIFETIME counter — transactionally paired with each INSERT, never
+    // decremented by retention pruning. getLinkStats recomputes from the
+    // REMAINING rows. After a prune the two legitimately diverge, and the
+    // gap must equal EXACTLY the pruned rows (counter never lies about
+    // "clicks ever", stats never lies about "rows in window").
+    // Cold-cache safety: delete the setting so a hypothetical cold read
+    // resolves to the 90-day default; the warm cache already holds 90.
+    db.run(sql`DELETE FROM settings WHERE key = 'analyticsRetentionDays'`);
+
+    const link = seedLink({ pageId: 1 });
+    // 15 fresh clicks through the REAL recordClick (each bumps clicksCount
+    // in the same transaction as its insert).
+    for (let i = 0; i < 15; i++) {
+      await recordClick(link.id, `e97-${i}`, null, "click", i % 2 === 0 ? "A" : "B");
+    }
+    const before = (await getLink(link.id))!.clicksCount;
+    expect(before).toBe(15);
+
+    // Backdate 10 of them past the 90-day window (prunable), leaving 5.
+    const ids = db
+      .select({ id: analyticsClicks.id })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, link.id))
+      .limit(10)
+      .all()
+      .map((r) => r.id);
+    expect(ids.length).toBe(10);
+    const oldStamp = new Date(Date.now() - 100 * DAYS).toISOString().slice(0, 19).replace("T", " ");
+    db.update(analyticsClicks)
+      .set({ createdAt: oldStamp })
+      .where(inArray(analyticsClicks.id, ids))
+      .run();
+
+    // Next recordClick fires the opportunistic prune (default 90d).
+    await recordClick(link.id, "e97-trigger", null, "click", "A");
+
+    const row = (await getLink(link.id))!;
+    const remaining = (
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(analyticsClicks)
+        .where(eq(analyticsClicks.linkId, link.id))
+        .all() as { c: number }[]
+    )[0].c;
+    const stats = (await getLinkStats(link.id, "30d"))!;
+
+    expect(remaining).toBe(6); // 5 fresh + the trigger; 10 pruned
+    expect(row.clicksCount).toBe(before + 1); // 16 — prune NEVER decrements
+    expect(stats.totalClicks).toBe(remaining); // stats = rows actually present
+    expect(row.clicksCount - stats.totalClicks).toBe(10); // gap == pruned, exactly
   });
 });
