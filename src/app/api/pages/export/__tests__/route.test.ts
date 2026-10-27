@@ -852,7 +852,11 @@ describe("GET /api/pages/export", () => {
     expect(urls.length).toBeGreaterThan(0); // non-vacuous
     for (const u of urls) {
       // plain: every network url points at THIS origin's api routes —
-      // never relative (it would break on static hosts), never foreign
+      // never relative (it would break on static hosts), never foreign.
+      // DELIBERATE CARVE-OUT (E.78): customCss url()/@import contents
+      // stay byte-verbatim in plain mode and are EXCLUDED from this
+      // sweep's spirit — this fixture carries no customCss, and a future
+      // one that does must assert per E.78/E.256's own pins instead.
       expect(u, u).toMatch(/^https?:\/\/localhost:3000\//);
     }
     expect(urls.some((u) => u === "http://localhost:3000/api/uploads/f-abc.woff2")).toBe(
@@ -1400,6 +1404,34 @@ describe("GET /api/pages/export", () => {
     );
     expect(embedBody).toContain("@import url('uploads/site-font.css')");
     expect(embedBody).not.toContain("@import url('/api/");
+  });
+
+  it("theme query rejections propagate (E.259)", async () => {
+    // E.226 pinned getPageById; the theme queries are the second entry
+    // point — getActiveTheme (line 225) and getThemeById (line 98) are
+    // awaited bare, so their rejections must surface (framework → 500)
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      themeId: 9,
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    mockGetThemeById.mockImplementationOnce(
+      () => Promise.reject(new Error("theme db down")) as never,
+    );
+    await expect(GET(req("?id=1"))).rejects.toThrow("theme db down");
+
+    // fallback path: page has NO theme → getActiveTheme rejects instead
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object), themeId: null } as never);
+    mockGetActiveTheme.mockImplementationOnce(
+      () => Promise.reject(new Error("active db down")) as never,
+    );
+    await expect(GET(req("?id=1"))).rejects.toThrow("active db down");
+
+    // restore defaults for later tests
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object) } as never);
+    mockGetThemeById.mockResolvedValue(null as never);
+    mockGetActiveTheme.mockResolvedValue({ animationType: "none" } as never);
   });
 
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
