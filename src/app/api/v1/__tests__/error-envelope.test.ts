@@ -225,6 +225,19 @@ describe("E.30 error envelope across the whole surface", () => {
     );
   });
 
+  it("E.135: malformed JSON on PUT /profile is a 400 validation envelope (never 500)", async () => {
+    const res = await putProfileRoute(
+      req("/api/v1/profile", { method: "PUT", raw: '{"displayName": "unterminated' }),
+    );
+    expect(res.status).toBe(400); // parseJsonBody → null → typed 400, not the 500 catch
+    const body = await res.json();
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(Object.keys(body.error).sort()).toEqual(["code", "message"]);
+    expect(body.error.code).toBe("validation");
+    expect(body.error.message).toBe("Request body must be a JSON object."); // tier A: API-authored
+    expect(res.headers.get("x-ratelimit-limit")).toBeTruthy(); // rate headers ride the 400
+  });
+
   it("404 not_found (unknown resources)", async () => {
     await expectErrorEnvelope(
       "GET /links/:id missing",
