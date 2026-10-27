@@ -144,4 +144,27 @@ describe("dedupeNames", () => {
       expect(name).not.toContain("\\");
     }
   });
+
+  it("EOCD is a clean 22-byte tail: zero comment, counts and offsets exact (E.102)", () => {
+    const entries: ZipEntry[] = [
+      { name: "a.html", content: "<!DOCTYPE html>" },
+      { name: "b.html", content: "<!DOCTYPE html><p>x" },
+      { name: "c.html", content: "y".repeat(300) },
+    ];
+    const zip = createZip(entries);
+    const eocdStart = zip.length - 22;
+    expect(eocdStart).toBeGreaterThan(0);
+    // signature at the tail
+    expect(zip.readUInt32LE(eocdStart)).toBe(0x06054b50);
+    // comment length field (last 2 bytes of file) = 0 → no trailing bytes
+    expect(zip.readUInt16LE(zip.length - 2)).toBe(0);
+    // entry counts (disk + total) match
+    expect(zip.readUInt16LE(eocdStart + 8)).toBe(3);
+    expect(zip.readUInt16LE(eocdStart + 10)).toBe(3);
+    // central directory offset + size land exactly at the EOCD
+    const cdSize = zip.readUInt32LE(eocdStart + 12);
+    const cdOffset = zip.readUInt32LE(eocdStart + 16);
+    expect(cdOffset + cdSize).toBe(eocdStart);
+    expect(cdSize).toBeGreaterThan(0);
+  });
 });
