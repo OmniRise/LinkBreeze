@@ -5,7 +5,7 @@ import {
   type ExportInput,
   type ExportPageInput,
 } from "@/lib/export/build-static-export";
-import { EXPORT_MAX_BYTES } from "@/lib/export/size";
+import { EXPORT_MAX_BYTES, EXPORT_EMBED_MAX_BYTES } from "@/lib/export/size";
 import { EXPORT_CSS } from "@/lib/export/export-css";
 import type { LinkRow } from "@/server/queries";
 
@@ -141,5 +141,17 @@ describe("E.48 length stress", () => {
     expect(bytes).toBeLessThan(EXPORT_MAX_BYTES);
     // no quadratic join blowup — generous 1s tripwire (typical: <50ms)
     expect(ms).toBeLessThan(1000);
+  });
+
+  it("EOCD 16-bit entry overflow impossible under the byte cap (E.192)", () => {
+    // No explicit page-count guard exists in the batch loop — safety
+    // comes from structure: EVERY exported html inlines EXPORT_CSS
+    // (>100KB, pinned above), so each zip entry costs at least that
+    // much, and the 25 MiB aggregate cap bounds the entry count far
+    // below the EOCD 16-bit limit (65535).
+    const cssBytes = Buffer.byteLength(EXPORT_CSS, "utf-8");
+    const maxEntries = Math.floor(EXPORT_EMBED_MAX_BYTES / cssBytes);
+    expect(cssBytes).toBeGreaterThan(10 * 1024); // per-entry floor (~20KB)
+    expect(maxEntries).toBeLessThan(65535); // headroom: ~1310 << 65535
   });
 });
