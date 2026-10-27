@@ -341,6 +341,65 @@ describe("corrupt socialLinks resilience (E.43)", () => {
   });
 });
 
+describe("title/SEO fallback chain (E.67)", () => {
+  const basePage = {
+    slug: "p",
+    title: "Plain Title",
+    bio: "Plain bio",
+    socialLinks: null,
+    avatarUrl: null,
+    bannerUrl: null,
+    footerText: null,
+  };
+
+  it("seoTitle wins for <title>, then title, then LinkBreeze", () => {
+    const withSeo = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, seoTitle: "SEO Wins" },
+    });
+    expect(withSeo).toContain("<title>SEO Wins</title>");
+
+    const noSeo = buildStaticExport({ ...baseInput, page: basePage });
+    expect(noSeo).toContain("<title>Plain Title</title>");
+
+    const nothing = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, title: "" },
+    });
+    expect(nothing).toContain("<title>LinkBreeze</title>");
+  });
+
+  it("meta description: seoDescription > bio > My links", () => {
+    const withSeo = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, seoDescription: "SEO desc" },
+    });
+    expect(withSeo).toContain('<meta name="description" content="SEO desc">');
+
+    const bioOnly = buildStaticExport({ ...baseInput, page: basePage });
+    expect(bioOnly).toContain('<meta name="description" content="Plain bio">');
+
+    const neither = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, bio: null },
+    });
+    expect(neither).toContain('<meta name="description" content="My links">');
+  });
+
+  it("JSON-LD entity uses RAW title/bio (SEO copy is for the tab/snippet only)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      page: { ...basePage, seoTitle: "Tab Copy", seoDescription: "Snippet" },
+    });
+    const m = html.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/,
+    );
+    const parsed = JSON.parse(m![1]);
+    expect(parsed.name).toBe("Plain Title");
+    expect(parsed.description).toBe("Plain bio");
+  });
+});
+
 describe("section heading edges (E.57)", () => {
   const link = (id: number, sectionId: number | null) =>
     ({
