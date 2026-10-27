@@ -247,3 +247,47 @@ describe("E.41 HEAD interplay (framework derives HEAD from GET)", () => {
     }
   });
 });
+
+describe("E.57 sections views are query-scoped validators", () => {
+  it("?pageId gets a different ETag than the full list; each replays its own 304, cross-replay does not", async () => {
+    // Guarantee the subset differs: one section on ANOTHER page.
+    const otherPage = seedPage({ slug: "etag-page-2", title: "ETag Page 2" }).id;
+    await createSection({ pageId: otherPage, title: "Other page section" });
+
+    const full = await listSections(req("/api/v1/sections"));
+    const filtered = await listSections(req(`/api/v1/sections?pageId=${pageId}`));
+    expect(full.status).toBe(200);
+    expect(filtered.status).toBe(200);
+    const etagFull = full.headers.get("etag")!;
+    const etagFiltered = filtered.headers.get("etag")!;
+    expect(etagFull).toMatch(/^"[0-9a-f]{32}"$/);
+    expect(etagFiltered).toMatch(/^"[0-9a-f]{32}"$/);
+    // Subset payload ≠ full payload → different representations, different validators.
+    expect(etagFiltered).not.toBe(etagFull);
+
+    // Each view replays ITS OWN validator with an empty 304.
+    const replayFull = await listSections(
+      req("/api/v1/sections", { "if-none-match": etagFull }),
+    );
+    expect(replayFull.status).toBe(304);
+    expect(await replayFull.text()).toBe("");
+
+    const replayFiltered = await listSections(
+      req(`/api/v1/sections?pageId=${pageId}`, { "if-none-match": etagFiltered }),
+    );
+    expect(replayFiltered.status).toBe(304);
+
+    // Cross-view isolation: the other representation's validator never 304s.
+    const crossA = await listSections(
+      req(`/api/v1/sections?pageId=${pageId}`, { "if-none-match": etagFull }),
+    );
+    expect(crossA.status).toBe(200);
+    const crossB = await listSections(
+      req("/api/v1/sections", { "if-none-match": etagFiltered }),
+    );
+    expect(crossB.status).toBe(200);
+    // and both still carry their own validators after the 200s
+    expect(crossA.headers.get("etag")).toBe(etagFiltered);
+    expect(crossB.headers.get("etag")).toBe(etagFull);
+  });
+});
