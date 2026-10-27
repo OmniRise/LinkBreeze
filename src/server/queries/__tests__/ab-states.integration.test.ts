@@ -47,11 +47,11 @@ vi.mock("@/server/ab-auto-promote", async (importOriginal) => ({
 
 import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
-import { analyticsClicks } from "@/db/schema";
+import { analyticsClicks, links } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { assignVariant, parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
-import { setAbTestStatus, removeAbTest } from "@/server/actions/links";
-import { getLink } from "@/server/queries";
+import { setAbTest, setAbTestStatus, promoteAbVariant, removeAbTest } from "@/server/actions/links";
+import { getLink, recordClick } from "@/server/queries";
 import { getVisitorHash } from "@/lib/visitor";
 import { isBot } from "@/lib/bot-detect";
 import { GET as goGET } from "@/app/go/[id]/route";
@@ -241,6 +241,110 @@ describe("[integration] non-running states serve link.url, unlabeled (#81 E.61)"
       "https://example.com/own-plain",
     );
     expect(tally()).toEqual({ A: 1, B: 1, null: 2 });
+
+    vi.unstubAllEnvs();
+  });
+
+  it("E.73: full action lifecycle on ONE link — exactly one row ever, analytics never touched by actions", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+
+    // Seed: ONE link row, no config, no analytics.
+    const seeded = seedLink({ url: "https://example.com/a" });
+
+    // Row-count helpers (the invariant under test).
+    const linkRows = () =>
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(links)
+        .where(eq(links.id, seeded.id))
+        .get()!.c;
+    const analyticsRows = () =>
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(analyticsClicks)
+        .where(eq(analyticsClicks.linkId, seeded.id))
+        .get()!.c;
+    const cfg = async () =>
+      parseAbConfig((await getLink(seeded.id))?.abConfig ?? null);
+
+    const fd = (fields: Record<string, string>) => {
+      const f = new FormData();
+      for (const [k, v] of Object.entries(fields)) f.set(k, v);
+      return f;
+    };
+
+    expect(linkRows()).toBe(1);
+    expect(await cfg()).toBeNull();
+    expect(analyticsRows()).toBe(0);
+
+    // 1) CREATE.
+    const created = await setAbTest(
+      fd({
+        id: String(seeded.id),
+        urlB: "https://example.com/b",
+        labelA: "control",
+        labelB: "short",
+        weightA: "50",
+      }),
+    );
+    if (!created.success) throw new Error(`setAbTest: ${created.error}`);
+    expect(linkRows()).toBe(1);
+    expect((await cfg())?.status).toBe("running");
+
+    // Clicks arrive (route-equivalent recording) — actions must NEVER
+    // delete or duplicate these from here on.
+    await recordClick(seeded.id, "e73-a-1", null, "click", "A");
+    await recordClick(seeded.id, "e73-a-2", null, "click", "A");
+    await recordClick(seeded.id, "e73-b-1", null, "click", "B");
+    await recordClick(seeded.id, "e73-b-2", null, "click", "B");
+    await recordClick(seeded.id, "e73-b-3", null, "click", "B");
+    expect(analyticsRows()).toBe(5);
+
+    // 2) PAUSE, 3) RESUME — each step re-asserts BOTH row counts.
+    const pause = await setAbTestStatus(fd({ id: String(seeded.id), status: "paused" }));
+    if (!pause.success) throw new Error(`pause: ${pause.error}`);
+    expect(linkRows()).toBe(1);
+    expect((await cfg())?.status).toBe("paused");
+    expect(analyticsRows()).toBe(5);
+
+    const resume = await setAbTestStatus(fd({ id: String(seeded.id), status: "running" }));
+    if (!resume.success) throw new Error(`resume: ${resume.error}`);
+    expect(linkRows()).toBe(1);
+    expect((await cfg())?.status).toBe("running");
+    expect(analyticsRows()).toBe(5);
+
+    // 4) PROMOTE B — url pinned, config archived; still ONE row, history intact.
+    const promoted = await promoteAbVariant(fd({ id: String(seeded.id), winner: "B" }));
+    if (!promoted.success) throw new Error(`promote: ${promoted.error}`);
+    expect(linkRows()).toBe(1);
+    const promotedCfg = await cfg();
+    expect(promotedCfg?.status).toBe("archived");
+    expect(promotedCfg?.winner).toBe("B");
+    expect((await getLink(seeded.id))?.url).toBe("https://example.com/b");
+    expect(analyticsRows()).toBe(5);
+
+    // 5) REMOVE — config gone, row and history stay.
+    const removed = await removeAbTest(fd({ id: String(seeded.id) }));
+    if (!removed.success) throw new Error(`remove: ${removed.error}`);
+    expect(linkRows()).toBe(1);
+    expect(await cfg()).toBeNull();
+    expect(analyticsRows()).toBe(5);
+
+    // 6) RE-CREATE on the same link — a full cycle must not duplicate rows.
+    const recreated = await setAbTest(
+      fd({
+        id: String(seeded.id),
+        urlB: "https://example.com/b",
+        labelA: "control",
+        labelB: "short",
+        weightA: "50",
+      }),
+    );
+    if (!recreated.success) throw new Error(`recreate: ${recreated.error}`);
+    expect(linkRows()).toBe(1);
+    expect((await cfg())?.status).toBe("running");
+    expect(analyticsRows()).toBe(5);
 
     vi.unstubAllEnvs();
   });
