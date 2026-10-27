@@ -288,6 +288,41 @@ describe("autoPromotableWinner (#81 E.1)", () => {
     // But a genuine reversal is: B ahead when A was expected to dominate.
     expect(autoPromotableWinner(450, 550, 70)).toBe("B");
   });
+
+  it("E.91: scanner winners always imply the UI card says significant (one-way)", () => {
+    // The scanner (floor 200) and the operator's confidence card (floor
+    // AB_MIN_SAMPLE_CLICKS=100) share the SAME variantConfidence math —
+    // so anything the scanner acts on, the card must already claim.
+    // The CONVERSE is deliberately false: the card can claim at n=100-199
+    // while the scanner waits for 200 (the delta zone, pinned below).
+    let scannerFires = 0;
+    let deltaZone = 0;
+    for (const weight of [10, 50, 90]) {
+      for (let a = 0; a <= 300; a += 10) {
+        for (let b = 0; b <= 300; b += 10) {
+          const winner = autoPromotableWinner(a, b, weight);
+          const card = variantConfidence(a, b, weight, AB_MIN_SAMPLE_CLICKS);
+          if (winner) {
+            scannerFires++;
+            expect(card.significant, `w=${weight} a=${a} b=${b}`).toBe(true);
+            expect(card.leader, `w=${weight} a=${a} b=${b}`).toBe(winner);
+          } else if (card.leader && card.significant && a + b < AB_AUTO_PROMOTE_MIN_CLICKS) {
+            deltaZone++; // card claims, scanner waits — the designed gap
+          }
+        }
+      }
+    }
+    expect(scannerFires).toBeGreaterThan(0); // property not vacuous
+    expect(deltaZone).toBeGreaterThan(0); // the 100-199 gap exists
+
+    // Explicit delta-zone example: clear leader, n=110 >= card floor but
+    // < scanner floor — the card claims, the scanner stays put.
+    expect(variantConfidence(80, 30, 50, AB_MIN_SAMPLE_CLICKS)).toEqual({
+      leader: "A",
+      significant: true,
+    });
+    expect(autoPromotableWinner(80, 30, 50)).toBeNull();
+  });
 });
 
 describe("abConfigSchema", () => {
