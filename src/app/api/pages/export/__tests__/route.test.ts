@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { GET } from "@/app/api/pages/export/route";
 
 /**
@@ -445,6 +447,20 @@ describe("GET /api/pages/export", () => {
       expect(cd, slug).toMatch(/^[\x20-\x7e]+$/);
       Buffer.from(await res.arrayBuffer()); // drain body
     }
+  });
+
+  it("route is read-only: no mutative statements or direct db imports (E.100)", async () => {
+    const routeSrc = readFileSync(
+      join(__dirname, "../route.ts"),
+      "utf8",
+    );
+    // no INSERT/UPDATE/DELETE, no fs writes, no db helper imports —
+    // export must never touch data (backup-adjacent safety contract)
+    expect(routeSrc).not.toMatch(/\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b/i);
+    expect(routeSrc).not.toMatch(/\b(appendFile|writeFile|rename|unlink|mkdir|createWriteStream)\b/);
+    expect(routeSrc).not.toContain('from "@/db');
+    // queries module is SELECT-only for this route's call graph
+    expect(routeSrc).toContain('} from "@/server/queries";');
   });
 
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
