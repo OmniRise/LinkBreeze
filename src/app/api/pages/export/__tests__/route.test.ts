@@ -860,6 +860,18 @@ describe("GET /api/pages/export", () => {
     );
   });
 
+  it("export surface: GET-only route, HEAD delegated by Next (E.184)", async () => {
+    const routeMod = await import("../route");
+    const keys = Object.keys(routeMod).sort();
+    // exactly the expected surface — no HEAD/POST export to get wrong;
+    // Next.js auto-delegates HEAD requests to the GET handler (body
+    // suppressed framework-side), so no crash path exists here.
+    expect(keys).toEqual(["GET", "dynamic", "runtime"]);
+    expect(typeof routeMod.GET).toBe("function");
+    expect(routeMod.runtime).toBe("nodejs");
+    expect(routeMod.dynamic).toBe("force-dynamic");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
