@@ -421,6 +421,28 @@ describe("GET /api/pages/export", () => {
     expect(json.bytes).toBeLessThan(200 * 1024 * 1024);
   });
 
+  it("embed zip naming survives odd slugs (E.93)", async () => {
+    // single embed CD: <exportFilename minus .html>-export.zip
+    const cases: Array<[string, string]> = [
+      ["@janedoe", "@janedoe-export.zip"], // opt-in @ survives
+      ["日本語", "page-export.zip"], // unicode → fallback stem
+      ["café", "caf-export.zip"], // diacritic strip
+      ["..\\evil", "evil-export.zip"], // traversal → flat stem
+    ];
+    for (const [slug, expected] of cases) {
+      mockGetPageById.mockResolvedValue({ ...(PAGE as object), slug } as never);
+      const res = await GET(req("?id=1&embed=1"));
+      expect(res.status, slug).toBe(200);
+      expect(res.headers.get("Content-Disposition"), slug).toBe(
+        `attachment; filename="${expected}"`,
+      );
+      // ASCII-only header (no folding risk) — same rule as .html names
+      const cd = res.headers.get("Content-Disposition")!;
+      expect(cd, slug).toMatch(/^[\x20-\x7e]+$/);
+      Buffer.from(await res.arrayBuffer()); // drain body
+    }
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
