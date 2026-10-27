@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   parseAbConfig,
@@ -317,6 +317,22 @@ describe("E.2 time box (startsAt/endsAt)", () => {
 
 describe("docs-drift tripwire (#81 E.19)", () => {
   const guide = readFileSync(resolve(process.cwd(), "docs/ab-testing.md"), "utf8");
+
+  it("every README surface links the CURRENT guide path (#81 E.38)", () => {
+    // docs:check verifies README *hash* sync but never the guide LINK —
+    // a rename of docs/ab-testing.md (or a mirror edit dropping the link)
+    // would break all 11 surfaces silently. Pin: each README*.md carries
+    // exactly one ](docs/ab-testing.md) target and the file exists.
+    const readmes = readdirSync(process.cwd()).filter(
+      (f) => f.startsWith("README") && f.endsWith(".md"),
+    );
+    expect(readmes.length).toBe(11); // en + 10 translations
+    for (const f of readmes) {
+      const content = readFileSync(resolve(process.cwd(), f), "utf8");
+      const matches = content.match(/\]\([^)]*ab-testing[^)]*\)/g) ?? [];
+      expect(matches, `${f} guide link`).toEqual(["](docs/ab-testing.md)"]);
+    }
+  });
 
   it("the guide's confidence-floor sentence matches AB_MIN_SAMPLE_CLICKS", () => {
     // Exact phrase from the guide, number interpolated from the CODE —
