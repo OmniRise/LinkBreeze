@@ -931,6 +931,8 @@ export function buildOpenApiDocument(): Json {
             {
               name: "range",
               in: "query",
+              description:
+                "Unknown or missing values fall back to 7d (no 400) — matches the dashboard's lenient parse.",
               schema: { type: "string", enum: ["7d", "30d", "90d"], default: "7d" },
             },
             {

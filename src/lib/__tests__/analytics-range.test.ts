@@ -34,6 +34,14 @@ describe("parseRange", () => {
     expect(parseRange("7D")).toBe("7d");
     expect(parseRange("ALL")).toBe("7d");
   });
+
+  it("E.70: hostile range values fall back to '7d' (lenient, never 400)", () => {
+    // Documented leniency (spec description now says so explicitly): the
+    // dashboard's own parse defaults unknown values, so the API mirrors it.
+    for (const hostile of ["0d", "-5d", "99999d", "7d ", "7", "7days", " 7d", "9999999999999d"]) {
+      expect(parseRange(hostile), hostile).toBe("7d");
+    }
+  });
 });
 
 describe("VALID_RANGES", () => {
