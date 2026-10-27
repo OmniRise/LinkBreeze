@@ -25,6 +25,26 @@ const running: AbConfig = {
   winner: null,
 };
 
+// E.47 query-cost pin — local countQueries per the repo convention (copied
+// from ab-unified-views: each integration file owns its own harness copy).
+type Session = { prepareQuery: (...args: unknown[]) => unknown };
+const session = (db as unknown as { session: Session }).session;
+const originalPrepare = session.prepareQuery;
+
+async function countQueries(fn: () => unknown): Promise<number> {
+  let count = 0;
+  session.prepareQuery = (...args: unknown[]) => {
+    count++;
+    return originalPrepare.apply(session, args);
+  };
+  try {
+    await fn();
+  } finally {
+    session.prepareQuery = originalPrepare;
+  }
+  return count;
+}
+
 async function seedRunningTest(overrides: Partial<AbConfig> = {}) {
   return seedLink({ abConfig: serializeAbConfig({ ...running, ...overrides }) });
 }
@@ -259,5 +279,24 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     // And the live scanner agrees: no promotion, config untouched.
     expect(await runAbAutoPromoteScan()).toBe(0);
     expect(parseAbConfig((await getLink(link.id))?.abConfig ?? null)?.status).toBe("running");
+  });
+
+  it("E.47: scan query cost is exact - 1 when off, 1+1+N for N running links, zero cost for the rest", async () => {
+    // The scanner is a background/throttled job, but its cost model must be
+    // pinned like the hot paths (E.5/E.14): toggle-off is ONE getSetting
+    // and nothing else; with the toggle on it is setting + LIKE prefilter
+    // + ONE grouped count per RUNNING link — non-running rows must cost
+    // ZERO (the prefilter's whole point), and no winner here means no
+    // updateLink queries either.
+    expect(await countQueries(() => runAbAutoPromoteScan())).toBe(1);
+
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+
+    const N = 8;
+    for (let i = 0; i < N; i++) await seedRunningTest();
+    for (let i = 0; i < 45; i++) seedLink({ title: `Plain ${i}` }); // no abConfig -> prefiltered out
+
+    const q = await countQueries(() => runAbAutoPromoteScan());
+    expect(q).toBe(2 + N); // getSetting + prefilter + N grouped counts; 45 plain rows free
   });
 });
