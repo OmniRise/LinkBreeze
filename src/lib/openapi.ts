@@ -370,7 +370,8 @@ export function buildOpenApiDocument(): Json {
             "With `limit` and/or `cursor`: one keyset page — `data` plus " +
             "`meta: { count, nextCursor }` (nextCursor is an opaque string or null " +
             "on the last page; the walk order is display order). `fields` returns " +
-            "sparse rows (id is always included).",
+            "sparse rows (id is always included first; the remaining keys follow " +
+            "the order you request them in).",
           parameters: [
             {
               name: "limit",

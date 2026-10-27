@@ -233,6 +233,16 @@ describe("GET /api/v1/links — sparse fieldsets", () => {
     expect(Object.keys(body.data[0]).sort()).toEqual(["id", "title"]);
   });
 
+  it("E.110: key ORDER is id-first then request order (not canonicalized)", async () => {
+    const forward = await listLinks(get("?fields=title,url"));
+    const reverse = await listLinks(get("?fields=url,title"));
+    expect(Object.keys((await forward.json()).data[0])).toEqual(["id", "title", "url"]);
+    expect(Object.keys((await reverse.json()).data[0])).toEqual(["id", "url", "title"]);
+    // Same key SET either way — only insertion order differs.
+    const idOnly = await listLinks(get("?fields=url,id"));
+    expect(Object.keys((await idOnly.json()).data[0])).toEqual(["id", "url"]);
+  });
+
   it("unknown field names are a 400 naming them", async () => {
     const res = await listLinks(get("?fields=title,password"));
     expect(res.status).toBe(400);
