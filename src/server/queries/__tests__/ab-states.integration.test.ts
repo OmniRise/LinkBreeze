@@ -21,6 +21,15 @@
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/auth", () => ({
+  getSession: vi.fn(async () => ({
+    userId: 1,
+    username: "admin",
+    exp: Date.now() + 60000,
+    pv: 1,
+  })),
+}));
+vi.mock("@/lib/demo", () => ({ demoBlock: vi.fn(() => null) }));
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers()),
   cookies: vi.fn(async () => ({ get: () => undefined })),
@@ -40,7 +49,9 @@ import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
 import { analyticsClicks } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { assignVariant, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
+import { assignVariant, parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
+import { setAbTestStatus } from "@/server/actions/links";
+import { getLink } from "@/server/queries";
 import { getVisitorHash } from "@/lib/visitor";
 import { isBot } from "@/lib/bot-detect";
 import { GET as goGET } from "@/app/go/[id]/route";
@@ -136,6 +147,63 @@ describe("[integration] non-running states serve link.url, unlabeled (#81 E.61)"
     });
     await bothGet(link.id, "https://example.com/own-window");
     expect(counts(link.id)).toEqual([{ variant: null, c: 2 }]);
+    vi.unstubAllEnvs();
+  });
+
+  it("E.67: setAbTestStatus flip — pause kills the split for the SAME visitors, resume brings it back", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+    const link = seedLink({
+      url: "https://example.com/own-flip",
+      abConfig: serializeAbConfig(base),
+    });
+    const { a, b } = oppositePair(link.id);
+    const tally = () =>
+      Object.fromEntries(counts(link.id).map((r) => [String(r.variant), r.c]));
+
+    // RUNNING: split serves (opposite visitors → opposite urls), labeled.
+    expect((await go(link.id, a)).headers.get("location")).toBe(
+      "https://example.com/own-flip",
+    );
+    expect((await go(link.id, b)).headers.get("location")).toBe(base.urlB);
+    expect(tally()).toEqual({ A: 1, B: 1 });
+
+    // PAUSE through the REAL action -> config flips, split stops for the
+    // SAME visitors on their very next requests (both → link.url) and
+    // those clicks are recorded UNLABELED (the state contract of E.61).
+    const statusFd = (id: number, status: string) => {
+      const f = new FormData();
+      f.set("id", String(id));
+      f.set("status", status);
+      return f;
+    };
+    const paused = await setAbTestStatus(statusFd(link.id, "paused"));
+    if (!paused.success) throw new Error(`pause failed: ${paused.error}`);
+    expect(
+      parseAbConfig((await getLink(link.id))?.abConfig ?? null)?.status,
+    ).toBe("paused");
+
+    expect((await go(link.id, a)).headers.get("location")).toBe(
+      "https://example.com/own-flip",
+    );
+    expect((await go(link.id, b)).headers.get("location")).toBe(
+      "https://example.com/own-flip",
+    );
+    expect(tally()).toEqual({ A: 1, B: 1, null: 2 });
+
+    // RESUME: split returns for the SAME pair; new clicks label again.
+    const resumed = await setAbTestStatus(statusFd(link.id, "running"));
+    if (!resumed.success) throw new Error(`resume failed: ${resumed.error}`);
+    expect(
+      parseAbConfig((await getLink(link.id))?.abConfig ?? null)?.status,
+    ).toBe("running");
+
+    expect((await go(link.id, a)).headers.get("location")).toBe(
+      "https://example.com/own-flip",
+    );
+    expect((await go(link.id, b)).headers.get("location")).toBe(base.urlB);
+    expect(tally()).toEqual({ A: 2, B: 2, null: 2 });
+
     vi.unstubAllEnvs();
   });
 });
