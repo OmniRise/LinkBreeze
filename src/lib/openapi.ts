@@ -363,6 +363,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["links"],
           summary: "List links (full list by default; cursor-paginated with ?limit)",
+          operationId: "listLinks",
           description:
             "Without parameters: the full array in `data` (legacy contract). " +
             "With `limit` and/or `cursor`: one keyset page — `data` plus " +
@@ -431,6 +432,7 @@ export function buildOpenApiDocument(): Json {
         post: {
           tags: ["links"],
           summary: "Create a link",
+          operationId: "createLink",
           requestBody: {
             required: true,
             content: {
@@ -458,6 +460,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["links"],
           summary: "Get one link by id",
+          operationId: "getLink",
           description: "Conditional: carries an ETag; send it back as If-None-Match for a 304 while unchanged.",
           parameters: [
             {
@@ -497,6 +500,7 @@ export function buildOpenApiDocument(): Json {
         put: {
           tags: ["links"],
           summary: "Partially update a link",
+          operationId: "updateLink",
           parameters: [
             {
               name: "id",
@@ -531,6 +535,7 @@ export function buildOpenApiDocument(): Json {
         delete: {
           tags: ["links"],
           summary: "Delete a link",
+          operationId: "deleteLink",
           parameters: [
             {
               name: "id",
@@ -566,6 +571,7 @@ export function buildOpenApiDocument(): Json {
         put: {
           tags: ["links"],
           summary: "Reorder links",
+          operationId: "reorderLinks",
           requestBody: {
             required: true,
             content: {
@@ -598,6 +604,7 @@ export function buildOpenApiDocument(): Json {
         post: {
           tags: ["links"],
           summary: "Bulk-create links (partial failure reporting)",
+          operationId: "importLinks",
           description:
             "1..100 items per request. Every item runs the exact single-create " +
             "pipeline (same validation, slug, icons, enrichment). Envelope problems " +
@@ -672,6 +679,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["sections"],
           summary: "List sections (all pages, display order)",
+          operationId: "listSections",
           description:
             "Stable order (pageId, orderIndex, id). Filter to one page with ?pageId=N. " +
             "Conditional: carries an ETag; If-None-Match answers 304 while unchanged.",
@@ -714,6 +722,7 @@ export function buildOpenApiDocument(): Json {
         post: {
           tags: ["sections"],
           summary: "Create a section",
+          operationId: "createSection",
           description:
             "Same validation as the admin form; orderIndex is auto-assigned within the page. 404 when the page does not exist.",
           requestBody: {
@@ -744,6 +753,7 @@ export function buildOpenApiDocument(): Json {
         put: {
           tags: ["sections"],
           summary: "Reorder sections",
+          operationId: "reorderSections",
           requestBody: {
             required: true,
             content: {
@@ -776,6 +786,7 @@ export function buildOpenApiDocument(): Json {
         put: {
           tags: ["sections"],
           summary: "Partially update a section",
+          operationId: "updateSection",
           parameters: [
             {
               name: "id",
@@ -810,6 +821,7 @@ export function buildOpenApiDocument(): Json {
         delete: {
           tags: ["sections"],
           summary: "Delete a section (its links fall back to uncategorized)",
+          operationId: "deleteSection",
           parameters: [
             {
               name: "id",
@@ -848,6 +860,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["profile"],
           summary: "Get the profile",
+          operationId: "getProfile",
           description:
             "Conditional: carries an ETag; send it back as If-None-Match for a 304 while unchanged.",
           parameters: [
@@ -882,6 +895,7 @@ export function buildOpenApiDocument(): Json {
         put: {
           tags: ["profile"],
           summary: "Update the profile (partial, tri-state like links)",
+          operationId: "updateProfile",
           requestBody: {
             required: true,
             content: {
@@ -909,6 +923,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["analytics"],
           summary: "Aggregate metrics (views, clicks, top links)",
+          operationId: "getAnalytics",
           description:
             "Conditional: ETag covers the METRICS (since/exportedAt are per-response clock fields); unchanged numbers answer If-None-Match with 304.",
           parameters: [
@@ -949,6 +964,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["meta"],
           summary: "This document (alias: /api/v1/openapi)",
+          operationId: "getOpenApiJson",
           responses: {
             "200": {
               headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
@@ -963,6 +979,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["meta"],
           summary: "This document (dotless alias of /api/v1/openapi.json)",
+          operationId: "getOpenApi",
           responses: {
             "200": {
               headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
@@ -977,6 +994,7 @@ export function buildOpenApiDocument(): Json {
         get: {
           tags: ["meta"],
           summary: "Minimal human-readable endpoint reference (HTML)",
+          operationId: "getApiDocs",
           responses: {
             "200": {
               // Session-path viewers predate per-key accounting (no rate headers).

@@ -300,4 +300,19 @@ describe("spec hygiene (E.19)", () => {
     // in next.config, this flips and the spec (plus README links) must follow.
     expect(doc.servers).toEqual([{ url: "/" }]);
   });
+
+  it("E.63: every operation has a unique camelCase operationId (SDK generators key off them)", () => {
+    const ids: string[] = [];
+    for (const [p, methods] of Object.entries(doc.paths)) {
+      for (const [method, op] of Object.entries(methods)) {
+        if (!OPERATIONS.includes(method)) continue;
+        const id = (op as { operationId?: string }).operationId;
+        expect(id, `${method.toUpperCase()} ${p}`).toBeTruthy();
+        expect(id, `${method.toUpperCase()} ${p}`).toMatch(/^[a-z][a-zA-Z0-9]*$/);
+        ids.push(id as string);
+      }
+    }
+    expect(new Set(ids).size).toBe(ids.length); // globally unique
+    expect(ids.length).toBe(18);
+  });
 });
