@@ -51,4 +51,35 @@ describe("rateLimit", () => {
     expect(r1.ok).toBe(true);
     expect(r2.ok).toBe(true);
   });
+
+  it("E.27: resetAt is exactly now+windowMs and REFUSED calls never extend it", () => {
+    const key = "test-honest-" + Math.random();
+    const WINDOW = 5_000;
+    const t0 = Date.now();
+    const first = rateLimit(key, 2, WINDOW);
+    expect(first.resetAt).toBeGreaterThanOrEqual(t0 + WINDOW);
+    expect(first.resetAt).toBeLessThanOrEqual(Date.now() + WINDOW + 1);
+
+    expect(rateLimit(key, 2, WINDOW).ok).toBe(true); // exactly `limit` allowed
+    const trip = rateLimit(key, 2, WINDOW);
+    expect(trip.ok).toBe(false); // the next one refused
+
+    // Honesty: no refusal may push the window (and thus Retry-After) out.
+    for (let i = 0; i < 5; i++) {
+      const again = rateLimit(key, 2, WINDOW);
+      expect(again.ok).toBe(false);
+      expect(again.resetAt).toBe(trip.resetAt);
+    }
+  });
+
+  it("E.27: after the window elapses the FULL budget returns", async () => {
+    const key = "test-refill-" + Math.random();
+    for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 5).ok).toBe(true);
+    expect(rateLimit(key, 3, 5).ok).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 15));
+
+    for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 5).ok).toBe(true);
+    expect(rateLimit(key, 3, 5).ok).toBe(false);
+  });
 });

@@ -309,3 +309,43 @@ describe("apiGate — E.4 usage-counter wiring", () => {
     expect(getApiUsage().authFails).toBe(1);
   });
 });
+
+describe("E.27 Retry-After honesty", () => {
+  it("429's Retry-After is inside the documented window and refusals never extend it", async () => {
+    // Burn (or reuse the already-burned) window for this key, then compare
+    // consecutive 429s: a refusal must never move the deadline forward.
+    let ra1: number | null = null;
+    for (let i = 0; i < API_KEY_RATE_LIMIT.limit + 5 && ra1 === null; i++) {
+      const g = await apiGate(
+        new NextRequest("http://localhost:3000/api/v1/links", {
+          headers: {
+            authorization: ["Bearer", KEY.key].join(" "),
+            "x-forwarded-for": `10.99.${Math.floor(i / 250)}.${i % 250}`,
+          },
+        }),
+      );
+      if (!g.ok && g.response.status === 429) {
+        ra1 = Number(g.response.headers.get("Retry-After"));
+      }
+    }
+    expect(ra1).not.toBeNull();
+    expect(ra1!).toBeGreaterThanOrEqual(1);
+    expect(ra1!).toBeLessThanOrEqual(API_KEY_RATE_LIMIT.windowMs / 1000);
+
+    const g2 = await apiGate(
+      new NextRequest("http://localhost:3000/api/v1/links", {
+        headers: {
+          authorization: ["Bearer", KEY.key].join(" "),
+          "x-forwarded-for": "10.98.0.1",
+        },
+      }),
+    );
+    expect(g2.ok).toBe(false);
+    if (!g2.ok) {
+      expect(g2.response.status).toBe(429);
+      const ra2 = Number(g2.response.headers.get("Retry-After"));
+      expect(ra2).toBeGreaterThanOrEqual(1);
+      expect(ra2).toBeLessThanOrEqual(ra1!); // honest: refusals don't extend
+    }
+  });
+});
