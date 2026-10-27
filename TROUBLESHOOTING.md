@@ -153,7 +153,8 @@ Umami, etc.) configured under Settings → Integration, since those talk
 directly to your provider. Link cards in the export point straight at their
 destination URLs. Images also load from your instance via absolute URLs -
 if the export must work fully offline or after your instance goes away,
-export with `?embed=1` (`/api/pages/export?id=1&embed=1`) to bundle the
+export with `?embed=1` (`/api/pages/export?id=<page-id>&embed=1`, with
+your page's id in place of the example) to bundle the
 `uploads/` folder into the zip.
 
 ---
