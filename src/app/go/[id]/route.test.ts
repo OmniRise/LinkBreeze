@@ -3,7 +3,7 @@
  * (case-insensitive), unknown ref 404, and a deactivated link WITH a slug
  * 302-redirecting to its public page instead of a bare 404.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getLinkByRef: vi.fn(),
@@ -23,6 +23,8 @@ vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(() => ({ ok: true, remaining: 59, resetAt: Date.now() + 60000 })),
 }));
 vi.mock("@/lib/bot-detect", () => ({ isBot: vi.fn(() => false) }));
+vi.mock("@/server/backup-scheduler", () => ({ maybeRunScheduledBackup: vi.fn() }));
+vi.mock("@/server/ab-auto-promote", () => ({ maybeAutoPromoteAbTests: vi.fn() }));
 vi.mock("@/lib/visitor", () => ({
   getVisitorHash: vi.fn(() => "hash"),
   stripReferrer: vi.fn((r: string) => r),
@@ -30,6 +32,7 @@ vi.mock("@/lib/visitor", () => ({
 
 import { GET } from "@/app/go/[id]/route";
 import { assignVariant } from "@/lib/ab-test";
+import { isBot } from "@/lib/bot-detect";
 import { NextRequest } from "next/server";
 
 function makeRequest(ref: string) {
@@ -241,5 +244,59 @@ describe("GET /go/[ref] A/B split (#81)", () => {
     );
     res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
     expect(res.headers.get("location")).toBe("https://example.com/b");
+  });
+});
+
+describe("bot/crawler interaction (#41 x #81, E.31)", () => {
+  // Recording only happens when NODE_ENV=production — never stubbed anywhere
+  // in this suite before, so no existing test observed recordClick firing at
+  // all (the one not-called assertion at the redirectSlug case passed
+  // trivially). Stub it here to exercise the real analytics gate.
+  const wForB = Array.from({ length: 99 }, (_, i) => i + 1).find(
+    (w) => assignVariant("hash", 7, w, 100 - w) === "B",
+  )!;
+  const abConfigJson = (overrides: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      v: 1,
+      status: "running",
+      labelA: null,
+      labelB: null,
+      urlB: "https://example.com/b",
+      weightA: 50,
+      weightB: 50,
+      winner: null,
+      ...overrides,
+    });
+  const forcedBLink = () =>
+    activeLink({
+      url: "https://example.com/a",
+      type: "url",
+      abConfig: abConfigJson({ weightA: wForB, weightB: 100 - wForB }),
+    });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.mocked(isBot).mockReturnValue(false);
+  });
+
+  it("a human click in production is recorded and attributed to its variant", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+    mocks.getLinkByRef.mockResolvedValue(forcedBLink());
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.headers.get("location")).toBe("https://example.com/b");
+    expect(mocks.recordClick).toHaveBeenCalledTimes(1);
+    expect(mocks.recordClick).toHaveBeenCalledWith(7, "hash", "", "click", "B");
+  });
+
+  it("a crawler still gets a fair split but its click is never recorded (guide FAQ claim)", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(true);
+    mocks.getLinkByRef.mockResolvedValue(forcedBLink());
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    // Assignment is computed for EVERY visitor (fair split, logged
+    // orchestrator decision) — only the analytics WRITE is gated.
+    expect(res.headers.get("location")).toBe("https://example.com/b");
+    expect(mocks.recordClick).not.toHaveBeenCalled();
   });
 });
