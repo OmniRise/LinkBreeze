@@ -108,4 +108,30 @@ describe("computeAbEditorInitial (#81 E.40/E.46)", () => {
       expect(src.includes("abConfig"), `abConfig reference in list file ${f}`).toBe(false);
     }
   });
+
+  it("E.124: submit contract — dialog abData keys exactly equal the setAbTest reads", () => {
+    // Grounded: the editor renders ab_* fields; link-dialog maps them into
+    // a clean abData FormData (lines 345-354) handed to setAbTest, which
+    // reads exactly 7 keys (links.ts:622-711). A rename on EITHER side
+    // must fail here instead of silently submitting a value the action
+    // coerces to its default.
+    const dialog = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/components/link-dialog.tsx"),
+      "utf8",
+    );
+    const action = readFileSync(resolve(process.cwd(), "src/server/actions/links.ts"), "utf8");
+
+    const setKeys = [...dialog.matchAll(/abData\.set\("([^"]+)"/g)].map((m) => m[1]).sort();
+    expect(setKeys).toEqual(["endsAt", "id", "labelA", "labelB", "startsAt", "urlB", "weightA"]);
+
+    const start = action.indexOf("export async function setAbTest(");
+    const end = action.indexOf("export async function setAbTestStatus(");
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const body = action.slice(start, end);
+    const readKeys = [...body.matchAll(/formData\.get\("([^"]+)"/g)].map((m) => m[1]);
+    // Same SET both ways: nothing extra read, nothing set-but-unread.
+    expect(new Set(readKeys)).toEqual(new Set(setKeys));
+    for (const k of readKeys) expect(setKeys).toContain(k);
+  });
 });
