@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     logError("api/v1/profile GET", err);
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }
 
@@ -72,7 +72,7 @@ export async function PUT(request: NextRequest) {
 
   const body = await parseJsonBody(request);
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
-    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400);
+    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400, { headers: gate.rateHeaders });
   }
 
   const existing = await getProfile();
@@ -155,6 +155,6 @@ export async function PUT(request: NextRequest) {
     });
   } catch (err) {
     logError("api/v1/profile PUT", err);
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }

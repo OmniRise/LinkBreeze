@@ -83,7 +83,7 @@ export async function PUT(
     return apiOk(updated, { headers: gate.rateHeaders });
   } catch (err) {
     logError("api/v1/sections PUT", err, { id });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }
 
@@ -116,6 +116,6 @@ export async function DELETE(
     return apiOk({ id, deleted: true }, { headers: gate.rateHeaders });
   } catch (err) {
     logError("api/v1/sections DELETE", err, { id });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }

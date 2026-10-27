@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       });
     } catch (err) {
       logError("api/v1/sections GET", err);
-      return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+      return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
     }
   }
 
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     logError("api/v1/sections GET", err);
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }
 
@@ -117,6 +117,6 @@ export async function POST(request: NextRequest) {
     return apiOk(created, { status: 201, headers: gate.rateHeaders });
   } catch (err) {
     logError("api/v1/sections POST", err, { pageId: parsed.data.pageId });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }

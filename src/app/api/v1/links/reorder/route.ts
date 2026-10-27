@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest) {
 
   const body = await parseJsonBody(request);
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
-    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400);
+    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400, { headers: gate.rateHeaders });
   }
 
   const parsed = reorderSchema.safeParse(body);
@@ -59,6 +59,6 @@ export async function PUT(request: NextRequest) {
     return apiOk({ reordered: parsed.data.ids.length }, { headers: gate.rateHeaders });
   } catch (err) {
     logError("api/v1/links reorder PUT", err, { count: parsed.data.ids.length });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }

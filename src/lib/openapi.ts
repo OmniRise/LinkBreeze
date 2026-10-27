@@ -15,16 +15,74 @@ type Json = Record<string, unknown>;
 
 const errorRef = { $ref: "#/components/schemas/ErrorEnvelope" };
 
-function errorResponse(description: string): Json {
-  return { description, content: { "application/json": { schema: errorRef } } };
+function errorResponse(description: string, headers?: Json): Json {
+  // Every error response goes through apiError → always Cache-Control: no-store.
+  return {
+    description,
+    content: { "application/json": { schema: errorRef } },
+    headers: { ...CACHE_HEADERS, ...(headers ?? {}) },
+  };
 }
 
+/** Shared machine-readable response headers (E.36). */
+const RATE_HEADERS: Json = {
+  "X-RateLimit-Limit": {
+    description: "Requests allowed in the current window (per key).",
+    schema: { type: "integer" },
+  },
+  "X-RateLimit-Remaining": {
+    description: "Requests left in the current window.",
+    schema: { type: "integer" },
+  },
+  "X-RateLimit-Reset": {
+    description: "Epoch seconds when the current window resets.",
+    schema: { type: "integer" },
+  },
+};
+const CACHE_HEADERS: Json = {
+  "Cache-Control": {
+    description: "Always no-store: authenticated responses must not be cached.",
+    schema: { type: "string" },
+  },
+};
+const ETAG_HEADERS: Json = {
+  ETag: {
+    description: "Strong validator; replay it as If-None-Match for a 304.",
+    schema: { type: "string" },
+  },
+};
+const WWW_AUTH_HEADERS: Json = {
+  "WWW-Authenticate": {
+    description: "Standard Bearer challenge.",
+    schema: { type: "string" },
+  },
+};
+const RETRY_AFTER_HEADERS: Json = {
+  "Retry-After": {
+    description:
+      "Seconds to wait — matches the live window; refusals never extend it.",
+    schema: { type: "integer" },
+  },
+};
+
 const standardErrors: Json = {
-  "400": errorResponse("Validation error (error.code=validation, details[] pinpoints fields)"),
-  "401": errorResponse("Missing, malformed, unknown or revoked API key"),
-  "403": errorResponse("Demo mode: instance is read-only (error.code=demo)"),
-  "429": errorResponse("Rate limit exceeded (Retry-After header; error.code=rate_limit)"),
-  "500": errorResponse("Internal error (never leaks details)"),
+  "400": errorResponse(
+    "Validation error (error.code=validation, details[] pinpoints fields)",
+    RATE_HEADERS,
+  ),
+  "401": errorResponse(
+    "Missing, malformed, unknown or revoked API key",
+    WWW_AUTH_HEADERS,
+  ),
+  "403": errorResponse(
+    "Demo mode: instance is read-only (error.code=demo)",
+    RATE_HEADERS,
+  ),
+  "429": errorResponse(
+    "Rate limit exceeded (Retry-After header; error.code=rate_limit)",
+    RETRY_AFTER_HEADERS,
+  ),
+  "500": errorResponse("Internal error (never leaks details)", RATE_HEADERS),
 };
 
 /** Build the full OpenAPI 3.1 document. */
@@ -338,6 +396,7 @@ export function buildOpenApiDocument(): Json {
           ],
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description:
                 "All links (no params) or one page (with limit/cursor). Carries an ETag header.",
               content: {
@@ -359,6 +418,7 @@ export function buildOpenApiDocument(): Json {
               },
             },
             "304": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "If-None-Match matched the current ETag; empty body.",
             },
             ...standardErrors,
@@ -375,6 +435,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "201": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Created link",
               content: {
                 "application/json": {
@@ -410,6 +471,7 @@ export function buildOpenApiDocument(): Json {
           ],
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "The link. Carries an ETag header.",
               content: {
                 "application/json": {
@@ -421,9 +483,10 @@ export function buildOpenApiDocument(): Json {
               },
             },
             "304": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "If-None-Match matched the current ETag; empty body.",
             },
-            "404": errorResponse("Link not found"),
+            "404": errorResponse("Link not found", RATE_HEADERS),
             ...standardErrors,
           },
         },
@@ -446,6 +509,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Updated link",
               content: {
                 "application/json": {
@@ -456,7 +520,7 @@ export function buildOpenApiDocument(): Json {
                 },
               },
             },
-            "404": errorResponse("Link not found"),
+            "404": errorResponse("Link not found", RATE_HEADERS),
             ...standardErrors,
           },
         },
@@ -473,6 +537,7 @@ export function buildOpenApiDocument(): Json {
           ],
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Deleted",
               content: {
                 "application/json": {
@@ -488,7 +553,7 @@ export function buildOpenApiDocument(): Json {
                 },
               },
             },
-            "404": errorResponse("Link not found"),
+            "404": errorResponse("Link not found", RATE_HEADERS),
             ...standardErrors,
           },
         },
@@ -505,6 +570,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Reordered",
               content: {
                 "application/json": {
@@ -555,6 +621,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Per-item results with created/failed counts",
               content: {
                 "application/json": {
@@ -620,6 +687,7 @@ export function buildOpenApiDocument(): Json {
           ],
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "All sections (or those of ?pageId). Carries an ETag header.",
               content: {
                 "application/json": {
@@ -633,6 +701,7 @@ export function buildOpenApiDocument(): Json {
               },
             },
             "304": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "If-None-Match matched the current ETag; empty body.",
             },
             ...standardErrors,
@@ -651,6 +720,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "201": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Created section",
               content: {
                 "application/json": {
@@ -661,7 +731,7 @@ export function buildOpenApiDocument(): Json {
                 },
               },
             },
-            "404": errorResponse("Page not found"),
+            "404": errorResponse("Page not found", RATE_HEADERS),
             ...standardErrors,
           },
         },
@@ -678,6 +748,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Reordered",
               content: {
                 "application/json": {
@@ -717,6 +788,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Updated section",
               content: {
                 "application/json": {
@@ -727,7 +799,7 @@ export function buildOpenApiDocument(): Json {
                 },
               },
             },
-            "404": errorResponse("Section not found"),
+            "404": errorResponse("Section not found", RATE_HEADERS),
             ...standardErrors,
           },
         },
@@ -744,6 +816,7 @@ export function buildOpenApiDocument(): Json {
           ],
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Deleted",
               content: {
                 "application/json": {
@@ -762,7 +835,7 @@ export function buildOpenApiDocument(): Json {
                 },
               },
             },
-            "404": errorResponse("Section not found"),
+            "404": errorResponse("Section not found", RATE_HEADERS),
             ...standardErrors,
           },
         },
@@ -783,6 +856,7 @@ export function buildOpenApiDocument(): Json {
           ],
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "Profile. Carries an ETag header.",
               content: {
                 "application/json": {
@@ -794,9 +868,10 @@ export function buildOpenApiDocument(): Json {
               },
             },
             "304": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "If-None-Match matched the current ETag; empty body.",
             },
-            "404": errorResponse("Profile not created yet (set displayName via PUT)"),
+            "404": errorResponse("Profile not created yet (set displayName via PUT)", RATE_HEADERS),
             ...standardErrors,
           },
         },
@@ -811,6 +886,7 @@ export function buildOpenApiDocument(): Json {
           },
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "Updated profile",
               content: {
                 "application/json": {
@@ -846,6 +922,7 @@ export function buildOpenApiDocument(): Json {
           ],
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "Analytics summary (windowed - check since/retentionDays). Carries an ETag header.",
               content: {
                 "application/json": {
@@ -857,6 +934,7 @@ export function buildOpenApiDocument(): Json {
               },
             },
             "304": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS, ...ETAG_HEADERS },
               description: "If-None-Match matched the metrics ETag; empty body.",
             },
             ...standardErrors,
@@ -869,6 +947,7 @@ export function buildOpenApiDocument(): Json {
           summary: "This document (alias: /api/v1/openapi)",
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "OpenAPI 3.1 document",
               content: { "application/json": { schema: { type: "object" } } },
             },
@@ -882,6 +961,7 @@ export function buildOpenApiDocument(): Json {
           summary: "This document (dotless alias of /api/v1/openapi.json)",
           responses: {
             "200": {
+              headers: { ...RATE_HEADERS, ...CACHE_HEADERS },
               description: "OpenAPI 3.1 document",
               content: { "application/json": { schema: { type: "object" } } },
             },
@@ -895,6 +975,8 @@ export function buildOpenApiDocument(): Json {
           summary: "Minimal human-readable endpoint reference (HTML)",
           responses: {
             "200": {
+              // Session-path viewers predate per-key accounting (no rate headers).
+              headers: { ...CACHE_HEADERS },
               description: "HTML docs page",
               content: { "text/html": { schema: { type: "string" } } },
             },

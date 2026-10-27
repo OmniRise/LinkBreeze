@@ -239,4 +239,58 @@ describe("spec hygiene (E.19)", () => {
     }
     expect([...declaredTags].filter((t) => !used.has(t))).toEqual([]);
   });
+
+  it("E.36: declares the real response headers per status", () => {
+    type Resp = { headers?: Record<string, unknown> };
+    const problems: string[] = [];
+    for (const [p, methods] of Object.entries(doc.paths)) {
+      for (const [method, op] of Object.entries(methods)) {
+        if (!OPERATIONS.includes(method)) continue;
+        const where = `${method.toUpperCase()} ${p}`;
+        const responses = (op.responses ?? {}) as Record<string, Resp>;
+        const h = (s: string) => Object.keys(responses[s]?.headers ?? {});
+
+        for (const s of ["400", "401", "403", "404", "429", "500", "304"]) {
+          if (!responses[s]) continue;
+          if (!h(s).includes("Cache-Control")) {
+            problems.push(`${where}: ${s} missing Cache-Control`);
+          }
+        }
+        for (const s of ["400", "403", "404", "500", "304", "200", "201"]) {
+          if (!responses[s]) continue;
+          // Docs' session-fallback 200 predates per-key accounting (spec says so).
+          if (s === "200" && where === "GET /api/v1/docs") continue;
+          if (!h(s).includes("X-RateLimit-Limit")) {
+            problems.push(`${where}: ${s} missing X-RateLimit-Limit`);
+          }
+        }
+        if (responses["401"] && !h("401").includes("WWW-Authenticate")) {
+          problems.push(`${where}: 401 missing WWW-Authenticate`);
+        }
+        if (responses["429"] && !h("429").includes("Retry-After")) {
+          problems.push(`${where}: 429 missing Retry-After`);
+        }
+        // Success 200s/201s declare Cache-Control everywhere (docs page too),
+        // EXCEPT no rate headers where accounting hasn't run: docs session path.
+        for (const s of ["200", "201"]) {
+          if (!responses[s]) continue;
+          if (!h(s).includes("Cache-Control")) {
+            problems.push(`${where}: ${s} missing Cache-Control`);
+          }
+        }
+        // Conditional reads must expose ETag on both 200 and 304.
+        if (responses["304"] && !h("304").includes("ETag")) {
+          problems.push(`${where}: 304 missing ETag`);
+        }
+        if (
+          responses["304"] &&
+          responses["200"] &&
+          !h("200").includes("ETag")
+        ) {
+          problems.push(`${where}: conditional 200 missing ETag`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
 });

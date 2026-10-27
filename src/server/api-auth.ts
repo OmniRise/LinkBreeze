@@ -241,7 +241,7 @@ export async function apiGate(
       recordApiUsage("demoBlocked");
       return {
         ok: false,
-        response: apiError(ErrorCode.DEMO, demo, 403),
+        response: apiError(ErrorCode.DEMO, demo, 403, { headers }),
       };
     }
   }

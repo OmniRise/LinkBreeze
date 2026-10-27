@@ -87,6 +87,17 @@ async function expectErrorEnvelope(
   const body = (await res.json()) as Record<string, unknown>;
   expect(Object.keys(body), `${label} top-level keys`).toEqual(["error"]);
 
+  // E.36 behavior parity: apiError always sets no-store; post-gate statuses
+  // carry rate headers; 401s carry the Bearer challenge (pre-accounting).
+  expect(res.headers.get("cache-control"), `${label} cache-control`).toBe("no-store");
+  if ([400, 403, 404, 500].includes(expectedStatus)) {
+    expect(res.headers.get("x-ratelimit-limit"), `${label} rate headers`).toBeTruthy();
+    expect(res.headers.get("x-ratelimit-reset"), `${label} rate reset`).toBeTruthy();
+  }
+  if (expectedStatus === 401) {
+    expect(res.headers.get("www-authenticate"), `${label} www-auth`).toBeTruthy();
+  }
+
   const err = body.error as Record<string, unknown>;
   expect(typeof err.code, `${label} code type`).toBe("string");
   expect(VALID_CODES.has(err.code as string), `${label} code '${err.code}' in vocabulary`).toBe(true);

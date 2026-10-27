@@ -64,7 +64,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     });
   } catch (err) {
     logError("api/v1/links GET", err, { id });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }
 
@@ -107,7 +107,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const body = await parseJsonBody(request);
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
-    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400);
+    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400, { headers: gate.rateHeaders });
   }
 
   const existing = await getLink(id);
@@ -220,7 +220,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     return apiOk(updated ?? { id }, { headers: gate.rateHeaders });
   } catch (err) {
     logError("api/v1/links PUT", err, { id });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }
 
@@ -250,6 +250,6 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     return apiOk({ deleted: true }, { headers: gate.rateHeaders });
   } catch (err) {
     logError("api/v1/links DELETE", err, { id });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }

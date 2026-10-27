@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     );
   } catch (err) {
     logError("api/v1/links GET", err);
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
   const body = await parseJsonBody(request);
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
-    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400);
+    return apiError(ErrorCode.VALIDATION, "Request body must be a JSON object.", 400, { headers: gate.rateHeaders });
   }
 
   // The full single-create pipeline lives in createLinkFromRaw (shared with
@@ -111,6 +111,6 @@ export async function POST(request: NextRequest) {
     return apiOk(outcome.row, { status: 201, headers: gate.rateHeaders });
   } catch (err) {
     logError("api/v1/links POST", err);
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }

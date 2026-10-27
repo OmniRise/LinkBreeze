@@ -59,6 +59,6 @@ export async function GET(request: NextRequest) {
     );
   } catch (err) {
     logError("api/v1/analytics GET", err, { range });
-    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500);
+    return apiError(ErrorCode.INTERNAL, "Something went wrong.", 500, { headers: gate.rateHeaders });
   }
 }
