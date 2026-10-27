@@ -14,6 +14,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import { GET as listLinks, POST as createLinkRoute } from "@/app/api/v1/links/route";
 import { GET as getProfileRoute } from "@/app/api/v1/profile/route";
 import { GET as listSections } from "@/app/api/v1/sections/route";
+import { PUT as putSectionRoute } from "@/app/api/v1/sections/[id]/route";
 import { GET as getAnalyticsRoute } from "@/app/api/v1/analytics/route";
 import { createApiKey } from "@/server/api-keys";
 import { createSection } from "@/server/queries";
@@ -320,5 +321,59 @@ describe("E.57 sections views are query-scoped validators", () => {
     // and both still carry their own validators after the 200s
     expect(crossA.headers.get("etag")).toBe(etagFiltered);
     expect(crossB.headers.get("etag")).toBe(etagFull);
+  });
+});
+
+describe("E.73 no-op PUT keeps validators; real PUT invalidates", () => {
+  it("sections: empty-patch PUT leaves the list ETag valid, a title PUT breaks it", async () => {
+    const reqM = (
+      url: string,
+      init: { method: string; body?: string },
+    ): NextRequest => {
+      ipCounter += 1;
+      return new NextRequest(`http://localhost:3000${url}`, {
+        method: init.method,
+        headers: {
+          authorization: ["Bearer", KEY].join(" "),
+          "content-type": "application/json",
+          "x-forwarded-for": `10.91.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`,
+        },
+        ...(init.body !== undefined ? { body: init.body } : {}),
+      });
+    };
+    const params = (id: number) => ({ params: Promise.resolve({ id: String(id) }) });
+
+    const first = await listSections(req("/api/v1/sections"));
+    const etag = first.headers.get("etag")!;
+    const rows = (await first.json()).data as Array<{ id: number; title: string }>;
+    const target = rows[rows.length - 1];
+    expect(target).toBeTruthy();
+
+    // E.64's no-op short-circuit writes nothing and skips revalidation —
+    // the validator MUST survive it.
+    const noop = await putSectionRoute(
+      reqM(`/api/v1/sections/${target.id}`, { method: "PUT", body: "{}" }),
+      params(target.id),
+    );
+    expect(noop.status).toBe(200);
+    const replay = await listSections(
+      req("/api/v1/sections", { "if-none-match": etag }),
+    );
+    expect(replay.status).toBe(304);
+
+    // A real change invalidates as always.
+    const changed = await putSectionRoute(
+      reqM(`/api/v1/sections/${target.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ title: `${target.title} (touched)` }),
+      }),
+      params(target.id),
+    );
+    expect(changed.status).toBe(200);
+    const replay2 = await listSections(
+      req("/api/v1/sections", { "if-none-match": etag }),
+    );
+    expect(replay2.status).toBe(200);
+    expect(replay2.headers.get("etag")).not.toBe(etag);
   });
 });
