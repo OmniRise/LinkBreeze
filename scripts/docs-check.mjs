@@ -62,6 +62,21 @@ if (badPlaceholders.length) {
   process.exit(1);
 }
 
+// E.93 content rule: every translation must carry the SAME number of ```bash
+// fence lines as the authoritative README.md (cookbook blocks translate their
+// comments only — a dropped/added block is a re-sync bug, headings or not).
+const fenceCount = (txt, lang) =>
+  txt.split("\n").filter((line) => line === `\`\`\`${lang}`).length;
+const enFences = fenceCount(fs.readFileSync(path.join(root, "README.md"), "utf8"), "bash");
+const fenceDrift = readmes
+  .filter((f) => f !== "README.md")
+  .filter((f) => fenceCount(fs.readFileSync(path.join(root, f), "utf8"), "bash") !== enFences);
+if (fenceDrift.length) {
+  console.error(`\`\`\`bash fence count drift — README.md has ${enFences}, mismatches:`);
+  for (const f of fenceDrift) console.error(`  - ${f}`);
+  process.exit(1);
+}
+
 if (stale.length) {
   console.error("Stale translation(s) — README.md changed since they were synced:");
   for (const s of stale) console.error(`  - ${s}`);
