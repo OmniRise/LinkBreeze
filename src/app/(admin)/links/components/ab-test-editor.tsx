@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { Switch } from "@/components/ui/switch";
+import { parseAbConfig } from "@/lib/ab-test";
 import { ExternalLink } from "lucide-react";
 
 /**
@@ -30,20 +31,21 @@ export function AbTestEditor({ storedConfig, urlA }: AbTestEditorProps) {
   const t = useTranslations("linksPage");
   let initial: { urlB: string; labelA: string; labelB: string; weightA: number; startsAt: string | null; endsAt: string | null } | null = null;
   if (storedConfig) {
-    try {
-      const c = JSON.parse(storedConfig);
-      if (c && typeof c.urlB === "string") {
-        initial = {
-          urlB: c.urlB,
-          labelA: typeof c.labelA === "string" ? c.labelA : "",
-          labelB: typeof c.labelB === "string" ? c.labelB : "",
-          weightA: typeof c.weightA === "number" ? c.weightA : 50,
-          startsAt: typeof c.startsAt === "string" ? c.startsAt : null,
-          endsAt: typeof c.endsAt === "string" ? c.endsAt : null,
-        };
-      }
-    } catch {
-      initial = null;
+    // Parse through the SAME zod parser the app runs everywhere else
+    // (serve / scanner / restore). The old raw-JSON typeof-guard let a
+    // tampered config (weightA=250, missing labelA) enable + mislabel the
+    // editor while parseAbConfig treated it as null everywhere else — one
+    // parser, one truth (E.40).
+    const c = parseAbConfig(storedConfig);
+    if (c) {
+      initial = {
+        urlB: c.urlB,
+        labelA: c.labelA ?? "",
+        labelB: c.labelB ?? "",
+        weightA: c.weightA,
+        startsAt: c.startsAt ?? null,
+        endsAt: c.endsAt ?? null,
+      };
     }
   }
 

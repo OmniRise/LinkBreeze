@@ -52,6 +52,14 @@ describe("parseAbConfig", () => {
     expect(parseAbConfig(JSON.stringify({ ...base, weightA: 100, weightB: 0 }))).toBeNull();
   });
 
+  it("returns null for non-integer weights (E.40: slider emits ints only, schema must too)", () => {
+    // The UI range slider (step=1) can never submit 50.7 — the zod .int()
+    // gate is the only thing standing between a hand-crafted payload or a
+    // hand-edited DB row and a fractional bucket boundary.
+    expect(parseAbConfig(JSON.stringify({ ...base, weightA: 50.7, weightB: 49.3 }))).toBeNull();
+    expect(parseAbConfig(JSON.stringify({ ...base, weightA: 50, weightB: 49.5 }))).toBeNull();
+  });
+
   it("returns null for an unknown status", () => {
     expect(parseAbConfig(JSON.stringify({ ...base, status: "live" }))).toBeNull();
   });
