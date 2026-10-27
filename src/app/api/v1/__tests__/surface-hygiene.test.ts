@@ -9,6 +9,8 @@ import "../../../../server/queries/__tests__/integration-setup";
 import { seedPage, seedLink, db } from "../../../../server/queries/__tests__/integration-setup";
 import * as schema from "@/db/schema";
 import { NextRequest } from "next/server";
+import { readdirSync, readFileSync } from "node:fs";
+import { join as joinPath } from "node:path";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/favicon", async (importOriginal) => ({
@@ -203,5 +205,30 @@ describe("surface hygiene (E.17)", () => {
       // nor the stored digest / grace fields (KV material)
       expect(raw.includes("apiKeyHash"), `${c.label} mentions apiKeyHash`).toBe(false);
     }
+  });
+
+  it("E.134: every GET route is conditional — plain apiOk on a GET = spec/behavior drift", () => {
+    const root = joinPath(process.cwd(), "src/app/api/v1");
+    // Meta document routes answer with Cache-Control only (deliberate: E.76
+    // docs session path, openapi has no validator) — the only GET exceptions.
+    const ALLOWLIST = new Set([
+      joinPath(root, "docs", "route.ts"),
+      joinPath(root, "openapi", "route.ts"),
+      joinPath(root, "openapi.json", "route.ts"),
+    ]);
+
+    const offenders: string[] = [];
+    let seenGets = 0;
+    for (const rel of readdirSync(root, { recursive: true }) as string[]) {
+      if (!rel.endsWith("route.ts")) continue;
+      const file = joinPath(root, rel);
+      const src = readFileSync(file, "utf8");
+      if (!/export async function GET\b/.test(src)) continue;
+      seenGets += 1;
+      if (ALLOWLIST.has(file)) continue;
+      if (!src.includes("apiOkConditional(")) offenders.push(rel);
+    }
+    expect(seenGets).toBeGreaterThanOrEqual(7); // census has material
+    expect(offenders).toEqual([]);
   });
 });
