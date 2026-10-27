@@ -338,6 +338,54 @@ describe("GET /api/pages/export", () => {
     expect(ms, `batch of 50 took ${Math.round(ms)}ms`).toBeLessThan(5000);
   });
 
+  it("every batch entry gets the full per-page transform (E.81)", async () => {
+    // Regression-at-scale risk: transforms (direct href, beacon strip,
+    // sanitization) accidentally applied only to the first entry or
+    // skipped in the loop. NOTE: plain-mode media IS origin-absolute by
+    // design — the invariants here are the transforms themselves.
+    const pages = Array.from({ length: 30 }, (_, p) => ({
+      ...(PAGE as object),
+      id: p + 1,
+      slug: `bulk-${p + 1}`,
+    })) as never[];
+    mockGetAllPages.mockResolvedValue(pages);
+    mockGetActiveLinks.mockResolvedValue(
+      Array.from({ length: 5 }, (_, i) => ({
+        id: i + 1, pageId: 1, sectionId: null, orderIndex: i, type: "url",
+        title: `L${i}`, description: null, url: `https://dest.example/${i}`,
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        cardStyle: "compact", popupText: null, ctaLabel: null,
+        redirectSlug: null, createdAt: "2026-01-01 00:00:00",
+      })) as never,
+    );
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const entries: Array<{ name: string; data: Buffer }> = [];
+    let off = 0;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const size = buf.readUInt32LE(off + 18);
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      const name = buf.subarray(off + 30, off + 30 + nameLen).toString("utf8");
+      const start = off + 30 + nameLen + extraLen;
+      entries.push({ name, data: buf.subarray(start, start + size) });
+      off = start + size;
+    }
+    expect(entries).toHaveLength(30);
+    for (const { name, data } of entries) {
+      const html = data.toString("utf8");
+      expect(html.startsWith("<!DOCTYPE html>"), name).toBe(true);
+      expect(html, name).not.toContain("/go/");
+      expect(html, name).not.toContain("sendBeacon");
+      expect(html, name).not.toContain("href=\"javascript:");
+      // direct destination present in every entry
+      expect(html, name).toContain('href="https://dest.example/0"');
+    }
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
