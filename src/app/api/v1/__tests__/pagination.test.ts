@@ -162,6 +162,10 @@ describe("GET /api/v1/links — cursor pagination", () => {
       "?cursor=" + encodeURIComponent(Buffer.from('{"o":-1,"i":1}').toString("base64url")),
       "?cursor=" + encodeURIComponent(Buffer.from('{"o":1.5,"i":1}').toString("base64url")),
       "?cursor=" + encodeURIComponent(Buffer.from('{"o":0}').toString("base64url")),
+      // E.104: a REAL cursor cut mid-flight (JSON.parse branch)…
+      "?cursor=" + encodeURIComponent(Buffer.from('{"o":1,"i":42}').toString("base64url").slice(0, 9)),
+      // …and a foreign-column shape (wrong second key → shape-throw branch).
+      "?cursor=" + encodeURIComponent(Buffer.from('{"o":1,"j":42}').toString("base64url")),
       "?limit=0",
       "?limit=101",
       "?limit=abc",
