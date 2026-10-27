@@ -404,6 +404,23 @@ describe("GET /api/pages/export", () => {
     expect(json.bytes).toBeGreaterThan(25 * 1024 * 1024);
   });
 
+  it("single-page EMBED over 25MiB → 413 with dynamic message (E.87)", async () => {
+    // last unpinned size branch: single html + embed cap (route ~line 238)
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      bio: "B".repeat(26 * 1024 * 1024),
+    } as never);
+    const res = await GET(req("?id=1&embed=1"));
+    expect(res.status).toBe(413);
+    expect(res.headers.get("Content-Type")).toContain("application/json");
+    const json = await res.json();
+    expect(json.error).toBe("Export exceeds the 25 MiB limit");
+    expect(json.bytes).toBeGreaterThan(25 * 1024 * 1024);
+    // sanity: bio appears in ~4 SEO slots (meta/og/json-ld/visible) so
+    // ~4× input is expected — just catch a runaway memory blowup
+    expect(json.bytes).toBeLessThan(200 * 1024 * 1024);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
