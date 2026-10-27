@@ -253,6 +253,66 @@ describe("setAbTest", () => {
     expect(parseAbConfig(saved[1].abConfig)).not.toBeNull();
   });
 
+  it("E.85: POSITIVE parity sweep - every valid payload succeeds at BOTH layers", async () => {
+    // The positive mirror of E.82: a generated matrix of VALID payloads
+    // (weights 1/50/99 x window {none, both, start-only} x labels
+    // {both-empty->null, 1-char, 60-char cap}) must ALL be ACCEPTED by
+    // the action AND the config it stores must parse back cleanly with
+    // the same values — no valid payload may be refused at either layer.
+    const weights = ["1", "50", "99"];
+    const windows: Record<string, Record<string, string>> = {
+      none: {},
+      both: { startsAt: "2026-11-01T10:00", endsAt: "2026-11-08T10:00" },
+      "start-only": { startsAt: "2026-11-01T10:00" },
+    };
+    const labels: Record<string, { labelA: string; labelB: string }> = {
+      "both-empty": { labelA: "", labelB: "" },
+      "1-char": { labelA: "a", labelB: "b" },
+      "60-char": { labelA: "x".repeat(60), labelB: "" },
+    };
+
+    let done = 0;
+    for (const weightA of weights) {
+      for (const [wKey, windowFields] of Object.entries(windows)) {
+        for (const [lKey, labelFields] of Object.entries(labels)) {
+          mocks.getLink.mockResolvedValue(urlLink(null));
+          const res = await setAbTest(
+            fd({
+              id: "7",
+              urlB: "https://example.com/b",
+              weightA,
+              ...labelFields,
+              ...windowFields,
+            }),
+          );
+          expect(res.success, `payload w=${weightA} window=${wKey} labels=${lKey}`).toBe(true);
+          done++;
+
+          // The STORED result must parse at the schema layer with the
+          // exact same values (the parity chain: accept -> store -> parse).
+          const calls = mocks.updateLink.mock.calls as unknown as Array<
+            [number, { abConfig: string }]
+          >;
+          const stored = calls[calls.length - 1][1].abConfig;
+          const parsed = parseAbConfig(stored);
+          expect(parsed, `parse w=${weightA} window=${wKey} labels=${lKey}`).not.toBeNull();
+          expect(parsed!.v).toBe(1);
+          expect(parsed!.status).toBe("running");
+          expect(parsed!.winner).toBeNull();
+          expect(parsed!.urlB).toBe("https://example.com/b");
+          expect(parsed!.weightA).toBe(Number(weightA));
+          expect(parsed!.weightB).toBe(100 - Number(weightA));
+          expect(parsed!.labelA).toBe(labelFields.labelA || null);
+          expect(parsed!.labelB).toBe(labelFields.labelB || null);
+          expect(parsed!.startsAt).toBe(windowFields.startsAt ?? null);
+          expect(parsed!.endsAt).toBe(windowFields.endsAt ?? null);
+        }
+      }
+    }
+    expect(done).toBe(27); // 3 weights x 3 windows x 3 label shapes
+    expect(mocks.updateLink).toHaveBeenCalledTimes(27);
+  });
+
   it("rejects non-URL link types (scope: URL links only)", async () => {
     mocks.getLink.mockResolvedValue({ ...urlLink(null), type: "email" });
     const res = await setAbTest(fd({ id: "7", urlB: "https://example.com/b", weightA: "50" }));
