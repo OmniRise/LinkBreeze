@@ -159,6 +159,21 @@ describe("GET /api/pages/export", () => {
     expect(/^[\x20-\x7e]*$/.test(cd)).toBe(true);
   });
 
+  it("CRLF slug can never split the response headers (E.54)", async () => {
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      slug: "jane\r\nX-Injected: yes\r\n",
+    } as never);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const cd = res.headers.get("Content-Disposition")!;
+    expect(cd).not.toMatch(/[\r\n]/);
+    expect(cd).toBe('attachment; filename="janeX-Injectedyes.html"');
+    // no smuggled header survived anywhere in the header block
+    expect(res.headers.get("X-Injected")).toBeNull();
+    expect([...res.headers.keys()].every((k) => !/[\r\n]/.test(k))).toBe(true);
+  });
+
   it("404 when no pages exist for ?all=1", async () => {
     mockGetAllPages.mockResolvedValue([]);
     const res = await GET(req("?all=1"));
