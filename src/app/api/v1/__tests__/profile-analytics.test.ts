@@ -171,6 +171,26 @@ describe("GET /api/v1/analytics", () => {
     const res = await getAnalyticsRoute(req("/api/v1/analytics?range=all"));
     expect((await res.json()).data.range).toBe("7d");
   });
+
+  it("E.113: zero-data instance answers EVERY range with strict zeros (no NaN/null)", async () => {
+    for (const range of ["7d", "30d", "90d"]) {
+      const res = await getAnalyticsRoute(req(`/api/v1/analytics?range=${range}`));
+      expect(res.status, range).toBe(200);
+      const { data } = await res.json();
+      expect(data.range, range).toBe(range);
+      expect(data.totalViews, range).toBe(0);
+      expect(data.totalClicks, range).toBe(0);
+      expect(Array.isArray(data.viewsPerDay), range).toBe(true);
+      expect(Array.isArray(data.topLinks), range).toBe(true);
+      // No NaN poisoning of numeric fields on an instance with no pageviews.
+      for (const bucket of data.viewsPerDay) {
+        expect(typeof bucket.views, range).toBe("number");
+        expect(typeof bucket.clicks, range).toBe("number");
+        expect(Number.isNaN(bucket.views), range).toBe(false);
+        expect(Number.isNaN(bucket.clicks), range).toBe(false);
+      }
+    }
+  });
 });
 
 describe("security battery (#4 /2.4)", () => {
