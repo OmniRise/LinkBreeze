@@ -297,6 +297,35 @@ describe("GET /api/pages/export", () => {
     expect(json.bytes).toBeGreaterThan(2 * 1024 * 1024);
   });
 
+  it("orphaned themeId falls back cleanly (E.44)", async () => {
+    // themeId points at a deleted row → getThemeById null
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      themeId: 99,
+    } as never);
+    mockGetThemeById.mockResolvedValue(null);
+
+    // branch 1: no fallback theme either → {} defaults, still 200
+    mockGetActiveTheme.mockResolvedValue(null);
+    const bare = await GET(req("?id=1"));
+    expect(bare.status).toBe(200);
+    const bareBody = await bare.text();
+    expect(mockGetThemeById).toHaveBeenCalledWith(99);
+    expect(bareBody.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(bareBody).toContain("<style>"); // tokens still emitted
+
+    // branch 2: active fallback theme present → its tokens win
+    mockGetActiveTheme.mockResolvedValue({
+      id: 3,
+      name: "FallbackTheme",
+      primaryColor: "#00ff00",
+      animationType: "none",
+    } as never);
+    const fb = await GET(req("?id=1"));
+    expect(fb.status).toBe(200);
+    expect(await fb.text()).toContain("--lb-accent: #00ff00;");
+  });
+
   it("resolves custom:<id> fonts into @font-face + token family (E.25)", async () => {
     // explicit host header: undici does not auto-populate it on
     // programmatically-built requests (real server requests always have it)
