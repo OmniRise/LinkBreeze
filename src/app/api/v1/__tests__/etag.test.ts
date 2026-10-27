@@ -11,6 +11,17 @@ import { NextRequest } from "next/server";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+// E.128: create awaits REAL network fetches (api-links:88 favicon, :183 OG) —
+// under sibling-loop network saturation those exceeded the 5s test timeout at
+// the exact test that creates a link. Standard harness mocks (links.test form).
+vi.mock("@/lib/favicon", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/favicon")>()),
+  fetchAndCacheFavicon: vi.fn(async () => "https://cdn.example/icon.png"),
+}));
+vi.mock("@/lib/og-fetcher", () => ({
+  fetchOgData: vi.fn(async () => ({ description: null, imageUrl: null })),
+}));
+
 import { GET as listLinks, POST as createLinkRoute } from "@/app/api/v1/links/route";
 import { GET as getProfileRoute } from "@/app/api/v1/profile/route";
 import { GET as listSections } from "@/app/api/v1/sections/route";
