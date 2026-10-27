@@ -248,6 +248,11 @@ describe("security battery (#4 /2.4)", () => {
     }
     expect(saw429).not.toBeNull();
     expect(Number(saw429!.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
+    // E.94: the 429 also carries the live per-key budget (spec now declares
+    // RATE_HEADERS + Retry-After for 429 together — api-auth sets them).
+    expect(saw429!.headers.get("x-ratelimit-limit")).toBeTruthy();
+    expect(saw429!.headers.get("x-ratelimit-remaining")).toBe("0");
+    expect(saw429!.headers.get("x-ratelimit-reset")).toBeTruthy();
     const body = await saw429!.json();
     expect(body.error.code).toBe("rate_limit");
   });

@@ -80,7 +80,7 @@ const standardErrors: Json = {
   ),
   "429": errorResponse(
     "Rate limit exceeded (Retry-After header; error.code=rate_limit)",
-    RETRY_AFTER_HEADERS,
+    { ...RETRY_AFTER_HEADERS, ...RATE_HEADERS },
   ),
   "500": errorResponse("Internal error (never leaks details)", RATE_HEADERS),
 };
