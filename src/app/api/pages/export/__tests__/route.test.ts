@@ -260,6 +260,18 @@ describe("GET /api/pages/export", () => {
     expect(names.sort()).toEqual(["cafe.html", "caf-2.html", "caf.html"].sort());
   });
 
+  it("param handling: junk ignored, wrong-cased id strictly 400 (E.64)", async () => {
+    // param names are case-sensitive — ?ID=1 is a MISSING id, not an id;
+    // checked FIRST so getPageById call counts are still zero
+    const wrongCase = await GET(req("?ID=1"));
+    expect(wrongCase.status).toBe(400);
+    expect(mockGetPageById).not.toHaveBeenCalled();
+    // unknown params never break a valid export
+    const junk = await GET(req("?id=1&junk=1&UTM=x"));
+    expect(junk.status).toBe(200);
+    expect(mockGetPageById).toHaveBeenCalledWith(1);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
