@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return apiError(
       ErrorCode.VALIDATION,
-      parsed.error.issues[0]?.message ?? "Invalid input",
+      parsed.error.issues[0]?.message ?? "Invalid input.",
       400,
       { details: zodDetails(parsed.error.issues), headers: gate.rateHeaders },
     );

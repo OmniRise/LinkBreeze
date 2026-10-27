@@ -156,7 +156,7 @@ export async function createLinkFromRaw(raw: unknown): Promise<CreateLinkOutcome
     }));
     return {
       ok: false,
-      message: details[0]?.message ?? "Invalid input",
+      message: details[0]?.message ?? "Invalid input.",
       details,
     };
   }
@@ -329,7 +329,7 @@ export function parseListParams(sp: URLSearchParams): {
       return {
         ok: false,
         status: 400,
-        message: `Unknown field(s): ${unknown.join(", ")}`,
+        message: `Unknown field(s): ${unknown.join(", ")}.`,
         path: "fields",
       };
     }

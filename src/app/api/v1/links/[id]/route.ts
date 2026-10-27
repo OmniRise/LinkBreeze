@@ -136,7 +136,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const issues = parsed.error.issues;
     return apiError(
       ErrorCode.VALIDATION,
-      issues[0]?.message ?? "Invalid input",
+      issues[0]?.message ?? "Invalid input.",
       400,
       {
         details: issues.map((i: z.ZodIssue) => ({
