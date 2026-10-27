@@ -463,6 +463,30 @@ describe("GET /api/pages/export", () => {
     expect(routeSrc).toContain('} from "@/server/queries";');
   });
 
+  it("custom font row MISSING → graceful default-font export (E.111)", async () => {
+    // theme requests custom:7 but the row is gone/null: resolveFontOptions
+    // returns {} → default stacks, NO @font-face, export still 200.
+    // (A REJECTING query propagates → 500 — same as the live page and
+    // every other route here: db failure is app-wide, not export-shaped;
+    // logged as an orchestrator decision.)
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object), themeId: 5 } as never);
+    mockGetThemeById.mockResolvedValue({
+      id: 5,
+      name: "GoneFont",
+      fontFamily: "custom:77",
+      animationType: "none",
+    } as never);
+    mockGetCustomFont.mockResolvedValue(null);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(mockGetCustomFont).toHaveBeenCalledWith(77);
+    expect(body).not.toContain("@font-face");
+    // default font token still emitted (resolver fell back)
+    expect(body).toContain("--lb-font:");
+    expect(body).toContain("<!DOCTYPE html>");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
