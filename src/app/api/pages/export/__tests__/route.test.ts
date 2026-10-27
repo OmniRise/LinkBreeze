@@ -239,6 +239,28 @@ describe("GET /api/pages/export", () => {
     expect(entries).toBe(1);
   });
 
+  it("two unicode-slug pages colliding in one batch → caf.html + caf-2.html (E.58)", async () => {
+    mockGetAllPages.mockResolvedValue([
+      { ...(PAGE as object), id: 1, slug: "café" },
+      { ...(PAGE as object), id: 2, slug: "cafe" }, // different slug…
+      { ...(PAGE as object), id: 3, slug: "café" }, // …but 1 & 3 collide
+    ] as never[]);
+    const res = await GET(req("?all=1"));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    // parse entry names
+    const names: string[] = [];
+    let off = 0;
+    while (off + 4 <= buf.length && buf.readUInt32LE(off) === 0x04034b50) {
+      const size = buf.readUInt32LE(off + 18);
+      const nameLen = buf.readUInt16LE(off + 26);
+      const extraLen = buf.readUInt16LE(off + 28);
+      names.push(buf.subarray(off + 30, off + 30 + nameLen).toString("utf8"));
+      off = off + 30 + nameLen + extraLen + size;
+    }
+    expect(names.sort()).toEqual(["cafe.html", "caf-2.html", "caf.html"].sort());
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
