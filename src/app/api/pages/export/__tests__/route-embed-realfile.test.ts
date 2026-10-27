@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { collectUploadNames } from "@/lib/export/url-rewrite";
 
 /**
  * E.35/E.52 — embed zip with a REAL uploads file on disk. Every other
@@ -273,6 +274,48 @@ describe("embed zip ships real uploads files (E.35/E.52)", () => {
     // structural: EOCD still clean at this size
     expect(zipBuf.readUInt32LE(zipBuf.length - 22)).toBe(0x06054b50);
     expect(zipBuf.readUInt16LE(zipBuf.length - 2)).toBe(0);
+  });
+
+  it("collector prediction == bundled uploads set, mixed page (E.199)", async () => {
+    writeFileSync(join(tempUploads, "mix-avatar.png"), Buffer.from("avatar-bytes"));
+    writeFileSync(join(tempUploads, "mix-banner.png"), Buffer.from("banner-bytes"));
+    writeFileSync(join(tempUploads, "mix-font.woff2"), Buffer.from("font-bytes-woff2"));
+    vi.mocked(auth.getSession).mockResolvedValue({ userId: 1, username: "jane" } as never);
+    vi.mocked(q.getPageById).mockResolvedValue({
+      id: 1, slug: "mixed", title: "Mixed", bio: null, themeId: 9,
+      avatarUrl: "/api/uploads/mix-avatar.png",
+      bannerUrl: "/api/uploads/mix-banner.png",
+      emailCapture: false, shareEnabled: false,
+    } as never);
+    vi.mocked(q.getThemeById).mockResolvedValue({
+      id: 9, name: "MixTheme", fontFamily: "custom:7",
+      profileLayout: "banner", animationType: "none",
+    } as never);
+    vi.mocked(q.getCustomFontById).mockResolvedValue({
+      id: 7, family: "MixFont", url: "/api/uploads/mix-font.woff2",
+      format: "woff2",
+    } as never);
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/pages/export?id=1&embed=1", {
+        headers: { host: "localhost:3000" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const entries = readLocalEntries(Buffer.from(await res.arrayBuffer()));
+    const html = entries.find((e) => e.name === "mixed.html")!;
+    // the collector's PREDICTION from the html refs (bare names)…
+    const predicted = collectUploadNames(html.data.toString("utf8")).sort();
+    // …must equal the set actually bundled (bundler prefixes uploads/)
+    const actual = entries
+      .filter((e) => e.name.startsWith("uploads/"))
+      .map((e) => e.name.slice("uploads/".length))
+      .sort();
+    expect(predicted).toEqual([
+      "mix-avatar.png",
+      "mix-banner.png",
+      "mix-font.woff2",
+    ]);
+    expect(actual).toEqual(predicted); // zero diff either way
   });
 
   it("embed zip bundles a REAL font file referenced by @font-face (E.99)", async () => {

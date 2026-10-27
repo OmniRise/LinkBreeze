@@ -223,4 +223,45 @@ describe("dedupeNames", () => {
     // walked exactly into the central directory (local section complete)
     expect(zip.readUInt32LE(off)).toBe(0x02014b50);
   });
+
+  it("LOCAL and CD records agree pairwise on name + flags (E.198)", () => {
+    const zip = createZip([
+      { name: "a.html", content: "A" },
+      { name: "café.html", content: "C" },
+      { name: "@handle.html", content: "H" },
+    ]);
+    // walk local headers
+    const local: Array<{ name: string; flags: number }> = [];
+    let off = 0;
+    while (off + 4 <= zip.length && zip.readUInt32LE(off) === 0x04034b50) {
+      const csize = zip.readUInt32LE(off + 18);
+      const nameLen = zip.readUInt16LE(off + 26);
+      const extraLen = zip.readUInt16LE(off + 28);
+      local.push({
+        name: zip.subarray(off + 30, off + 30 + nameLen).toString("utf8"),
+        flags: zip.readUInt16LE(off + 6),
+      });
+      off = off + 30 + nameLen + extraLen + csize;
+    }
+    // walk central directory records
+    const cd: Array<{ name: string; flags: number }> = [];
+    const eocd = zip.length - 22;
+    let pos = zip.readUInt32LE(eocd + 16);
+    const cdEnd = pos + zip.readUInt32LE(eocd + 12);
+    while (pos < cdEnd && zip.readUInt32LE(pos) === 0x02014b50) {
+      const nameLen = zip.readUInt16LE(pos + 28);
+      const extraLen = zip.readUInt16LE(pos + 30);
+      const commentLen = zip.readUInt16LE(pos + 32);
+      cd.push({
+        name: zip.subarray(pos + 46, pos + 46 + nameLen).toString("utf8"),
+        flags: zip.readUInt16LE(pos + 8),
+      });
+      pos = pos + 46 + nameLen + extraLen + commentLen;
+    }
+    expect(local).toHaveLength(3);
+    expect(cd).toHaveLength(3);
+    // pairwise equality — a name/flag MISMATCH between records is a
+    // parser-exploitable inconsistency class
+    expect(cd).toEqual(local);
+  });
 });
