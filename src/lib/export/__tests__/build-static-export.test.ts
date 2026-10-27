@@ -341,6 +341,58 @@ describe("corrupt socialLinks resilience (E.43)", () => {
   });
 });
 
+describe("section heading edges (E.57)", () => {
+  const link = (id: number, sectionId: number | null) =>
+    ({
+      id,
+      pageId: 1,
+      sectionId,
+      orderIndex: id,
+      type: "url",
+      title: `Link ${id}`,
+      description: null,
+      url: `https://example.com/${id}`,
+      icon: null,
+      iconUrl: null,
+      customIconUrl: null,
+      iconMode: "auto",
+      autoIcon: true,
+      imageUrl: null,
+      isHighlighted: false,
+      isActive: true,
+      scheduleStart: null,
+      scheduleEnd: null,
+      clicksCount: 0,
+      cardStyle: "compact",
+      popupText: null,
+      ctaLabel: null,
+      redirectSlug: null,
+      createdAt: "2026-01-01 00:00:00",
+    }) as unknown as LinkRow;
+
+  it("empty-titled section WITH links keeps the heading band (live parity)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [link(10, 7)],
+      sections: [{ id: 7, title: "", icon: null, orderIndex: 0 }],
+    });
+    // SectionHeader (shared live component) renders {title} unguarded —
+    // parity means the export does the same; no orphan-logic divergence.
+    expect(html).toContain("<h2");
+    expect(html).toContain(">Link 10</");
+  });
+
+  it("link-less section never emits a heading (shared groupLinksBySection drops it)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [link(11, null)],
+      sections: [{ id: 8, title: "Orphan Section", icon: null, orderIndex: 0 }],
+    });
+    expect(html).not.toContain("Orphan Section");
+    expect(html).not.toContain("<h2");
+  });
+});
+
 describe("input-order preservation (E.49)", () => {
   const link = (id: number, title: string, orderIndex: number): LinkRow =>
     ({
