@@ -205,6 +205,12 @@ GDPR Article 33 (72 hours to the supervisory authority).
    lands in a log, shell history, or a public repo. Requests are rate limited
    per key (120/min) and mutations are blocked in demo mode; the API surface
    runs the same URL-scheme validation as the admin UI.
+   **Scope**: the key is admin-equivalent for *public-site content* of this
+   one instance — links, sections, profile, analytics reads. It can never
+   reach user accounts, sessions, other settings (including its own hash),
+   backups, the filesystem, or any other instance; `/api/v1` responses are
+   structurally unable to contain user/session fields (enforced by a
+   surface-hygiene test in CI).
 
 ## Accessibility
 
