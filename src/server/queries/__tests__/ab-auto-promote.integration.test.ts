@@ -221,6 +221,65 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     );
   });
 
+  it("E.79: throttle expires by TIME (not reset) at the exact 10-min boundary; re-scan after expiry is idempotent", async () => {
+    // The throttle is MODULE MEMORY (like maybeRunScheduledBackup), NOT a
+    // KV timestamp — there is no persisted stamp to manipulate, and a KV
+    // one would defeat the point (the click path must read settings at
+    // most once per 10 min). E.20 pinned the reset path; this pins the
+    // unpinned NATURAL EXPIRY path (now - lastCheck >= THROTTLE_MS) with
+    // a controlled clock instead of sleeping 10 minutes, plus a direct
+    // re-scan proving an expiry/restart re-fire never double-promotes.
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    _resetAbAutoPromoteThrottle();
+
+    const t0 = Date.now();
+    let offset = 0;
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => t0 + offset);
+    const status = async (id: number) =>
+      parseAbConfig((await getLink(id))?.abConfig ?? null)?.status;
+    // Poll on UN-spied performance.now so the frozen clock can't hang it.
+    const waitUntil = async (cond: () => Promise<boolean>, ms = 3000) => {
+      const deadline = performance.now() + ms;
+      while (performance.now() < deadline) {
+        if (await cond()) return;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      throw new Error("waitUntil timed out");
+    };
+
+    try {
+      // 1) First fire arms the throttle at t0 and promotes link #1.
+      const first = await seedRunningTest();
+      await clickVariants(first.id, 50, 150);
+      maybeAutoPromoteAbTests();
+      await waitUntil(async () => (await status(first.id)) === "archived");
+
+      // 2) Still INSIDE the window (t0 + THROTTLE - 1ms): suppressed.
+      const second = await seedRunningTest();
+      await clickVariants(second.id, 50, 150);
+      offset = 10 * 60 * 1000 - 1; // one millisecond before expiry
+      expect(() => maybeAutoPromoteAbTests()).not.toThrow();
+      await new Promise((r) => setTimeout(r, 300)); // would-be scan time
+      expect(await status(second.id)).toBe("running"); // suppressed
+
+      // 3) The EXACT boundary fires with NO reset — natural time expiry.
+      offset = 10 * 60 * 1000; // now - lastCheck === THROTTLE_MS
+      expect(() => maybeAutoPromoteAbTests()).not.toThrow();
+      await waitUntil(async () => (await status(second.id)) === "archived");
+
+      // 4) Direct re-scan (fresh-process shape: throttle bypassed, as a
+      //    restart re-arm would) must be IDEMPOTENT: nothing left to
+      //    promote, both configs byte-stable, nothing un-archived.
+      const raw1 = (await getLink(first.id))?.abConfig ?? null;
+      const raw2 = (await getLink(second.id))?.abConfig ?? null;
+      expect(await runAbAutoPromoteScan()).toBe(0);
+      expect((await getLink(first.id))?.abConfig ?? null).toBe(raw1);
+      expect((await getLink(second.id))?.abConfig ?? null).toBe(raw2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("E.23: promotion weighs ALL-TIME clicks (backdated history still fires the scanner)", async () => {
     // Deliberately un-ranged: promotion is permanent, so the whole
     // experiment counts — contrast with the range-scoped detail breakdown.
