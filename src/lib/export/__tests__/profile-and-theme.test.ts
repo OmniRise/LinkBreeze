@@ -357,6 +357,33 @@ describe("avatar/banner fit adjustments (E.123)", () => {
     expect(html).toContain("overflow:hidden");
     expect(html).not.toContain("linear-gradient(to top, rgba(0,0,0,0.65)");
   });
+  it("classic baseline ignores bannerUrl entirely (E.132)", () => {
+    const input = pageWith({ bannerUrl: "/api/uploads/classic-bg.png" });
+    const html = buildStaticExport(input); // no profileLayout set
+    // CSS rules ship always (E.115) — the ELEMENT classes must not
+    expect(html).not.toContain('class="lb-export-banner');
+    // classic keeps the standard avatar/name header flow
+    expect(html).toContain('class="lb-export-container"');
+  });
+
+  it("youtube + instagram icons render platform labels + hrefs (E.133)", () => {
+    const input = pageWith({
+      socialLinks: JSON.stringify([
+        { platform: "youtube", url: "https://youtube.com/@x" },
+        { platform: "instagram", url: "https://instagram.com/x" },
+      ]),
+    });
+    const html = buildStaticExport(input);
+    expect(html).toContain('aria-label="YouTube"');
+    expect(html).toContain('aria-label="Instagram"');
+    expect(html).toContain('href="https://youtube.com/@x"');
+    expect(html).toContain('href="https://instagram.com/x"');
+    // both in the same nav row
+    expect(html).toContain('aria-label="Social links"');
+    expect((html.match(/class="lb-social-icon"/g) ?? []).length).toBe(2);
+    // external links carry safe rel (tabnabbing)
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
 });
 
 describe("page bio empty-string vs null (E.127)", () => {
