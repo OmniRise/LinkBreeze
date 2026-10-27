@@ -281,4 +281,23 @@ describe("dedupeNames", () => {
     expect(storedCd).toBe(storedLocal);
     expect(storedCd).toBe(crc32(payload));
   });
+
+  it("EOCD sits exactly at EOF for multi-entry archives (E.216)", () => {
+    // unit-level twin of the python probe check (E.214): a 5-entry
+    // batch-shaped archive ends at EOCD+22 — no trailing bytes
+    const entries = Array.from({ length: 5 }, (_, i) => ({
+      name: `page-${i + 1}.html`,
+      content: `<!DOCTYPE html><html><body>p${i}</body></html>`,
+    }));
+    const zip = createZip(entries);
+    const eocd = zip.length - 22;
+    expect(zip.readUInt32LE(eocd)).toBe(0x06054b50); // EOCD signature there
+    expect(zip.readUInt16LE(eocd + 20)).toBe(0); // comment length 0
+    expect(zip.readUInt16LE(eocd + 10)).toBe(5); // total entries
+    // CD offset+size land exactly ON the EOCD (no gap, no overrun)
+    const cdSize = zip.readUInt32LE(eocd + 12);
+    const cdOff = zip.readUInt32LE(eocd + 16);
+    expect(cdOff + cdSize).toBe(eocd);
+    expect(eocd + 22).toBe(zip.length);
+  });
 });
