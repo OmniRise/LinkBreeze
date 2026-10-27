@@ -265,6 +265,63 @@ describe("theme extremes: density × fontScale × linkStyle (E.120)", () => {
   });
 });
 
+describe("avatar/banner fit adjustments (E.123)", () => {
+  const pageWith = (over: Record<string, unknown>): ExportInput => ({
+    page: {
+      slug: "fitpage",
+      title: "Fit",
+      bio: null,
+      socialLinks: null,
+      avatarUrl: "/api/uploads/fit.png",
+      bannerUrl: "/api/uploads/banner.png",
+      footerText: null,
+      ...over,
+    } as unknown as ExportPageInput,
+    links: [],
+    sections: [],
+    theme: { animationType: "none" },
+    baseUrl: "https://links.example.com",
+  });
+
+  it("cover + zoom-1.5 + focus point lands full adjustment math", () => {
+    // posX/posY are 0–1 focus points; zoom is a 1–3 multiplier
+    // (image-adjustments.ts resolve* functions — spec Image-Positioning)
+    const input = pageWith({
+      avatarFit: "cover",
+      avatarZoom: 1.5,
+      avatarPosX: 0.3,
+      avatarPosY: 0.4,
+      bannerFit: "cover",
+      bannerZoom: 1.5,
+      bannerPosX: 0.3,
+      bannerPosY: 0.4,
+    });
+    const html = buildStaticExport({
+      ...input,
+      theme: { ...input.theme, profileLayout: "hero" },
+    });
+    // avatar img: object-fit + position + scale + origin (line 206 path)
+    expect(html).toContain("object-fit:cover;object-position:30% 40%");
+    expect(html).toContain("transform:scale(1.5);transform-origin:30% 40%");
+    // hero banner img uses the same helper (line 254)
+    const banner = html.match(/<img src="[^"]*banner\.png"[^>]*>/)?.[0] ?? "";
+    expect(banner, "hero banner img").toContain("class=\"lb-export-banner\"");
+    expect(banner).toContain("object-position:30% 40%");
+    expect(banner).toContain("transform:scale(1.5);transform-origin:30% 40%");
+  });
+
+  it("contain with zoom-1 (identity) emits fit only, no transform", () => {
+    const html = buildStaticExport(
+      pageWith({ avatarFit: "contain", avatarZoom: 1 }),
+    );
+    expect(html).toContain("object-fit:contain");
+    const avatar = html.match(/<img src="[^"]*fit\.png"[^>]*>/)?.[0] ?? "";
+    expect(avatar).toContain("object-fit:contain");
+    expect(avatar).toContain("object-position:50% 50%"); // defaults
+    expect(avatar).not.toContain("transform:scale");
+  });
+});
+
 describe("keyframes completeness (theme-tokens ↔ EXPORT_CSS drift guard)", () => {
   it("every reveal animation keyframe exists in the exported CSS", () => {
     for (const type of ["lift", "scale", "zoom-in", "fade-up", "slide-in", "blur-in"]) {
