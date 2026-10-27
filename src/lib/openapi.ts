@@ -36,7 +36,8 @@ export function buildOpenApiDocument(): Json {
       version,
       description:
         "Public REST API for programmatic link management. Authenticate with an " +
-        "API key generated in Settings > Security (Authorization: Bearer <key>). " +
+        "API key generated in Settings > Security and sent in the Authorization " +
+        "header (HTTP Bearer authentication). " +
         "Success responses are { data }; errors are { error: { code, message, details? } }. " +
         "Rate limit: 120 requests/minute per key (plus a per-IP pre-auth guard). " +
         "Mutating endpoints are blocked in demo mode.",

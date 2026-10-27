@@ -128,3 +128,115 @@ describe("OpenAPI document (#4)", () => {
     expect(router.size).toBeGreaterThanOrEqual(10);
   });
 });
+
+describe("spec hygiene (E.19)", () => {
+  type Doc = {
+    openapi: string;
+    info: { title: string; version: string; description: string };
+    servers: unknown[];
+    tags: Array<{ name: string }>;
+    components: {
+      securitySchemes: Record<string, unknown>;
+      schemas: Record<string, unknown>;
+    };
+    security: Array<Record<string, unknown>>;
+    paths: Record<string, Record<string, Record<string, unknown>>>;
+  };
+  const doc = buildOpenApiDocument() as Doc;
+  const OPERATIONS = ["get", "post", "put", "patch", "delete", "head", "options"];
+  const VALID_PARAM_IN = new Set(["query", "path", "header", "cookie"]);
+  const declaredTags = new Set(doc.tags.map((t) => t.name));
+
+  it("has every required top-level key with non-empty values", () => {
+    expect(doc.openapi).toBe("3.1.0");
+    expect(doc.info.title).toBe("LinkBreeze API");
+    expect(doc.info.version.length).toBeGreaterThan(0);
+    expect(doc.info.description.length).toBeGreaterThan(20);
+    expect(Array.isArray(doc.servers)).toBe(true);
+    expect(doc.servers.length).toBeGreaterThan(0);
+    expect(Object.keys(doc.paths).length).toBeGreaterThanOrEqual(10);
+    expect(Object.keys(doc.components.schemas).length).toBeGreaterThan(0);
+    expect(doc.security).toEqual([{ bearerAuth: [] }]);
+  });
+
+  it("documented version matches package.json", () => {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"),
+    ) as { version: string };
+    expect(doc.info.version).toBe(pkg.version);
+  });
+
+  it("every operation has summary + declared tags + a valid response key", () => {
+    const problems: string[] = [];
+    for (const [p, methods] of Object.entries(doc.paths)) {
+      const ops = Object.entries(methods).filter(([m]) => OPERATIONS.includes(m));
+      if (ops.length === 0) problems.push(`${p}: no operations`);
+      for (const [method, op] of ops) {
+        const where = `${method.toUpperCase()} ${p}`;
+        if (typeof op.summary !== "string" || !op.summary.trim()) {
+          problems.push(`${where}: missing summary`);
+        }
+        const tags = op.tags as string[] | undefined;
+        if (!Array.isArray(tags) || tags.length === 0) {
+          problems.push(`${where}: missing tags`);
+        } else {
+          for (const t of tags) {
+            if (!declaredTags.has(t)) problems.push(`${where}: undeclared tag ${t}`);
+          }
+        }
+        const responses = op.responses as Record<string, unknown> | undefined;
+        const keys = responses ? Object.keys(responses) : [];
+        if (keys.length === 0) problems.push(`${where}: no responses`);
+        for (const k of keys) {
+          if (k !== "default" && !/^[1-5]\d\d$/.test(k)) {
+            problems.push(`${where}: bad status key ${k}`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("path parameters are declared, in=path, required, and match the template", () => {
+    const problems: string[] = [];
+    for (const [p, methods] of Object.entries(doc.paths)) {
+      const templateParams = [...p.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+      for (const [method, op] of Object.entries(methods)) {
+        if (!OPERATIONS.includes(method)) continue;
+        const where = `${method.toUpperCase()} ${p}`;
+        const params = (op.params ?? op.parameters) as
+          | Array<Record<string, unknown>>
+          | undefined;
+        for (const name of templateParams) {
+          const declared = (params ?? []).find(
+            (prm) => prm.in === "path" && prm.name === name,
+          );
+          if (!declared) problems.push(`${where}: no path param ${name}`);
+          else if (declared.required !== true) {
+            problems.push(`${where}: path param ${name} not required`);
+          }
+        }
+        for (const prm of params ?? []) {
+          if (typeof prm.in !== "string" || !VALID_PARAM_IN.has(prm.in)) {
+            problems.push(`${where}: bad param in=${String(prm.in)}`);
+          }
+          if (prm.in === "path" && prm.required !== true) {
+            problems.push(`${where}: path param ${String(prm.name)} not required`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("every tag in the tag list is used by at least one operation (no dead tags)", () => {
+    const used = new Set<string>();
+    for (const methods of Object.values(doc.paths)) {
+      for (const [method, op] of Object.entries(methods)) {
+        if (!OPERATIONS.includes(method)) continue;
+        for (const t of (op.tags as string[] | undefined) ?? []) used.add(t);
+      }
+    }
+    expect([...declaredTags].filter((t) => !used.has(t))).toEqual([]);
+  });
+});
