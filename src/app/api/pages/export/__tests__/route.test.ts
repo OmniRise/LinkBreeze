@@ -386,6 +386,24 @@ describe("GET /api/pages/export", () => {
     }
   });
 
+  it("embed batch over 25MiB hits the SAME shared 413 helper (E.84)", async () => {
+    // Batch embed and batch plain now share one maxBytes binding — pin
+    // the embed variant reaches sizeError with the dynamic message too
+    const pages = Array.from({ length: 36 }, (_, i) => ({
+      ...(PAGE as object),
+      id: i + 1,
+      slug: `ebig${i + 1}`,
+      bio: "B".repeat(750 * 1024),
+    })) as never[];
+    mockGetAllPages.mockResolvedValue(pages);
+    const res = await GET(req("?all=1&embed=1"));
+    expect(res.status).toBe(413);
+    expect(res.headers.get("Content-Type")).toContain("application/json");
+    const json = await res.json();
+    expect(json.error).toBe("Export exceeds the 25 MiB limit");
+    expect(json.bytes).toBeGreaterThan(25 * 1024 * 1024);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),

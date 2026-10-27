@@ -6,6 +6,7 @@ import {
   type ExportPageInput,
 } from "@/lib/export/build-static-export";
 import { EXPORT_MAX_BYTES } from "@/lib/export/size";
+import { EXPORT_CSS } from "@/lib/export/export-css";
 import type { LinkRow } from "@/server/queries";
 
 /**
@@ -108,6 +109,16 @@ describe("E.5 export size (50-link page)", () => {
 });
 
 describe("E.48 length stress", () => {
+  it("the shared CSS subset itself stays under the 60 KB ceiling (E.85)", () => {
+    // Fixed overhead every export pays regardless of content — a library
+    // inlined into EXPORT_CSS would blow this long before per-link costs.
+    const bytes = Buffer.byteLength(EXPORT_CSS, "utf-8");
+    expect(bytes).toBeLessThan(60 * 1024);
+    // and it compresses like CSS (no embedded binary/base64 blobs)
+    const gz = gzipSync(EXPORT_CSS, { level: constants.Z_BEST_COMPRESSION }).length;
+    expect(gz).toBeLessThan(16 * 1024);
+  });
+
   it("100KB bio + 50 max-length descriptions build fast and under the cap", () => {
     const long = "D".repeat(2000);
     const links = Array.from({ length: 50 }, (_, i) => ({
