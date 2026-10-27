@@ -125,6 +125,42 @@ describe("GET /api/v1/links — conditional responses", () => {
     expect(after.headers.get("etag")).not.toBe(stale);
   });
 
+  it("E.122: mutations carry NO validator and ignore If-None-Match (never 304)", async () => {
+    ipCounter += 1;
+    const created = await createLinkRoute(
+      new NextRequest("http://localhost:3000/api/v1/links", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${KEY}`,
+          "content-type": "application/json",
+          "x-forwarded-for": `10.91.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`,
+          "if-none-match": '"00000000000000000000000000000000"',
+        },
+        body: JSON.stringify({ title: "E.122 mutation", url: "https://e122.example" }),
+      }),
+    );
+    expect(created.status).toBe(201); // a replayed validator never 304s a write
+    expect(created.headers.get("etag")).toBeNull(); // and the 201 advertises none
+
+    const section = await createSection({ pageId, title: "E.122 section" });
+    ipCounter += 1;
+    const updated = await putSectionRoute(
+      new NextRequest(`http://localhost:3000/api/v1/sections/${section.id}`, {
+        method: "PUT",
+        headers: {
+          authorization: `Bearer ${KEY}`,
+          "content-type": "application/json",
+          "x-forwarded-for": `10.91.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`,
+          "if-none-match": '"00000000000000000000000000000000"',
+        },
+        body: JSON.stringify({ title: "E.122 section (touched)" }),
+      }),
+      { params: Promise.resolve({ id: String(section.id) }) },
+    );
+    expect(updated.status).toBe(200);
+    expect(updated.headers.get("etag")).toBeNull();
+  });
+
   it("paginated responses are conditional too (meta is in the hash)", async () => {
     const first = await listLinks(req("/api/v1/links?limit=1"));
     expect(first.status).toBe(200);
