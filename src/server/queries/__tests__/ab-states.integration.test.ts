@@ -348,4 +348,60 @@ describe("[integration] non-running states serve link.url, unlabeled (#81 E.61)"
 
     vi.unstubAllEnvs();
   });
+
+  it("E.76: double-submit setAbTest is byte-idempotent; double promote pins behavior", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+    const seeded = seedLink({ url: "https://example.com/a" });
+    const raw = async () => (await getLink(seeded.id))?.abConfig ?? null;
+    const fd = (fields: Record<string, string>) => {
+      const f = new FormData();
+      for (const [k, v] of Object.entries(fields)) f.set(k, v);
+      return f;
+    };
+    const payload = fd({
+      id: String(seeded.id),
+      urlB: "https://example.com/b",
+      labelA: "control",
+      labelB: "short",
+      weightA: "70",
+      startsAt: "2026-11-01T10:00",
+      endsAt: "2026-11-08T10:00",
+    });
+
+    // 1) DOUBLE SUBMIT: the same payload twice must produce byte-identical
+    // ab_config (derived weightB, preserved status/winner, window fields).
+    const first = await setAbTest(payload);
+    if (!first.success) throw new Error(`first: ${first.error}`);
+    const raw1 = await raw();
+    expect(raw1).not.toBeNull();
+    const second = await setAbTest(payload);
+    if (!second.success) throw new Error(`second: ${second.error}`);
+    expect(await raw()).toBe(raw1); // byte-identical, zero drift
+
+    // 2) DOUBLE PROMOTE, SAME winner: idempotent — byte-identical config,
+    // url pinned once, still archived/B.
+    const p1 = await promoteAbVariant(fd({ id: String(seeded.id), winner: "B" }));
+    if (!p1.success) throw new Error(`p1: ${p1.error}`);
+    const rawP1 = await raw();
+    const p2 = await promoteAbVariant(fd({ id: String(seeded.id), winner: "B" }));
+    if (!p2.success) throw new Error(`p2: ${p2.error}`);
+    expect(await raw()).toBe(rawP1); // idempotent
+    expect((await getLink(seeded.id))?.url).toBe("https://example.com/b");
+
+    // 3) CROSS-WINNER second promote — ACTUAL behavior pinned: the action
+    // has no archived guard, so the winner field is overwritten while the
+    // url stays pinned from the FIRST promote (A wins the label, B's url
+    // serves). UI hides this (archived shows no promote buttons); a
+    // session-holder could still call it — logged as a finding, no
+    // behavior change this late (conservative Decision authority).
+    const p3 = await promoteAbVariant(fd({ id: String(seeded.id), winner: "A" }));
+    if (!p3.success) throw new Error(`p3: ${p3.error}`);
+    const cfg3 = parseAbConfig(await raw());
+    expect(cfg3?.winner).toBe("A"); // overwritten
+    expect(cfg3?.status).toBe("archived");
+    expect((await getLink(seeded.id))?.url).toBe("https://example.com/b"); // NOT re-pinned
+
+    vi.unstubAllEnvs();
+  });
 });
