@@ -409,6 +409,35 @@ describe("E.2 time box (startsAt/endsAt)", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("every ab* placeholder name in en.ts matches all 10 translations (E.74)", () => {
+    // i18n:audit's placeholder comparator covers ALL keys in CI, but its
+    // matcher has documented edge cases (ICU plural name capture) — this
+    // is the ab-scoped defense-in-depth pin: same placeholder-bearing
+    // keys, same sorted placeholder names, in every translation.
+    const dir = resolve(process.cwd(), "src/locales");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".ts"));
+    expect(files.length).toBe(11);
+    const extract = (src: string): Record<string, string[]> => {
+      const out: Record<string, string[]> = {};
+      for (const m of src.matchAll(/(\bab[A-Za-z0-9]+):\s*"([^"]*)"/g)) {
+        // Name = word chars right after "{" (stops at comma/close brace,
+        // so "{n, plural, ...}" captures "n" — the locale-audit rule).
+        const names = [...m[2].matchAll(/\{\s*([A-Za-z0-9_]+)/g)].map((p) => p[1]);
+        if (names.length) out[m[1]] = names.sort();
+      }
+      return out;
+    };
+    const en = extract(readFileSync(resolve(dir, "en.ts"), "utf8"));
+    // Self-check: the scan must actually find placeholder-bearing ab keys
+    // (currently abArchivedNote + abPromote, both {variant}) — an empty
+    // result means the regex drifted and the comparison is vacuous.
+    expect(Object.keys(en).length).toBeGreaterThanOrEqual(2);
+    for (const f of files.filter((f) => f !== "en.ts")) {
+      const tr = extract(readFileSync(resolve(dir, f), "utf8"));
+      expect(tr, `${f} ab placeholder parity`).toEqual(en);
+    }
+  });
 });
 
 describe("docs-drift tripwire (#81 E.19)", () => {
