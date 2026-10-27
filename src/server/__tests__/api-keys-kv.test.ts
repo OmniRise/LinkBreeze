@@ -13,8 +13,12 @@ import {
   revokeApiKey,
   isPrevKeyLive,
   MAX_GRACE_HOURS,
+  recordApiKeyUsed,
 } from "@/server/api-keys";
 import { apiGate } from "@/server/api-auth";
+import { getSetting, updateSetting } from "@/server/queries";
+
+const KV_LAST_USED_KEY = "apiKeyLastUsedAt";
 
 beforeEach(async () => {
   await revokeApiKey();
@@ -160,5 +164,40 @@ describe("E.25 gate end-to-end (REAL kv, REAL apiGate, zero mocks)", () => {
     await statusOf(key);
     const after = await getApiKeyRecord();
     expect(after!.lastUsedAt).not.toBeNull();
+  });
+});
+
+describe("E.34 recordApiKeyUsed write-path audit", () => {
+  it("writes once for a stale value, THROTTLES inside 60s, and always writes from null", async () => {
+    // Stale marker → first call must perform the KV write.
+    const marker = "2000-01-01T00:00:00.000Z";
+    await updateSetting(KV_LAST_USED_KEY, marker);
+    await recordApiKeyUsed(marker);
+    const after1 = await getSetting(KV_LAST_USED_KEY);
+    expect(after1).not.toBe(marker); // wrote
+    expect(Number.isNaN(Date.parse(after1!))).toBe(false); // a real ISO timestamp
+
+    // Fresh value → second call must SKIP (exact string unchanged).
+    // The sleep guarantees any rewrite would land on a different millisecond.
+    await new Promise((r) => setTimeout(r, 15));
+    await recordApiKeyUsed(after1!);
+    expect(await getSetting(KV_LAST_USED_KEY)).toBe(after1); // throttled
+
+    // null lastUsedAt (record never used) → unconditional write path.
+    await new Promise((r) => setTimeout(r, 5));
+    await recordApiKeyUsed(null);
+    expect(await getSetting(KV_LAST_USED_KEY)).not.toBe(after1);
+  });
+
+  it("the gate only ever writes at most once per window (single reader, no re-read)", async () => {
+    // The gate passes record.lastUsedAt from its ONE getApiKeyRecord read —
+    // proven by api-auth.test asserting recordApiKeyUsed(<record value>).
+    // Here: two rapid gate passes under a fresh lastUsedAt don't move KV.
+    await revokeApiKey();
+    const { key } = await createApiKey();
+    await statusOf(key); // first pass may write
+    const v1 = await getSetting(KV_LAST_USED_KEY);
+    await statusOf(key); // within window → throttled
+    expect(await getSetting(KV_LAST_USED_KEY)).toBe(v1);
   });
 });
