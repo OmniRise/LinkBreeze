@@ -1323,6 +1323,85 @@ describe("GET /api/pages/export", () => {
     expect(body).toContain('href="https://id-dest.example/profile"');
   });
 
+  it("JSON-LD fields map 1:1 to page data (E.255)", async () => {
+    // title/bio/avatar all DISTINCT — a field swap in the ld+json
+    // generator would cross them
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      title: "DistinctTitle",
+      bio: "DistinctBioText",
+      avatarUrl: "/api/uploads/distinct-avatar.png",
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    const fontReq = () =>
+      new NextRequest("http://localhost:3000/api/pages/export?id=1", {
+        headers: { host: "localhost:3000" },
+      });
+    const res = await GET(fontReq());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    const m = body.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/,
+    );
+    expect(m, "ld+json").toBeTruthy();
+    const ld = JSON.parse(m![1]) as {
+      name?: string;
+      description?: string;
+      image?: string;
+      mainEntity?: { name?: string; description?: string; image?: string };
+    };
+    expect(ld.name).toBe("DistinctTitle");
+    expect(ld.description).toBe("DistinctBioText");
+    // image absolutized to THIS origin (plain mode, E.25)
+    expect(ld.image).toBe(
+      "http://localhost:3000/api/uploads/distinct-avatar.png",
+    );
+    expect(ld.mainEntity?.name).toBe("DistinctTitle");
+    expect(ld.mainEntity?.description).toBe("DistinctBioText");
+    expect(ld.mainEntity?.image).toBe(
+      "http://localhost:3000/api/uploads/distinct-avatar.png",
+    );
+  });
+
+  it("customCss @import: verbatim in plain, rewritten in embed (E.256)", async () => {
+    const customCss =
+      "@import url('https://fonts.googleapis.com/css2?family=Inter');\n" +
+      ".x { color: red }\n" +
+      "@import url('/api/uploads/site-font.css');";
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      customCss,
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    const mk = (q: string) =>
+      new NextRequest(`http://localhost:3000/api/pages/export${q}`, {
+        headers: { host: "localhost:3000" },
+      });
+
+    // PLAIN: customCss verbatim by contract (E.78/E.3 trust boundary) —
+    // external @import and the site-relative one stay exactly as written
+    const plain = await GET(mk("?id=1"));
+    expect(plain.status).toBe(200);
+    const plainBody = await plain.text();
+    expect(plainBody).toContain(
+      "@import url('https://fonts.googleapis.com/css2?family=Inter')",
+    );
+    expect(plainBody).toContain("@import url('/api/uploads/site-font.css')");
+    expect(plainBody).toContain(".x { color: red }");
+
+    // EMBED: upload refs rewritten to the bundled uploads/ form
+    const embed = await GET(mk("?id=1&embed=1"));
+    expect(embed.status).toBe(200);
+    const embedBody = await embed.text();
+    expect(embedBody).toContain(
+      "@import url('https://fonts.googleapis.com/css2?family=Inter')",
+    );
+    expect(embedBody).toContain("@import url('uploads/site-font.css')");
+    expect(embedBody).not.toContain("@import url('/api/");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
