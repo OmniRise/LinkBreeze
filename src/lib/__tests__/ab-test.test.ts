@@ -224,6 +224,40 @@ describe("variantLift", () => {
     expect(variantLift(0, 5)).toBeNull();
     expect(variantLift(0, 0)).toBeNull();
   });
+
+  it("E.115: lift sign is always consistent with the confidence card's leader", () => {
+    // The card shows BOTH a leader (variantConfidence, weight-aware) and a
+    // lift % (variantLift, raw counts). They must never contradict: B leads
+    // ⇔ lift > 0, A leads ⇔ lift < 0, tie ⇔ lift === 0; the documented
+    // undefined-percentage cells (A=0) map to B-leads (b>0) or tie (b=0).
+    // Lift itself is weight-INDEPENDENT — pinned by running every weight.
+    let nonTies = 0;
+    let undefinedPct = 0;
+    for (const weight of [10, 50, 90]) {
+      for (let a = 0; a <= 300; a += 10) {
+        for (let b = 0; b <= 300; b += 10) {
+          const { leader } = variantConfidence(a, b, weight, AB_MIN_SAMPLE_CLICKS);
+          const lift = variantLift(a, b);
+          const cell = `w=${weight} a=${a} b=${b}`;
+          if (lift === null) {
+            undefinedPct++;
+            expect(a, cell).toBe(0); // null only when A has no clicks
+            expect(leader, cell).toBe(b > 0 ? "B" : null);
+          } else if (lift > 0) {
+            expect(leader, cell).toBe("B");
+            nonTies++;
+          } else if (lift < 0) {
+            expect(leader, cell).toBe("A");
+            nonTies++;
+          } else {
+            expect(leader, cell).toBeNull(); // exact 0 lift == exact tie
+          }
+        }
+      }
+    }
+    expect(nonTies).toBeGreaterThan(0); // property not vacuous
+    expect(undefinedPct).toBeGreaterThan(0); // A=0 cells reached
+  });
 });
 
 describe("variantConfidence", () => {
