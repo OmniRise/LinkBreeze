@@ -33,6 +33,8 @@ vi.mock("@/lib/visitor", () => ({
 import { GET } from "@/app/go/[id]/route";
 import { assignVariant } from "@/lib/ab-test";
 import { isBot } from "@/lib/bot-detect";
+import { rateLimit } from "@/lib/rate-limit";
+import { maybeAutoPromoteAbTests } from "@/server/ab-auto-promote";
 import { NextRequest } from "next/server";
 
 function makeRequest(ref: string) {
@@ -348,6 +350,29 @@ describe("bot/crawler interaction (#41 x #81, E.31)", () => {
     // orchestrator decision) — only the analytics WRITE is gated.
     expect(res.headers.get("location")).toBe("https://example.com/b");
     expect(mocks.recordClick).not.toHaveBeenCalled();
+  });
+
+  it("E.92: a rate-limited request records nothing but still serves the split, uncached", async () => {
+    // The IP throttle bounds the RECORDED events (60/min/IP) — it must
+    // never break the redirect itself (the redirect IS the product), and
+    // the denied response must carry nothing cacheable. With production
+    // env + human UA, recordClick WOULD fire — the denial is what blocks it.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+    vi.mocked(rateLimit).mockReturnValueOnce({
+      ok: false,
+      remaining: 0,
+      resetAt: Date.now() + 60_000,
+    });
+    mocks.getLinkByRef.mockResolvedValue(forcedBLink());
+
+    const res = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    expect(res.status).toBe(302); // serving continues for the visitor
+    expect(res.headers.get("location")).toBe("https://example.com/b"); // fair split
+    expect(res.headers.get("cache-control")).toBe("no-store"); // nothing cacheable
+    expect(mocks.recordClick).not.toHaveBeenCalled(); // throttled write
+    expect(maybeAutoPromoteAbTests).not.toHaveBeenCalled(); // triggers ride with recording
+    expect(rateLimit).toHaveBeenCalledWith("go:0.0.0.0", 60, 60_000); // the 60/min/IP bound
   });
 
   it("E.34: assignment ignores cookies entirely (nothing to clear or tamper with)", async () => {
