@@ -523,6 +523,78 @@ describe("highlighted-in-section + multibyte charset (E.141/E.142)", () => {
   });
 });
 
+describe("popup CTA + divider in sections (E.144/E.145)", () => {
+  const mkLink = (over: Record<string, unknown>) =>
+    ({
+      id: 1,
+      pageId: 1,
+      sectionId: 7,
+      orderIndex: 0,
+      type: "url",
+      title: "Card",
+      description: null,
+      url: "https://example.com",
+      icon: null,
+      iconUrl: null,
+      customIconUrl: null,
+      iconMode: "auto",
+      autoIcon: true,
+      imageUrl: null,
+      isHighlighted: false,
+      isActive: true,
+      scheduleStart: null,
+      scheduleEnd: null,
+      clicksCount: 0,
+      cardStyle: "compact",
+      popupText: null,
+      ctaLabel: null,
+      redirectSlug: null,
+      createdAt: "2026-01-01 00:00:00",
+      ...over,
+    }) as unknown as LinkRow;
+
+  it("popup CTA renders its label with a DIRECT href (E.144)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [
+        mkLink({
+          id: 9,
+          type: "text",
+          popupText: "Body",
+          ctaLabel: "Read <more>",
+          url: "https://dest.example/deep",
+        }),
+      ],
+    });
+    // CTA anchor inside the dialog: class + escaped label + direct href
+    expect(html).toContain('class="lb-popup-cta');
+    expect(html).toContain("Read &lt;more&gt;"); // escaped label
+    expect(html).toContain('href="https://dest.example/deep"'); // direct
+    expect(html).not.toContain("/go/9"); // beacon path rewritten
+    expect(html).toContain('rel="noopener noreferrer nofollow"');
+  });
+
+  it("divider in a section: separator role + themed vars (E.145)", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [
+        mkLink({ id: 1, title: "Before" }),
+        mkLink({ id: 2, type: "divider", title: "Mid rule" }),
+        mkLink({ id: 3, title: "After" }),
+      ],
+      sections: [{ id: 7, title: "Grouped", icon: null, orderIndex: 0 }],
+    });
+    expect(html).toContain('role="separator"');
+    expect(html).toContain('aria-label="Mid rule"');
+    // themed divider vars consumed (width/thickness/image from tokens)
+    expect(html).toContain("width:var(--lb-divider-width)");
+    expect(html).toContain("height:var(--lb-divider-thickness)");
+    expect(html).toContain("background:var(--lb-divider-image)");
+    // no <hr> (design: div separator, build-divider.ts:8)
+    expect(html).not.toContain("<hr");
+  });
+});
+
 describe("section-header rule geometry (E.69)", () => {
   const headerFor = (alignment: "center" | "left" | "right") =>
     buildStaticExport({
