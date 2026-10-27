@@ -918,6 +918,41 @@ describe("GET /api/pages/export", () => {
     expect(new Set(names).size).toBe(3);
   });
 
+  it("hostile '</html>' in bio cannot truncate the document (E.211)", async () => {
+    // The literal closer inside user text must not end the document:
+    // output starts with <!DOCTYPE html>, ends with </html>, and
+    // everything after the fake closer (links, footer, scripts) stays
+    // present — the real closer is the LAST occurrence.
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      bio: "sneaky </html> still-here-text",
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([
+      {
+        id: 5, pageId: 1, sectionId: null, orderIndex: 0, type: "url",
+        title: "AfterFakeCloser", description: null,
+        url: "https://example.com/after", icon: null, iconUrl: null,
+        customIconUrl: null, iconMode: "auto", autoIcon: true,
+        imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        createdAt: "2026-01-01 00:00:00",
+      },
+    ] as never[]);
+    mockGetSections.mockResolvedValue([]);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(body.trimEnd().endsWith("</html>")).toBe(true);
+    // the fake closer never survives verbatim — tags in bio text are
+    // stripped (E.50), so the document contains EXACTLY ONE </html>,
+    // the real final closer; nothing truncates
+    expect(body.match(/<\/html>/g)).toHaveLength(1);
+    // the bio TEXT after the tags still renders (visible content kept)
+    expect(body).toContain("still-here-text");
+    expect(body).toContain("AfterFakeCloser");
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
