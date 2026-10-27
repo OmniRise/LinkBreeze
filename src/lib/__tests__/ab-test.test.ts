@@ -868,3 +868,34 @@ describe("settings toggle contract (#81 E.116)", () => {
     }
   });
 });
+
+describe("stats detail surface contract (#81 E.125)", () => {
+  it("shared parser + shared math only — no local threshold/z literals on the page or card", () => {
+    // Grounded: page.tsx imports parseAbConfig and parses the raw row
+    // (line 57) BEFORE handing AbTestCard a config; the card's confidence
+    // and lift come from the shared fns; neither file contains a z-critical
+    // or a bare 200 floor (greps verified: zero matches before this test).
+    const page = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/[id]/page.tsx"),
+      "utf8",
+    );
+    const card = readFileSync(
+      resolve(process.cwd(), "src/app/(admin)/links/[id]/ab-test-card.tsx"),
+      "utf8",
+    );
+
+    // The ONE parser sits between the raw stats/link row and the card.
+    expect(page).toContain('import { parseAbConfig } from "@/lib/ab-test"');
+    expect(page).toContain("parseAbConfig(link.abConfig ?? null)");
+
+    // The card's math is the shared functions, never re-implemented.
+    expect(card).toContain('from "@/lib/ab-test"');
+    expect(card).toContain("variantConfidence");
+    expect(card).toContain("variantLift");
+
+    // No locally-hardcoded statistical constants anywhere on the surface.
+    expect(page.includes("1.96"), "z-critical literal in page").toBe(false);
+    expect(card.includes("1.96"), "z-critical literal in card").toBe(false);
+    expect(card.includes("200"), "raw floor literal in card").toBe(false);
+  });
+});
