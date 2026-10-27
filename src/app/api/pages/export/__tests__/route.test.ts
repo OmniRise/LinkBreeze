@@ -477,6 +477,36 @@ describe("GET /api/pages/export", () => {
     expect(zipBuf.toString("latin1")).not.toContain("/api/uploads/f-abc.woff2");
   });
 
+  it("both site AND card fonts as custom rows → two @font-face rules, two families (E.70)", async () => {
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object), themeId: 11 } as never);
+    mockGetThemeById.mockResolvedValue({
+      id: 11,
+      name: "DualFontTheme",
+      fontFamily: "custom:7",
+      cardFontFamily: "custom:8",
+      animationType: "none",
+    } as never);
+    const rows = new Map<number, { id: number; family: string; url: string; format: string }>([
+      [7, { id: 7, family: "Site Font", url: "/api/uploads/site.woff2", format: "woff2" }],
+      [8, { id: 8, family: "Card Font", url: "/api/uploads/card.woff2", format: "woff2" }],
+    ]);
+    mockGetCustomFont.mockImplementation(
+      async (fontId: number) => (rows.get(fontId) ?? null) as never,
+    );
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // both rows fetched, both rules emitted
+    expect(mockGetCustomFont).toHaveBeenCalledWith(7);
+    expect(mockGetCustomFont).toHaveBeenCalledWith(8);
+    expect(body.match(/@font-face \{/g) ?? []).toHaveLength(2);
+    expect(body).toContain("font-family: 'Site Font';");
+    expect(body).toContain("font-family: 'Card Font';");
+    // and both families reach the tokens
+    expect(body).toContain("'Site Font'");
+    expect(body).toContain("'Card Font'");
+  });
+
   it("theme rows flow through page theme override", async () => {
     mockGetThemeById.mockResolvedValue({
       id: 7,
