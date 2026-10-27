@@ -293,4 +293,11 @@ describe("spec hygiene (E.19)", () => {
     }
     expect(problems).toEqual([]);
   });
+
+  it("E.58: servers stay relative (no basePath in next.config; proxy passes /api/* at root)", () => {
+    // Multi-host self-hosted app: custom domains serve at root too, so "/"
+    // resolves against the request origin everywhere. If basePath ever lands
+    // in next.config, this flips and the spec (plus README links) must follow.
+    expect(doc.servers).toEqual([{ url: "/" }]);
+  });
 });
