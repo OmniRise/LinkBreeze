@@ -12,7 +12,7 @@ import { recordClick, updateSetting, getLink } from "@/server/queries";
 import { analyticsClicks, links } from "@/db/schema";
 import { runAbAutoPromoteScan, maybeAutoPromoteAbTests, _resetAbAutoPromoteThrottle, AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
 import { parseAbConfig, serializeAbConfig, autoPromotableWinner, AB_AUTO_PROMOTE_MIN_CLICKS, type AbConfig } from "@/lib/ab-test";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 const running: AbConfig = {
   v: 1,
@@ -83,6 +83,19 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     expect(cfg?.status).toBe("archived");
     expect(cfg?.winner).toBe("B");
     expect(row?.url).toBe("https://example.com/b");
+
+    // E.50: promotion archives the TEST but never rewrites click history —
+    // the permanent labels the CSV export reads stay A:50/B:150 intact.
+    const remaining = db
+      .select({ variant: analyticsClicks.variant, c: sql<number>`count(*)` })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, link.id))
+      .groupBy(analyticsClicks.variant)
+      .all();
+    expect(remaining).toEqual([
+      { variant: "A", c: 50 },
+      { variant: "B", c: 150 },
+    ]);
   });
 
   it("promotes A without touching the URL", async () => {

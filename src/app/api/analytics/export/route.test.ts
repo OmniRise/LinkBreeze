@@ -114,6 +114,31 @@ describe("GET /api/analytics/export", () => {
     expect(body).toContain('"Link, with ""quotes"""');
   });
 
+  it("mixed page CSV interleaves A/B/empty variant cells correctly (E.50)", async () => {
+    // One export spanning a labeled link (A,B rows), an unlabeled link
+    // (null), and a second labeled link (B) — every cell must land in its
+    // own column: "A"/"B" verbatim, null as empty (never "null"), and the
+    // column count constant across all rows.
+    mocks.rows = [
+      { createdAt: "2026-06-01 10:00:00", visitorHash: "h1", referrer: null, title: "Tested", url: "https://a.example", variant: "A" },
+      { createdAt: "2026-06-01 10:00:01", visitorHash: "h2", referrer: null, title: "Tested", url: "https://a.example", variant: "B" },
+      { createdAt: "2026-06-01 10:00:02", visitorHash: "h3", referrer: null, title: "Plain", url: "https://b.example", variant: null },
+      { createdAt: "2026-06-01 10:00:03", visitorHash: "h4", referrer: null, title: "OtherTest", url: "https://c.example", variant: "B" },
+    ];
+    const res = await GET(req("?metric=clicks&range=30d"));
+    expect(res.status).toBe(200);
+    const lines = (await res.text()).split("\n");
+    expect(lines[0]).toBe("timestamp,visitor_hash,referrer,link_title,link_url,variant");
+    expect(lines[1]).toBe("2026-06-01 10:00:00,h1,,Tested,https://a.example,A");
+    expect(lines[2]).toBe("2026-06-01 10:00:01,h2,,Tested,https://a.example,B");
+    expect(lines[3]).toBe("2026-06-01 10:00:02,h3,,Plain,https://b.example,"); // empty, not "null"
+    expect(lines[4]).toBe("2026-06-01 10:00:03,h4,,OtherTest,https://c.example,B");
+    for (const line of lines.slice(0, 5)) {
+      expect(line.split(",").length).toBe(6); // constant column count
+      expect(line).not.toContain("null");
+    }
+  });
+
   it("views CSV keeps its header (no variant column for pageviews)", async () => {
     mocks.rows = [];
     const res = await GET(req("?metric=views"));
