@@ -272,6 +272,42 @@ describe("GET /api/pages/export", () => {
     expect(mockGetPageById).toHaveBeenCalledWith(1);
   });
 
+  it("every error mode returns a parseable {error} JSON body (E.66)", async () => {
+    const cases: Array<[string, number]> = [
+      ["?id=abc", 400], // malformed
+      ["?id=99", 404], // unknown page (getPageById→null below)
+      ["?all=1", 404], // empty instance (getAllPages→[])
+    ];
+    mockGetPageById.mockResolvedValue(null);
+    mockGetAllPages.mockResolvedValue([]);
+    for (const [q, status] of cases) {
+      const res = await GET(req(q));
+      expect(res.status, q).toBe(status);
+      const json = await res.json();
+      expect(typeof json.error, q).toBe("string");
+      expect(json.error.length, q).toBeGreaterThan(0);
+    }
+    // 413 shape (single page over cap) matches too
+    mockGetActiveLinks.mockResolvedValue(
+      Array.from({ length: 450 }, (_, i) => ({
+        id: i + 1, pageId: 1, sectionId: null, orderIndex: i, type: "url",
+        title: `L${i}`, description: "D".repeat(6000),
+        url: `https://example.com/${i}`, icon: null, iconUrl: null,
+        customIconUrl: null, iconMode: "auto", autoIcon: true, imageUrl: null,
+        isHighlighted: false, isActive: true, scheduleStart: null,
+        scheduleEnd: null, clicksCount: 0, cardStyle: "compact",
+        popupText: null, ctaLabel: null, redirectSlug: null,
+        createdAt: "2026-01-01 00:00:00",
+      })) as never,
+    );
+    mockGetPageById.mockResolvedValue(PAGE);
+    const big = await GET(req("?id=1"));
+    expect(big.status).toBe(413);
+    const bigJson = await big.json();
+    expect(typeof bigJson.error).toBe("string");
+    expect(bigJson.bytes).toBeGreaterThan(0);
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
