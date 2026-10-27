@@ -12,6 +12,7 @@ import {
   autoPromotableWinner,
   AB_MIN_SAMPLE_CLICKS,
   AB_AUTO_PROMOTE_MIN_CLICKS,
+  AB_AUTO_PROMOTE_SETTING,
   fnv1a32,
   abConfigSchema,
   type AbConfig,
@@ -320,6 +321,14 @@ describe("E.2 time box (startsAt/endsAt)", () => {
       endsAt: "2026-06-30T18:00",
     };
     expect(parseAbConfig(serializeAbConfig(cfg))).toEqual(cfg);
+  });
+
+  it("AB_AUTO_PROMOTE_SETTING value is pinned (DB KV row key, E.49)", () => {
+    // Every surface (settings page read, action read+write, client form
+    // wire, scanner read) now imports this ONE constant from the pure
+    // module — the exact string is DB compat for the settings row and must
+    // never silently change.
+    expect(AB_AUTO_PROMOTE_SETTING).toBe("abAutoPromote");
   });
 });
 

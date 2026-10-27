@@ -25,6 +25,7 @@ import {
   abConfigSchema,
   parseAbConfig,
   serializeAbConfig,
+  AB_AUTO_PROMOTE_SETTING,
   type AbConfig,
   type AbStatus,
 } from "@/lib/ab-test";
@@ -833,9 +834,9 @@ export async function setAbAutoPromote(formData: FormData): Promise<ActionResult
   if (blocked) return blocked;
   if (!(await getSession())) return unauthorizedError();
 
-  const enabled = formData.get("abAutoPromote") === "on";
+  const enabled = formData.get(AB_AUTO_PROMOTE_SETTING) === "on";
   try {
-    await updateSetting("abAutoPromote", enabled ? "on" : "off");
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, enabled ? "on" : "off");
     revalidatePath("/settings");
     return { success: true };
   } catch (err) {

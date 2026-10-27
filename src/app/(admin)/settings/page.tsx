@@ -1,5 +1,6 @@
 import { QrCode } from "lucide-react";
 import { createHash } from "node:crypto";
+import { AB_AUTO_PROMOTE_SETTING } from "@/lib/ab-test";
 import {
   getAllPages,
   getDefaultPage,
@@ -72,7 +73,7 @@ export default async function SettingsPage({
     getAllSubscribers(),
     getSetting("searchEngineHidden"),
     // #81 E.1: auto-promotion toggle (settings KV, default off).
-    getSetting("abAutoPromote"),
+    getSetting(AB_AUTO_PROMOTE_SETTING),
   ]);
 
   const slug = activePage?.slug || "u";

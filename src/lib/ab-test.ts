@@ -197,6 +197,15 @@ export function variantConfidence(
 export const AB_AUTO_PROMOTE_MIN_CLICKS = 200;
 
 /**
+ * Settings-KV row key for the global auto-promotion toggle. Lives in this
+ * PURE module (not the server scanner) so BOTH server surfaces and the
+ * client form wire import the same constant — no string-literal drift
+ * between UI, action, scanner, and settings page (E.49). The exact value
+ * is DB compat and pinned by test.
+ */
+export const AB_AUTO_PROMOTE_SETTING = "abAutoPromote";
+
+/**
  * E.1 auto-promotion decision (pure — the scanner and its tests share it).
  * Returns the winner to promote, or null when the test must keep running:
  * no leader (tie), sample below the floor, or the margin not significant.

@@ -8,7 +8,12 @@ import {
   parseAbConfig,
   serializeAbConfig,
   autoPromotableWinner,
+  AB_AUTO_PROMOTE_SETTING,
 } from "@/lib/ab-test";
+// #81 E.49: the constant lives in the PURE lib module so client surfaces
+// can share it without pulling server code into the bundle; re-exported
+// here for every existing importer.
+export { AB_AUTO_PROMOTE_SETTING };
 
 /**
  * #81 E.1 — auto-promotion scanner.
@@ -24,7 +29,6 @@ import {
  * is on. Never throws into the caller.
  */
 
-export const AB_AUTO_PROMOTE_SETTING = "abAutoPromote";
 const THROTTLE_MS = 10 * 60 * 1000;
 
 let lastCheck = 0;

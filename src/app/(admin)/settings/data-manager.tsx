@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { localizeActionError } from "@/lib/action-error-i18n";
+import { AB_AUTO_PROMOTE_SETTING } from "@/lib/ab-test";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -225,7 +226,7 @@ export function DataManager({
               defaultChecked={abAutoPromoteEnabled}
               onChange={async (e) => {
                 const fd = new FormData();
-                fd.set("abAutoPromote", e.target.checked ? "on" : "off");
+                fd.set(AB_AUTO_PROMOTE_SETTING, e.target.checked ? "on" : "off");
                 await setAbAutoPromote(fd);
                 router.refresh();
               }}
