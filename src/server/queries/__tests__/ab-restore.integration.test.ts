@@ -38,7 +38,7 @@ import "./integration-setup";
 import { db, seedPage, seedLink } from "./integration-setup";
 import { applyBackupPayload, getBackupPayload } from "@/server/backup-restore";
 import { AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
-import { getSetting, updateSetting } from "@/server/queries";
+import { getSetting, updateSetting, recordClick, getLinkStats } from "@/server/queries";
 import { links, analyticsClicks } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { parseAbConfig, assignVariant, type AbConfig } from "@/lib/ab-test";
@@ -387,5 +387,37 @@ describe("[integration] A/B config restore sanitization (#81)", () => {
     ]);
 
     vi.unstubAllEnvs();
+  });
+});
+
+describe("restore → stats surface (#81 E.121)", () => {
+  it("getLinkStats after restore parses the restored config and counts restored-era labels", async () => {
+    // E.58 pinned /go SERVING after restore; the STATS detail surface reads
+    // the same row (stats.link.abConfig is parsed by the ab-test-card).
+    // Restore a RUNNING config with custom labels, add restored-era labeled
+    // clicks, then pin BOTH the parse on the stats surface and the counts.
+    const res = await restoreWith([linkRow({ abConfig: JSON.stringify(goodConfig) })]);
+    expect(res.success).toBe(true);
+    expect((await restoredConfig(501))?.status).toBe("running");
+
+    await recordClick(501, "e121-a1", null, "click", "A");
+    await recordClick(501, "e121-a2", null, "click", "A");
+    await recordClick(501, "e121-b1", null, "click", "B");
+
+    const stats = await getLinkStats(501, "30d");
+    expect(stats).not.toBeNull();
+
+    // The card-side parse: the stats surface carries a config that the
+    // SHARED parser accepts, with the restored labels intact.
+    const parsed = parseAbConfig(stats!.link.abConfig ?? null);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.status).toBe("running");
+    expect(parsed!.labelA).toBe("control");
+    expect(parsed!.labelB).toBe("short");
+    expect(parsed!.urlB).toBe("https://example.com/short");
+
+    // The breakdown counts the restored-era labels exactly.
+    expect(stats!.variants).toEqual({ a: 2, b: 1 });
+    expect(stats!.totalClicks).toBe(3);
   });
 });
