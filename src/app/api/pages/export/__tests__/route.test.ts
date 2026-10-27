@@ -155,7 +155,6 @@ describe("GET /api/pages/export", () => {
     expect(res.status).toBe(200);
     const cd = res.headers.get("Content-Disposition")!;
     expect(cd).toBe('attachment; filename="page.html"');
-    // eslint-disable-next-line no-control-regex
     expect(/^[\x20-\x7e]*$/.test(cd)).toBe(true);
   });
 
