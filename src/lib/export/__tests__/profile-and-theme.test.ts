@@ -344,6 +344,19 @@ describe("avatar/banner fit adjustments (E.123)", () => {
     // overflow-hidden frame around the banner (scale clipping)
     expect(html).toContain("max-height:240px");
   });
+  it("banner layout renders the wide strip variant, not hero (E.129)", () => {
+    const input = pageWith({ bannerUrl: "/api/uploads/strip.png" });
+    const html = buildStaticExport({
+      ...input,
+      theme: { ...input.theme, profileLayout: "banner" },
+    });
+    expect(html).toContain('class="lb-export-banner-sm"');
+    // the hero-only full banner class must NOT render
+    expect(html).not.toContain('class="lb-export-banner"');
+    // frame wraps the strip (overflow + radius, no scrim/overlay)
+    expect(html).toContain("overflow:hidden");
+    expect(html).not.toContain("linear-gradient(to top, rgba(0,0,0,0.65)");
+  });
 });
 
 describe("page bio empty-string vs null (E.127)", () => {
