@@ -73,7 +73,7 @@ function renderDocs(): string {
 <h2>Machine-readable spec</h2>
 <p>Fetch <code>/api/v1/openapi.json</code> with the same Bearer key for the
 full OpenAPI 3.1 document (schemas, enums, error envelope).</p>
-<pre>curl -H "Authorization: Bearer $LB_API_KEY" /api/v1/openapi.json</pre>
+<pre>curl --oauth2-bearer "$LB_API_KEY" /api/v1/openapi.json</pre>
 </body>
 </html>`;
 }

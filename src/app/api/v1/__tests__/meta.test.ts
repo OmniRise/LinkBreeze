@@ -130,3 +130,42 @@ describe("GET /api/v1/docs", () => {
     expect(html).not.toContain("onload=");
   });
 });
+
+describe("E.54 docs HTML hand-review (render layer parity with the spec)", () => {
+  it("renders the full endpoint table (18 ops + header), spec description, and shell-safe curl hint", async () => {
+    const res = await getDocs(req(true));
+    expect(res.status).toBe(200);
+    const html = await res.text();
+
+    // One <tr> per operation (18: links 7, sections 5, profile 2,
+    // analytics 1, openapi.json 1, openapi alias 1, docs 1) + 1 header row.
+    const rows = (html.match(/<tr>/g) ?? []).length;
+    expect(rows).toBe(19);
+
+    for (const p of [
+      "/api/v1/links",
+      "/api/v1/links/{id}",
+      "/api/v1/links/reorder",
+      "/api/v1/links/import",
+      "/api/v1/sections",
+      "/api/v1/sections/{id}",
+      "/api/v1/profile",
+      "/api/v1/analytics",
+      "/api/v1/openapi.json",
+      "/api/v1/docs",
+    ]) {
+      expect(html, p).toContain(p);
+    }
+
+    // info.description renders into the page (E.36/E.51 additions visible).
+    expect(html).toContain("If-None-Match");
+    expect(html).toContain("X-RateLimit-");
+    expect(html).toContain("additive");
+
+    // Auth hint uses the cookbook's shell-safe idiom; the page never shows
+    // an inline auth-header literal to copy-paste wrong.
+    expect(html).toContain("--oauth2-bearer");
+    expect(html).toContain("$LB_API_KEY");
+    expect(html).not.toContain("Authorization: Bearer");
+  });
+});
