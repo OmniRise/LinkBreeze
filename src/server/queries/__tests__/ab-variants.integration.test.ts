@@ -11,7 +11,7 @@ import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
 import { recordClick, getLinkStats, getLink } from "@/server/queries";
 import { analyticsClicks } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 function countVariantRows(linkId: number): { variant: string | null; c: number }[] {
   return db
@@ -122,5 +122,37 @@ describe("per-variant click attribution (#81)", () => {
     const stats = await getLinkStats(link.id, "30d");
     expect(stats!.totalClicks).toBe(1); // old three excluded
     expect(stats!.variants).toEqual({ a: 1, b: 0 }); // breakdown matches the RANGE total
+  });
+
+  it("E.32: pruned clicks shrink the breakdown with the total; clicksCount stays lifetime", async () => {
+    // Retention physically removes rows: the detail card's row-driven stats
+    // (total + variant breakdown) shrink TOGETHER, while the denormalized
+    // clicksCount badge keeps the lifetime number — two different contracts,
+    // both asserted so neither drifts.
+    const link = seedLink({
+      abConfig: JSON.stringify({ v: 1, status: "running", labelA: null, labelB: null, urlB: "https://example.com/b", weightA: 50, weightB: 50, winner: null }),
+    });
+    await recordClick(link.id, "keep-a", null, "click", "A");
+    await recordClick(link.id, "keep-b", null, "click", "B");
+    await recordClick(link.id, "keep-b2", null, "click", "B");
+    await recordClick(link.id, "old-a", null, "click", "A");
+    await recordClick(link.id, "old-b", null, "click", "B");
+    expect((await getLink(link.id))?.clicksCount).toBe(5); // lifetime so far
+
+    // Retention removes the two "old" rows (same delete semantics as the
+    // real opportunistic pruner — see retention.integration.test.ts).
+    const allRows = db
+      .select({ id: analyticsClicks.id, visitorHash: analyticsClicks.visitorHash })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, link.id))
+      .all();
+    const toDelete = allRows.filter((r) => r.visitorHash.startsWith("old-")).map((r) => r.id);
+    expect(toDelete).toHaveLength(2);
+    db.delete(analyticsClicks).where(inArray(analyticsClicks.id, toDelete)).run();
+
+    const stats = await getLinkStats(link.id, "30d");
+    expect(stats!.totalClicks).toBe(3); // row-driven: shrank with the delete
+    expect(stats!.variants).toEqual({ a: 1, b: 2 }); // breakdown shrank in lockstep
+    expect((await getLink(link.id))?.clicksCount).toBe(5); // badge: lifetime, unchanged
   });
 });

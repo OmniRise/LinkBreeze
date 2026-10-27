@@ -11,8 +11,8 @@ import { db, seedLink } from "./integration-setup";
 import { recordClick, updateSetting, getLink } from "@/server/queries";
 import { analyticsClicks, links } from "@/db/schema";
 import { runAbAutoPromoteScan, maybeAutoPromoteAbTests, _resetAbAutoPromoteThrottle, AB_AUTO_PROMOTE_SETTING } from "@/server/ab-auto-promote";
-import { parseAbConfig, serializeAbConfig, type AbConfig } from "@/lib/ab-test";
-import { eq } from "drizzle-orm";
+import { parseAbConfig, serializeAbConfig, autoPromotableWinner, AB_AUTO_PROMOTE_MIN_CLICKS, type AbConfig } from "@/lib/ab-test";
+import { eq, inArray } from "drizzle-orm";
 
 const running: AbConfig = {
   v: 1,
@@ -217,5 +217,47 @@ describe("auto-promotion scanner (#81 E.1)", () => {
     expect(raw).not.toBeNull();
     expect(JSON.parse(raw!).v).toBe(2); // untouched, not rewritten to v:1
     expect(parseAbConfig(raw)).toBeNull();
+  });
+
+  it("E.32: retention pruning can only REMOVE promotability (scanner stays conservative)", async () => {
+    // The E.23 comment's claim: retention deletes only LOWER the all-time
+    // count, so pruning may flip a promotable test to un-promotable but
+    // never the other way. (The real retention delete path — opportunistic
+    // inside recordClick — is covered by retention.integration.test.ts;
+    // here we simulate its exact effect: rows older than the window gone.)
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, "on");
+    const link = await seedRunningTest();
+    await clickVariants(link.id, 60, 240); // 300 total, significant, B leads
+
+    // Before pruning: promotable by the same math the scanner uses.
+    expect(autoPromotableWinner(60, 240, 50, AB_AUTO_PROMOTE_MIN_CLICKS)).toBe("B");
+
+    // Simulate retention: delete 110 rows (whatever retention would have
+    // dropped as "old") — leaves 190 < the 200 floor.
+    const ids = db
+      .select({ id: analyticsClicks.id })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, link.id))
+      .all()
+      .slice(0, 110)
+      .map((r) => r.id);
+    expect(ids).toHaveLength(110);
+    db.delete(analyticsClicks).where(inArray(analyticsClicks.id, ids)).run();
+
+    // Remaining counts from the actual rows (split depends on which ids went).
+    const rows = db
+      .select({ variant: analyticsClicks.variant })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.linkId, link.id))
+      .all();
+    const a = rows.filter((r) => r.variant === "A").length;
+    const b = rows.filter((r) => r.variant === "B").length;
+    expect(a + b).toBe(190);
+    // The pure decision now refuses (below floor) — pruning direction only.
+    expect(autoPromotableWinner(a, b, 50, AB_AUTO_PROMOTE_MIN_CLICKS)).toBeNull();
+
+    // And the live scanner agrees: no promotion, config untouched.
+    expect(await runAbAutoPromoteScan()).toBe(0);
+    expect(parseAbConfig((await getLink(link.id))?.abConfig ?? null)?.status).toBe("running");
   });
 });
