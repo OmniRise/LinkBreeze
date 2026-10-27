@@ -95,6 +95,14 @@ describe("GET /api/v1/sections", () => {
     }
   });
 
+  it("E.85: a WELL-FORMED but unknown pageId filters to an empty list (200, not 404)", async () => {
+    const res = await listSections(req("/api/v1/sections?pageId=999999"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data).toEqual([]); // sections carry no meta block — data only
+    // The COLLECTION exists — only POST 404s on an unknown page.
+  });
+
   it("401s without a key", async () => {
     const res = await listSections(
       new NextRequest("http://localhost:3000/api/v1/sections"),

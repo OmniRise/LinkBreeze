@@ -687,7 +687,8 @@ export function buildOpenApiDocument(): Json {
           summary: "List sections (all pages, display order)",
           operationId: "listSections",
           description:
-            "Stable order (pageId, orderIndex, id). Filter to one page with ?pageId=N. " +
+            "Stable order (pageId, orderIndex, id). Filter to one page with ?pageId=N — a well-formed " +
+            "but unknown pageId filters to an empty list (only POST 404s on unknown pages). " +
             "Conditional: carries an ETag; If-None-Match answers 304 while unchanged.",
           parameters: [
             {
