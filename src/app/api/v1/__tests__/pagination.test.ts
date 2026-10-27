@@ -100,6 +100,42 @@ describe("GET /api/v1/links — cursor pagination", () => {
     ]);
   });
 
+  it("E.46: limit=1 degenerate walk — one row per page, cursor advances until null", async () => {
+    const seenTitles: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const query = cursor
+        ? `?limit=1&cursor=${encodeURIComponent(cursor)}`
+        : "?limit=1";
+      const res = await listLinks(get(query));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      // The strictest page size: every non-final page is EXACTLY one row.
+      expect(body.data).toHaveLength(1);
+      expect(body.meta.count).toBe(1);
+      seenTitles.push(body.data[0].title);
+      cursor = body.meta.nextCursor;
+      pages += 1;
+      expect(pages).toBeLessThan(10); // no infinite loop
+    } while (cursor);
+
+    // Final page (before cursor ran out) also held one row — 5 seeds, 5 pages.
+    expect(pages).toBe(5);
+    expect(seenTitles).toEqual([
+      "Page link 0",
+      "Page link 1",
+      "Page link 2",
+      "Page link 3",
+      "Page link 4",
+    ]);
+
+    // After the last row the cursor is null (loop terminated) — a follow-up
+    // fetch with the LAST cursor was the final page, not an empty extra page.
+    const last = await listLinks(get("?limit=1&cursor=SENTINEL-invalid"));
+    expect(last.status).toBe(400); // malformed cursor still rejected mid-walk
+  });
+
   it("cursor alone defaults to limit=100 (single page for small lists)", async () => {
     const first = await listLinks(get("?limit=4"));
     const firstBody = await first.json();
