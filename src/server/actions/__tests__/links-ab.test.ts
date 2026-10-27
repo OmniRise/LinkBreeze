@@ -563,6 +563,45 @@ describe("setAbAutoPromote (#81 E.1)", () => {
   });
 });
 
+describe("E.104: A/B actions revalidate every surface that renders A/B state", () => {
+  // Audit result: the surfaces are /links (list), /links/:id (stats
+  // detail + ab-test-card), and / (public page — promote can change
+  // link.url); /settings is the toggle's surface. /dashboard is NOT
+  // revalidated by ANY link mutation (create/delete/reorder predate #81
+  // and admin pages render dynamically) — convention-consistent, so it is
+  // deliberately NOT added here; the theme preview renders a hardcoded
+  // abConfig: null fixture and needs nothing.
+  const THREE = [["/links"], ["/links/7"], ["/"]];
+
+  it("setAbTest / setAbTestStatus / promoteAbVariant / removeAbTest each hit exactly the 3 targets", async () => {
+    const expectThree = (label: string) => {
+      expect(mocks.revalidatePath.mock.calls, label).toEqual(THREE);
+      mocks.revalidatePath.mockClear();
+    };
+
+    mocks.getLink.mockResolvedValue(urlLink(null));
+    await setAbTest(fd({ id: "7", urlB: "https://example.com/b", weightA: "50" }));
+    expectThree("setAbTest");
+
+    mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
+    await setAbTestStatus(fd({ id: "7", status: "paused" }));
+    expectThree("setAbTestStatus");
+
+    mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
+    await promoteAbVariant(fd({ id: "7", winner: "A" }));
+    expectThree("promoteAbVariant");
+
+    mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
+    await removeAbTest(fd({ id: "7" }));
+    expectThree("removeAbTest");
+  });
+
+  it("setAbAutoPromote revalidates /settings (its only rendering surface)", async () => {
+    await setAbAutoPromote(fd({ abAutoPromote: "on" }));
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/settings"]]);
+  });
+});
+
 describe("removeAbTest", () => {
   it("rejects unauthenticated", async () => {
     mocks.getSession.mockResolvedValue(null);
