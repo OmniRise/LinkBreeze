@@ -1289,6 +1289,40 @@ describe("GET /api/pages/export", () => {
     expect(names).not.toEqual([...names].sort()); // not alphabetical
   });
 
+  it("redirectSlug ref used end-to-end in export (E.252)", async () => {
+    // unit coverage exists (direct-urls.test: id-ref + slug-ref both);
+    // this pins the ROUTE passes redirectSlug through the whole stack:
+    // builder emits /go/<slug> → applyDirectUrls maps it to the url
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object) } as never);
+    mockGetSections.mockResolvedValue([]);
+    mockGetActiveLinks.mockResolvedValue([
+      {
+        id: 31, pageId: 1, sectionId: null, orderIndex: 0, type: "url",
+        title: "SlugLink", description: null,
+        url: "https://slug-dest.example/profile",
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        redirectSlug: "my-slug", createdAt: "2026-01-01 00:00:00",
+      },
+      {
+        id: 32, pageId: 1, sectionId: null, orderIndex: 1, type: "url",
+        title: "IdLink", description: null,
+        url: "https://id-dest.example/profile",
+        icon: null, iconUrl: null, customIconUrl: null, iconMode: "auto",
+        autoIcon: true, imageUrl: null, isHighlighted: false, isActive: true,
+        scheduleStart: null, scheduleEnd: null, clicksCount: 0,
+        redirectSlug: null, createdAt: "2026-01-01 00:00:00",
+      },
+    ] as never[]);
+    const res = await GET(req("?id=1"));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).not.toMatch(/\/go\//); // neither ref survives
+    expect(body).toContain('href="https://slug-dest.example/profile"');
+    expect(body).toContain('href="https://id-dest.example/profile"');
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
