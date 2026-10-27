@@ -335,6 +335,32 @@ describe("PUT /api/v1/links/reorder", () => {
     );
     expect(strings.status).toBe(400);
   });
+
+  it("E.81: an unknown id is a silent no-op (200 counts INPUT ids; existing rows unchanged)", async () => {
+    const anchor = seedLink({ title: "E81 anchor", url: "https://e81.example", pageId });
+    const orderBefore = db
+      .select()
+      .from(schema.links)
+      .all()
+      .reduce<Record<number, number>>((m, r) => ({ ...m, [r.id]: r.orderIndex }), {});
+
+    const res = await reorderRoute(
+      req("/api/v1/links/reorder", { method: "PUT", body: { ids: [999999] } }),
+    );
+    expect(res.status).toBe(200);
+    // `reordered` counts the ids ACCEPTED from the input, not verified rows.
+    expect((await res.json()).data).toEqual({ reordered: 1 });
+
+    const rowsAfter = db.select().from(schema.links).all();
+    expect(rowsAfter.length).toBe(Object.keys(orderBefore).length);
+    expect(
+      rowsAfter.reduce<Record<number, number>>(
+        (m, r) => ({ ...m, [r.id]: r.orderIndex }),
+        {},
+      ),
+    ).toEqual(orderBefore);
+    expect(rowsAfter.find((r) => r.id === anchor.id)).toBeTruthy();
+  });
 });
 
 describe("GET /api/v1/links/:id (E.11 single-link read)", () => {

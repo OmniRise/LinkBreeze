@@ -281,7 +281,6 @@ describe("PUT /api/v1/sections/reorder (E.12 parity)", () => {
     );
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual({ reordered: 3 });
-
     const after = await listSections(
       req(`/api/v1/sections?pageId=${otherPageId}`),
     );
@@ -313,6 +312,24 @@ describe("PUT /api/v1/sections/reorder (E.12 parity)", () => {
       expect(res.status, JSON.stringify(body).slice(0, 60)).toBe(400);
       expect((await res.json()).error.code).toBe("validation");
     }
+  });
+
+  it("E.81: an unknown section id is a silent no-op (200 counts input ids)", async () => {
+    const before = await listSections(req("/api/v1/sections"));
+    const mapBefore = (await before.json()).data.map(
+      (s: { id: number; orderIndex: number }) => [s.id, s.orderIndex],
+    );
+
+    const res = await reorderSectionsRoute(
+      req("/api/v1/sections/reorder", { method: "PUT", body: { ids: [999999] } }),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ reordered: 1 });
+
+    const after = await listSections(req("/api/v1/sections"));
+    expect((await after.json()).data.map(
+      (s: { id: number; orderIndex: number }) => [s.id, s.orderIndex],
+    )).toEqual(mapBefore);
   });
 
   it("401s without a key and 403s in demo mode", async () => {

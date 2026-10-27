@@ -575,6 +575,9 @@ export function buildOpenApiDocument(): Json {
           tags: ["links"],
           summary: "Reorder links",
           operationId: "reorderLinks",
+          description:
+            "Applies array-index → orderIndex for ids that EXIST (the admin drag-drop's own query). " +
+            "Unknown ids are silent no-ops; `reordered` counts the ids ACCEPTED from the input, not verified rows.",
           requestBody: {
             required: true,
             content: {
@@ -757,6 +760,9 @@ export function buildOpenApiDocument(): Json {
           tags: ["sections"],
           summary: "Reorder sections",
           operationId: "reorderSections",
+          description:
+            "Applies array-index → orderIndex for ids that EXIST. Unknown ids are silent no-ops; " +
+            "`reordered` counts the ids ACCEPTED from the input, not verified rows.",
           requestBody: {
             required: true,
             content: {
