@@ -14,6 +14,14 @@ describe("exportFilename", () => {
     expect(exportFilename('a/b"c')).toBe("abc.html");
   });
 
+  it("interior dots in slug survive; only leading dots are stripped (E.169)", () => {
+    expect(exportFilename("my.blog")).toBe("my.blog.html");
+    expect(exportFilename("v1.2.3.release")).toBe("v1.2.3.release.html");
+    // leading-dot forms still collapse (already pinned for "../..")
+    expect(exportFilename(".hidden")).toBe("hidden.html");
+    expect(exportFilename(".")).toBe("page.html");
+  });
+
   it("falls back to page.html for empty/unsafe slugs", () => {
     expect(exportFilename("")).toBe("page.html");
     expect(exportFilename("../..")).toBe("page.html");
