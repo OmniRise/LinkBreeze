@@ -189,6 +189,29 @@ describe("buildStaticExport", () => {
     }
   });
 
+  it("sections render in GIVEN order, not alphabetical (E.243)", () => {
+    // Zebra first in fixture, Alpha second — an alphabetical sort or a
+    // reverse would flip them; the builder must pass orderIndex order
+    const html = buildStaticExport({
+      ...baseInput,
+      sections: [
+        { id: 81, title: "Zebra Section", icon: "🦓", orderIndex: 0 },
+        { id: 82, title: "Alpha Section", icon: "🅰️", orderIndex: 1 },
+      ],
+      // headers render per section GROUP (groupLinksBySection) — empty
+      // sections produce no group, so each needs a link to show
+      links: [
+        makeLink({ id: 101, sectionId: 81, title: "InZebra" }),
+        makeLink({ id: 102, sectionId: 82, title: "InAlpha" }),
+      ],
+    });
+    const z = html.indexOf("Zebra Section");
+    const a = html.indexOf("Alpha Section");
+    expect(z).toBeGreaterThan(-1);
+    expect(a).toBeGreaterThan(-1);
+    expect(z).toBeLessThan(a); // given order preserved
+  });
+
   it("keeps operator-provided analytics + custom CSS verbatim", () => {
     const html = buildStaticExport({
       ...baseInput,
