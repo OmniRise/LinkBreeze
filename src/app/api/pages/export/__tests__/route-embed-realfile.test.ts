@@ -213,6 +213,38 @@ describe("embed zip ships real uploads files (E.35/E.52)", () => {
     expect(uploadNames.length).toBe(new Set(uploadNames).size);
   });
 
+  it("two pages sharing one custom font: file bundled EXACTLY once (E.112)", async () => {
+    const FONT_BYTES = Buffer.from("shared-woff2-bytes");
+    writeFileSync(join(tempUploads, "shared.woff2"), FONT_BYTES);
+    vi.mocked(auth.getSession).mockResolvedValue({ userId: 1, username: "jane" } as never);
+    vi.mocked(q.getAllPages).mockResolvedValue([
+      { id: 1, slug: "s1", title: "S1", bio: null, themeId: 9, avatarUrl: null, emailCapture: false, shareEnabled: false },
+      { id: 2, slug: "s2", title: "S2", bio: null, themeId: 9, avatarUrl: null, emailCapture: false, shareEnabled: false },
+    ] as never[]);
+    vi.mocked(q.getThemeById).mockResolvedValue({
+      id: 9, name: "Shared", fontFamily: "custom:7", animationType: "none",
+    } as never);
+    vi.mocked(q.getCustomFontById).mockResolvedValue({
+      id: 7, family: "SharedFont", url: "/api/uploads/shared.woff2", format: "woff2",
+    } as never);
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/pages/export?all=1&embed=1", {
+        headers: { host: "localhost:3000" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const entries = readLocalEntries(Buffer.from(await res.arrayBuffer()));
+    // exactly ONE copy of the font in the archive…
+    const fontEntries = entries.filter((e) => e.name === "uploads/shared.woff2");
+    expect(fontEntries).toHaveLength(1);
+    expect(fontEntries[0].data.equals(FONT_BYTES)).toBe(true);
+    // …while both htmls reference the bundled path
+    for (const page of ["s1.html", "s2.html"]) {
+      const html = entries.find((e) => e.name === page)!.data.toString("utf8");
+      expect(html, page).toContain("url('uploads/shared.woff2')");
+    }
+  });
+
   it("embed zip bundles a REAL font file referenced by @font-face (E.99)", async () => {
     const FONT_BYTES = Buffer.from("wOF2-font-bytes-not-real");
     writeFileSync(join(tempUploads, "up-font.woff2"), FONT_BYTES);
