@@ -430,7 +430,7 @@ Téléchargez n'importe quelle page depuis le sélecteur de pages en un seul fic
 <details>
 <summary>🌐 &nbsp;Héberger votre page exportée où vous voulez</summary>
 
-- **Récupérer le fichier** - l'icône de téléchargement du sélecteur de pages exporte une page ; « Exporter toutes les pages en zip » regroupe toute l'instance. Ajoutez `?embed=1` (`/api/pages/export?id=1&embed=1`) pour inclure aussi le dossier `uploads/` et obtenir une copie entièrement hors ligne
+- **Récupérer le fichier** - l'icône de téléchargement du sélecteur de pages exporte une page ; « Exporter toutes les pages en zip » regroupe toute l'instance. Ajoutez `?embed=1` (`/api/pages/export?id=1&embed=1`) pour inclure aussi le dossier `uploads/` et obtenir une copie entièrement hors ligne. L'archive de toutes les pages est aussi récupérable directement avec `?all=1` (`/api/pages/export?all=1`)
 - **Où héberger** - GitHub Pages, Netlify, Cloudflare Pages ou tout serveur de fichiers statiques ; `python3 -m http.server` suffit pour une vérification locale rapide
 - **Ce qui voyage** - votre thème, votre CSS personnalisé et les extraits d'analytics tiers continuent de fonctionner, et chaque lien pointe directement vers sa destination
 - **Ce qui reste** - les statistiques intégrées de vues/clics et la collecte d'e-mails ont besoin de votre instance ; sans `?embed=1`, les images se chargent depuis votre instance via des URLs absolues : gardez-la accessible ou exportez avec `?embed=1`

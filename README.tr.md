@@ -430,7 +430,7 @@ Sayfa değiştiriciden herhangi bir sayfayı tek bir bağımsız `.html` dosyas�
 <details>
 <summary>🌐 &nbsp;Dışa aktardığınız sayfayı her yerde barındırma</summary>
 
-- **Dosyayı alın** - sayfa değiştiricinin indirme simgesi bir sayfayı dışa aktarır; "Tüm sayfaları zip olarak dışa aktar" tüm örneği paketler. Tamamen çevrimdışı bir kopya için `?embed=1` ekleyin (`/api/pages/export?id=1&embed=1`) - `uploads/` klasörü de dahil edilir
+- **Dosyayı alın** - sayfa değiştiricinin indirme simgesi bir sayfayı dışa aktarır; "Tüm sayfaları zip olarak dışa aktar" tüm örneği paketler. Tamamen çevrimdışı bir kopya için `?embed=1` ekleyin (`/api/pages/export?id=1&embed=1`) - `uploads/` klasörü de dahil edilir. Toplu zip, `?all=1` (`/api/pages/export?all=1`) ile de doğrudan indirilebilir
 - **Nerede barındırılır** - GitHub Pages, Netlify, Cloudflare Pages veya herhangi bir statik dosya sunucusu; hızlı yerel kontrol için `python3 -m http.server` yeterlidir
 - **Yanınızda gidenler** - temanız, özel CSS ve üçüncü taraf analitik parçaları çalışmaya devam eder ve her bağlantı doğrudan hedefine gider
 - **Evde kalanlar** - yerleşik görüntülenme ve tıklama analitiği ve e-posta toplama örneğinizi gerektirir; `?embed=1` olmadan görseller örneğinizden mutlak URL'lerle yüklenir - erişilebilir tutun ya da `?embed=1` ile dışa aktarın

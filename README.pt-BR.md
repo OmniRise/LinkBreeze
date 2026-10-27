@@ -430,7 +430,7 @@ Baixe qualquer página do seletor de páginas como um único arquivo `.html` aut
 <details>
 <summary>🌐 &nbsp;Hospedando sua página exportada em qualquer lugar</summary>
 
-- **Obtenha o arquivo** - o ícone de download do seletor de páginas exporta uma página; "Exportar todas as páginas como zip" empacota a instância inteira. Acrescente `?embed=1` (`/api/pages/export?id=1&embed=1`) para incluir também a pasta `uploads/` e ter uma cópia totalmente offline
+- **Obtenha o arquivo** - o ícone de download do seletor de páginas exporta uma página; "Exportar todas as páginas como zip" empacota a instância inteira. Acrescente `?embed=1` (`/api/pages/export?id=1&embed=1`) para incluir também a pasta `uploads/` e ter uma cópia totalmente offline. O zip do lote também é baixado diretamente com `?all=1` (`/api/pages/export?all=1`)
 - **Onde hospedar** - GitHub Pages, Netlify, Cloudflare Pages ou qualquer servidor de arquivos estáticos; `python3 -m http.server` serve para uma verificação local rápida
 - **O que viaja** - seu tema, CSS personalizado e snippets de analytics de terceiros continuam funcionando, e cada link aponta direto para o seu destino
 - **O que fica em casa** - as métricas nativas de visualizações/cliques e a captura de e-mails precisam da sua instância; sem `?embed=1`, as imagens carregam da sua instância via URLs absolutos, então mantenha-a acessível ou exporte com `?embed=1`

@@ -430,7 +430,7 @@ Laden Sie jede Seite im Seiten-Umschalter als eine eigenständige `.html`-Datei 
 <details>
 <summary>🌐 &nbsp;Ihre exportierte Seite überall hosten</summary>
 
-- **Datei holen** - Das Download-Symbol im Seiten-Umschalter exportiert eine Seite; „Alle Seiten als ZIP exportieren" paketiert die gesamte Instanz. Hängen Sie `?embed=1` an (`/api/pages/export?id=1&embed=1`), um auch den `uploads/`-Ordner für eine komplett offline-fähige Kopie einzuschließen
+- **Datei holen** - Das Download-Symbol im Seiten-Umschalter exportiert eine Seite; „Alle Seiten als ZIP exportieren" paketiert die gesamte Instanz. Hängen Sie `?embed=1` an (`/api/pages/export?id=1&embed=1`), um auch den `uploads/`-Ordner für eine komplett offline-fähige Kopie einzuschließen. Das Batch-Zip ist auch direkt per `?all=1` abrufbar (`/api/pages/export?all=1`)
 - **Wo hosten** - GitHub Pages, Netlify, Cloudflare Pages oder jeder statische Dateiserver; `python3 -m http.server` eignet sich für einen schnellen Lokaltest
 - **Was mitreist** - Ihr Theme, eigenes CSS und Drittanbieter-Analytics-Snippets funktionieren weiter, und jeder Link zeigt direkt auf sein Ziel
 - **Was zu Hause bleibt** - Die integrierte Aufruf- und Klick-Analytics sowie die E-Mail-Erfassung brauchen Ihre Instanz; ohne `?embed=1` laden Bilder über absolute URLs von Ihrer Instanz - halten Sie sie erreichbar oder exportieren Sie mit `?embed=1`

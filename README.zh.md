@@ -430,7 +430,7 @@ cloudflared tunnel --url http://localhost:3000
 <details>
 <summary>🌐 &nbsp;在任何地方托管导出的页面</summary>
 
-- **获取文件** - 页面切换器的下载图标导出单个页面；"将所有页面导出为 zip" 打包整个实例。加上 `?embed=1`（`/api/pages/export?id=1&embed=1`）可一并包含 `uploads/` 文件夹，得到完全离线的副本
+- **获取文件** - 页面切换器的下载图标导出单个页面；"将所有页面导出为 zip" 打包整个实例。加上 `?embed=1`（`/api/pages/export?id=1&embed=1`）可一并包含 `uploads/` 文件夹，得到完全离线的副本。批量 zip 也可用 `?all=1`（`/api/pages/export?all=1`）直接获取
 - **托管位置** - GitHub Pages、Netlify、Cloudflare Pages 或任意静态文件服务器；`python3 -m http.server` 可用于本地快速检查
 - **随行内容** - 你的主题、自定义 CSS 和第三方统计代码照常工作，每个链接都直接指向目标地址
 - **留在本机的部分** - 内置的浏览/点击统计和邮件收集需要你的实例；不加 `?embed=1` 时，图片通过绝对 URL 从你的实例加载，请保持其可访问，或使用 `?embed=1` 导出
