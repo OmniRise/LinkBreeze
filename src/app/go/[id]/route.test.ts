@@ -299,4 +299,33 @@ describe("bot/crawler interaction (#41 x #81, E.31)", () => {
     expect(res.headers.get("location")).toBe("https://example.com/b");
     expect(mocks.recordClick).not.toHaveBeenCalled();
   });
+
+  it("E.34: assignment ignores cookies entirely (nothing to clear or tamper with)", async () => {
+    // Guide claim: "there is nothing to clear, tamper with, or block; the
+    // split works with JavaScript disabled" — visitor identity is IP+UA
+    // only (getVisitorHash never sees a cookie jar). A forged cookie jar
+    // (fake lb_session + fake variant claims) must not steer the bucket:
+    // same visitor, cookie vs no cookie -> same destination, and the
+    // destination equals the pure helper's decision for that hash.
+    vi.mocked(isBot).mockReturnValue(false);
+    mocks.getLinkByRef.mockResolvedValue(
+      activeLink({ url: "https://example.com/a", type: "url", abConfig: abConfigJson() }),
+    );
+
+    const plain = await GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) });
+    const plainLoc = plain.headers.get("location");
+
+    const forged = new NextRequest("http://localhost:3000/go/7", {
+      headers: { cookie: "lb_session=forged-admin; lb_variant=B; ab_variant=B" },
+    });
+    const res2 = await GET(forged, { params: Promise.resolve({ id: "7" }) });
+    expect(res2.headers.get("location")).toBe(plainLoc);
+
+    // The observed split is exactly the pure assignment for this visitor.
+    expect(plainLoc).toBe(
+      assignVariant("hash", 7, 50, 50) === "B"
+        ? "https://example.com/b"
+        : "https://example.com/a",
+    );
+  });
 });
