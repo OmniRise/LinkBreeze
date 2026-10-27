@@ -454,3 +454,32 @@ describe("GET /api/v1/links/:id (E.11 single-link read)", () => {
     expect(noKey.status).toBe(401);
   });
 });
+
+describe("E.82 usage counters move through REAL routes (in-process readback)", () => {
+  it("an authed list GET lands in accepted; a bad key lands in authFails", async () => {
+    const { resetApiUsage, getApiUsage } = await import("@/lib/api-usage");
+    resetApiUsage();
+
+    const ok = await listLinks(req("/api/v1/links"));
+    expect(ok.status).toBe(200);
+    let usage = getApiUsage();
+    expect(usage.calls).toBe(1);
+    expect(usage.accepted).toBe(1);
+    expect(usage.authFails).toBe(0);
+
+    const bad = await listLinks(
+      new NextRequest("http://localhost:3000/api/v1/links", {
+        headers: {
+          authorization: ["Bearer", "lbk_" + "z".repeat(43)].join(" "),
+          "x-forwarded-for": "10.72.0.99",
+        },
+      }),
+    );
+    expect(bad.status).toBe(401);
+    usage = getApiUsage();
+    expect(usage.calls).toBe(2);
+    expect(usage.accepted).toBe(1);
+    expect(usage.authFails).toBe(1);
+    expect(usage.date).toMatch(/^\d{4}-\d{2}-\d{2}$/); // day-bucketed snapshot
+  });
+});
