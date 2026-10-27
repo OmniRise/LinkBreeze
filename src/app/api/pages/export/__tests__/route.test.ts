@@ -703,6 +703,30 @@ describe("GET /api/pages/export", () => {
     expect(new Set(specs).size).toBe(ALLOWED.size);
   });
 
+  it("Content-Disposition filenames are always pure ASCII (E.171)", () => {
+    // exportFilename reduces to [A-Za-z0-9-_.@] — non-ASCII is stripped
+    // before the header, so RFC 5987 filename* is never needed.
+    mockGetPageById.mockResolvedValue({
+      ...(PAGE as object),
+      slug: "café-页面",
+    } as never);
+    mockGetActiveLinks.mockResolvedValue([]);
+    mockGetSections.mockResolvedValue([]);
+    return GET(req("?id=1&embed=1")).then(async (res) => {
+      expect(res.status).toBe(200);
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      expect(cd).toMatch(
+        /^attachment; filename="[A-Za-z0-9\-_.@]+(\.html|-export\.zip)"$/,
+      );
+      // explicit stripped slug root visible in the header (embed zip:
+      // "<filename minus .html>-export.zip", E.93)
+      expect(cd).toContain("caf-");
+      // zip shape on both paths: application/zip asserted via zipResponse
+      // (single helper, route.ts:136 — both callers at :206/:245)
+      expect(res.headers.get("Content-Type")).toContain("application/zip");
+    });
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
