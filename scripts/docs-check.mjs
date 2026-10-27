@@ -77,6 +77,22 @@ if (fenceDrift.length) {
   process.exit(1);
 }
 
+// E.116 content rule: every jq filter in every README must address the
+// success envelope roots ({ data } / { meta }) — a path like `.rows` would
+// mean the documented contract drifted from apiOk's actual shape.
+const jqOutsideEnvelope = [];
+for (const f of readmes) {
+  const txt = fs.readFileSync(path.join(root, f), "utf8");
+  for (const m of txt.matchAll(/jq '([^']+)'/g)) {
+    if (!/^(\.data\b|\.meta\b)/.test(m[1].trim())) jqOutsideEnvelope.push(`${f}: ${m[1]}`);
+  }
+}
+if (jqOutsideEnvelope.length) {
+  console.error("jq filter outside the { data, meta } envelope root:");
+  for (const j of jqOutsideEnvelope) console.error(`  - ${j}`);
+  process.exit(1);
+}
+
 if (stale.length) {
   console.error("Stale translation(s) — README.md changed since they were synced:");
   for (const s of stale) console.error(`  - ${s}`);
