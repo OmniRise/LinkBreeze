@@ -351,4 +351,64 @@ describe("bot/crawler interaction (#41 x #81, E.31)", () => {
     // Server assignment, not any forged claim, reaches the analytics write.
     expect(mocks.recordClick).toHaveBeenCalledWith(7, "hash", "", "click", "B");
   });
+
+  it("E.41: interleaved /go requests keep each link's label in its own request (no cross-link leak)", async () => {
+    // variant is per-request local state passed positionally to recordClick;
+    // this pins that contract against a future regression that hoists it to
+    // module scope or memoizes an assignment across requests. Two links are
+    // forced to OPPOSITE outcomes and fired concurrently; every recorded
+    // tuple must match ITS OWN link's pure assignment, never the other's.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.mocked(isBot).mockReturnValue(false);
+
+    // Deterministic at runtime: pick the first sequential id whose default
+    // 50/50 outcome OPPOSES link 7's forced-B outcome, so the two links are
+    // guaranteed to carry different labels in this run.
+    const exp7 = assignVariant("hash", 7, 50, 50); // any bucket; forced-B overrides below
+    const otherId = Array.from({ length: 8 }, (_, i) => i + 8).find(
+      (id) => assignVariant("hash", id, 50, 50) !== exp7,
+    );
+    expect(otherId).toBeDefined();
+    const expOther = assignVariant("hash", otherId!, 50, 50); // pure outcome, 50/50 weights
+
+    const link7 = forcedBLink(); // id 7 -> forced "B" (proven by wForB)
+    const linkOther = activeLink({
+      id: otherId,
+      url: "https://example.com/other",
+      type: "url",
+      abConfig: abConfigJson(), // default 50/50
+    });
+    mocks.getLinkByRef.mockImplementation((ref: unknown) =>
+      Promise.resolve(String(ref) === String(otherId) ? linkOther : link7),
+    );
+
+    const results = await Promise.all([
+      GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) }),
+      GET(makeRequest(String(otherId)), { params: Promise.resolve({ id: String(otherId) }) }),
+      GET(makeRequest("7"), { params: Promise.resolve({ id: "7" }) }),
+      GET(makeRequest(String(otherId)), { params: Promise.resolve({ id: String(otherId) }) }),
+    ]);
+    // Variant A resolves to EACH LINK'S OWN url (link7: /a, other: /other);
+    // variant B is the shared urlB.
+    const locOther = expOther === "B" ? "https://example.com/b" : "https://example.com/other";
+    expect(results.map((r) => r.headers.get("location"))).toEqual([
+      "https://example.com/b",
+      locOther,
+      "https://example.com/b",
+      locOther,
+    ]);
+
+    // Order-independent tuple check: 2x (7,B) + 2x (other, expOther), and
+    // critically NEVER (7, anything-but-B) or (other, the opposite label).
+    const tuples = mocks.recordClick.mock.calls.map((c) => {
+      const a = c as unknown[];
+      return [a[0], a[4]] as [unknown, unknown];
+    });
+    expect(tuples).toHaveLength(4);
+    expect(tuples.filter(([id]) => id === 7)).toEqual([[7, "B"], [7, "B"]]);
+    expect(tuples.filter(([id]) => id === otherId)).toEqual([
+      [otherId, expOther],
+      [otherId, expOther],
+    ]);
+  });
 });

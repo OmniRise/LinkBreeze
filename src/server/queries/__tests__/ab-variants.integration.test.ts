@@ -155,4 +155,30 @@ describe("per-variant click attribution (#81)", () => {
     expect(stats!.variants).toEqual({ a: 1, b: 2 }); // breakdown shrank in lockstep
     expect((await getLink(link.id))?.clicksCount).toBe(5); // badge: lifetime, unchanged
   });
+
+  it("E.41: cross-link isolation - each link's variant breakdown never bleeds across links", async () => {
+    // Same visitor, two A/B links, OPPOSITE label mixes fired back to back:
+    // the aggregation must stay per-link (WHERE link_id), so link A's
+    // stats can never absorb link B's labeled rows even though both live in
+    // the same table in the same session.
+    const cfg = JSON.stringify({ v: 1, status: "running", labelA: null, labelB: null, urlB: "https://example.com/b", weightA: 50, weightB: 50, winner: null });
+    const linkA = seedLink({ title: "Isolation A", abConfig: cfg });
+    const linkB = seedLink({ title: "Isolation B", abConfig: cfg });
+
+    await recordClick(linkA.id, "same-visitor", null, "click", "A");
+    await recordClick(linkA.id, "same-visitor", null, "click", "A");
+    await recordClick(linkA.id, "same-visitor", null, "click", "A");
+    await recordClick(linkA.id, "same-visitor", null, "click", "B");
+    await recordClick(linkB.id, "same-visitor", null, "click", "A");
+    await recordClick(linkB.id, "same-visitor", null, "click", "B");
+    await recordClick(linkB.id, "same-visitor", null, "click", "B");
+    await recordClick(linkB.id, "same-visitor", null, "click", "B");
+
+    const statsA = await getLinkStats(linkA.id, "30d");
+    const statsB = await getLinkStats(linkB.id, "30d");
+    expect(statsA!.totalClicks).toBe(4);
+    expect(statsA!.variants).toEqual({ a: 3, b: 1 }); // never saw B's mix
+    expect(statsB!.totalClicks).toBe(4);
+    expect(statsB!.variants).toEqual({ a: 1, b: 3 }); // never saw A's mix
+  });
 });
