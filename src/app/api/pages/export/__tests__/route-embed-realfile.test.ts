@@ -213,6 +213,48 @@ describe("embed zip ships real uploads files (E.35/E.52)", () => {
     expect(uploadNames.length).toBe(new Set(uploadNames).size);
   });
 
+  it("embed zip bundles a REAL font file referenced by @font-face (E.99)", async () => {
+    const FONT_BYTES = Buffer.from("wOF2-font-bytes-not-real");
+    writeFileSync(join(tempUploads, "up-font.woff2"), FONT_BYTES);
+    vi.mocked(auth.getSession).mockResolvedValue({ userId: 1, username: "jane" } as never);
+    vi.mocked(q.getPageById).mockResolvedValue({
+      id: 1,
+      slug: "fontpage",
+      title: "F",
+      bio: null,
+      themeId: 9,
+      avatarUrl: null,
+      emailCapture: false,
+      shareEnabled: false,
+    } as never);
+    vi.mocked(q.getThemeById).mockResolvedValue({
+      id: 9,
+      name: "FontTheme",
+      fontFamily: "custom:7",
+      animationType: "none",
+    } as never);
+    vi.mocked(q.getCustomFontById).mockResolvedValue({
+      id: 7,
+      family: "Uploaded",
+      url: "/api/uploads/up-font.woff2",
+      format: "woff2",
+    } as never);
+    const res = await GET(
+      new NextRequest("http://localhost:3000/api/pages/export?id=1&embed=1", {
+        headers: { host: "localhost:3000" },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const entries = readLocalEntries(Buffer.from(await res.arrayBuffer()));
+    // html references the bundled relative path…
+    const html = entries.find((e) => e.name === "fontpage.html")!.data.toString("utf8");
+    expect(html).toContain("url('uploads/up-font.woff2')");
+    // …and the font file itself was read from disk into the zip, byte-exact
+    const fontEntry = entries.find((e) => e.name === "uploads/up-font.woff2");
+    expect(fontEntry, "font file not bundled").toBeTruthy();
+    expect(fontEntry!.data.equals(FONT_BYTES)).toBe(true);
+  });
+
   it("10-page embed batch: every html entry is fully origin-free (E.90)", async () => {
     const pages = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
