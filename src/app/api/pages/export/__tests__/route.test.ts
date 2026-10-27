@@ -827,6 +827,39 @@ describe("GET /api/pages/export", () => {
     expect(block).not.toContain("</script");
   });
 
+  it("plain-mode url() discipline: all network urls origin-absolute (E.180)", async () => {
+    const fontReq = (q: string) =>
+      new NextRequest(`http://localhost:3000/api/pages/export${q}`, {
+        headers: { host: "localhost:3000" },
+      });
+    mockGetPageById.mockResolvedValue({ ...(PAGE as object), themeId: 9 } as never);
+    mockGetThemeById.mockResolvedValue({
+      id: 9, name: "CustomFontTheme", fontFamily: "custom:7",
+      cardFontFamily: null, animationType: "none",
+    } as never);
+    mockGetCustomFont.mockResolvedValue({
+      id: 7, family: "My Uploaded", url: "/api/uploads/f-abc.woff2",
+      format: "woff2",
+    } as never);
+    const res = await GET(fontReq("?id=1"));
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    // strip data: URIs first (nested url(%23n) inside SVG payloads)
+    const withoutData = html.replace(/url\("data:[^"]*"\)/g, "");
+    const urls = [...withoutData.matchAll(/url\((['"]?)([^)'"]+)\1\)/g)].map(
+      (m) => m[2],
+    );
+    expect(urls.length).toBeGreaterThan(0); // non-vacuous
+    for (const u of urls) {
+      // plain: every network url points at THIS origin's api routes —
+      // never relative (it would break on static hosts), never foreign
+      expect(u, u).toMatch(/^https?:\/\/localhost:3000\//);
+    }
+    expect(urls.some((u) => u === "http://localhost:3000/api/uploads/f-abc.woff2")).toBe(
+      true,
+    );
+  });
+
   it("batch economics: global state once, per-page queries linear (E.24)", async () => {
     const pages = Array.from({ length: 5 }, (_, i) => ({
       ...(PAGE as object),
