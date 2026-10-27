@@ -21,9 +21,10 @@ vi.mock("@/lib/og-fetcher", () => ({
 }));
 
 import { GET as listLinks, POST as createLinkRoute } from "@/app/api/v1/links/route";
-import { GET as getLinkRoute } from "@/app/api/v1/links/[id]/route";
+import { GET as getLinkRoute, DELETE as deleteLinkRoute } from "@/app/api/v1/links/[id]/route";
 import { POST as importRoute } from "@/app/api/v1/links/import/route";
 import { GET as listSections, POST as createSectionRoute } from "@/app/api/v1/sections/route";
+import { DELETE as deleteSectionRoute } from "@/app/api/v1/sections/[id]/route";
 import { GET as getProfileRoute } from "@/app/api/v1/profile/route";
 import { GET as getAnalyticsRoute } from "@/app/api/v1/analytics/route";
 import { createApiKey } from "@/server/api-keys";
@@ -199,3 +200,66 @@ async function POSTsection(title: string): Promise<Response> {
     }),
   );
 }
+
+describe("E.72 DELETE wire contracts", () => {
+  // This file's req() is GET-only; mutations build their own requests.
+  const reqM = (
+    url: string,
+    init: { method: string; body?: string },
+  ): NextRequest => {
+    ipCounter += 1;
+    return new NextRequest(`http://localhost:3000${url}`, {
+      method: init.method,
+      headers: {
+        authorization: ["Bearer", KEY].join(" "),
+        "content-type": "application/json",
+        "x-forwarded-for": `10.244.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`,
+      },
+      ...(init.body !== undefined ? { body: init.body } : {}),
+    });
+  };
+
+  it("links DELETE: data is exactly {deleted}", async () => {
+    const created = await createLinkRoute(
+      reqM("/api/v1/links", {
+        method: "POST",
+        body: JSON.stringify({ title: "Del contract", url: "https://del.example", pageId }),
+      }),
+    );
+    const { data: link } = await created.json();
+
+    const res = await deleteLinkRoute(
+      reqM(`/api/v1/links/${link.id}`, { method: "DELETE" }),
+      idParams(link.id),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Deliberate asymmetry, spec-mirrored: links return {deleted}; sections
+    // return {id, deleted}. Both are documented — this pin makes the shape
+    // a conscious choice instead of an accident.
+    expect(Object.keys(body.data)).toEqual(["deleted"]);
+    expect(body.data.deleted).toBe(true);
+
+    // and the row is really gone
+    const after = await getLinkRoute(req(`/api/v1/links/${link.id}`), idParams(link.id));
+    expect(after.status).toBe(404);
+  });
+
+  it("sections DELETE: data is exactly {deleted, id}", async () => {
+    const sectionRes = await POSTsection("Del section");
+    const { data: section } = await sectionRes.json();
+    const res = await deleteSectionRoute(
+      reqM(`/api/v1/sections/${section.id}`, { method: "DELETE" }),
+      idParams(section.id),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Object.keys(body.data).sort()).toEqual(["deleted", "id"]);
+    expect(body.data.deleted).toBe(true);
+    expect(body.data.id).toBe(section.id);
+
+    const after = await listSections(req("/api/v1/sections"));
+    const rows = (await after.json()).data as Array<{ id: number }>;
+    expect(rows.some((s) => s.id === section.id)).toBe(false);
+  });
+});
