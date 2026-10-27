@@ -15,7 +15,9 @@ import "./integration-setup";
 import { db, seedLink } from "./integration-setup";
 import { recordClick, getLinkStats } from "@/server/queries";
 import { analyticsClicks } from "@/db/schema";
-import { inArray, like } from "drizzle-orm";
+import { inArray, like, eq } from "drizzle-orm";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 vi.mock("@/lib/auth", () => ({
   getSession: vi.fn(async () => ({ userId: 1 })),
@@ -149,5 +151,44 @@ describe("export CSV variant fidelity (#81 E.95)", () => {
     // the clicks-scoped stats omits (raw-rows vs clicks by design).
     expect(cells.filter((v) => v === "").length).toBe(2); // unlabeled click + open
     expect(mine.length).toBe(stats.totalClicks + 1); // exactly the one open
+  });
+
+  it("E.106: stored createdAt TEXT matches sinceExpr's format (lexicographic windows hold)", async () => {
+    // BOTH sides of every window comparison are SQLite TEXT: rows default
+    // to datetime('now') (schema.ts:297) and sinceExpr emits
+    // datetime('now','-N days') — the same 'YYYY-MM-DD HH:MM:SS' UTC shape,
+    // so gt() TEXT comparison orders correctly. A writer storing ISO-with-T
+    // or a JS Date string would silently mis-order — pinned here.
+    const SHAPE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
+    await db.delete(analyticsClicks);
+    const link = seedLink({ title: "E106-format" });
+    await recordClick(link.id, "e106-fresh", null, "click");
+    const stored = db
+      .select({ createdAt: analyticsClicks.createdAt })
+      .from(analyticsClicks)
+      .where(eq(analyticsClicks.visitorHash, "e106-fresh"))
+      .get()!.createdAt;
+    expect(String(stored)).toMatch(SHAPE); // datetime('now') shape, no T
+
+    // The boundary every 30d query compares against, in the SAME shape
+    // (UTC, second precision — identical to datetime('now','-30 days')).
+    const boundary = new Date(Date.now() - 30 * 86_400_000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+    expect(boundary).toMatch(SHAPE); // shape identity with the stored value
+    expect(String(stored) > boundary).toBe(true); // fresh row inside window
+    const stamp60 = new Date(Date.now() - 60 * 86_400_000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+    expect(stamp60 < boundary).toBe(true); // backdated row outside window
+
+    // ...and sinceExpr's SOURCE really is the SQLite expression of the
+    // same shape (not a JS date rendered into the query).
+    const rangeSrc = readFileSync(resolve(process.cwd(), "src/lib/analytics-range.ts"), "utf8");
+    expect(rangeSrc).toContain("datetime('now'");
+    expect(rangeSrc).not.toContain("toISOString");
   });
 });
