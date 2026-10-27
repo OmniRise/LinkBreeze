@@ -201,3 +201,49 @@ describe("E.15 conditional GET on remaining read endpoints", () => {
     expect(other.headers.get("etag")).not.toBe(etagA);
   });
 });
+
+describe("E.41 HEAD interplay (framework derives HEAD from GET)", () => {
+  it("HEAD through the GET handler keeps ETag + rate headers, and 304s conditionally", async () => {
+    // Next maps HEAD→GET and strips the BODY at the server layer (untestable
+    // without a build — PROMPT bans it). At the handler boundary OUR contract
+    // is the headers: they must flow for a HEAD-method request unchanged.
+    const head = new NextRequest("http://localhost:3000/api/v1/links", {
+      method: "HEAD",
+      headers: {
+        authorization: ["Bearer", KEY].join(" "),
+        "x-forwarded-for": "10.250.0.1",
+      },
+    });
+    const res = await listLinks(head);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("etag")).toMatch(/^"[0-9a-f]{32}"$/);
+    expect(res.headers.get("x-ratelimit-limit")).toBeTruthy();
+    expect(res.headers.get("x-ratelimit-reset")).toBeTruthy();
+    expect(res.headers.get("cache-control")).toBe("no-store");
+
+    // RFC 9110: conditional HEAD behaves like conditional GET → 304.
+    const etag = res.headers.get("etag")!;
+    const cond = new NextRequest("http://localhost:3000/api/v1/links", {
+      method: "HEAD",
+      headers: {
+        authorization: ["Bearer", KEY].join(" "),
+        "if-none-match": etag,
+        "x-forwarded-for": "10.250.0.2",
+      },
+    });
+    const res2 = await listLinks(cond);
+    expect(res2.status).toBe(304);
+    expect(res2.headers.get("etag")).toBe(etag);
+    expect(await res2.text()).toBe("");
+  });
+
+  it("HEAD is NOT documented as its own operation (framework-synthesized; documenting it would break router drift)", async () => {
+    const { buildOpenApiDocument } = await import("@/lib/openapi");
+    const doc = buildOpenApiDocument() as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    for (const methods of Object.values(doc.paths)) {
+      expect(methods.head).toBeUndefined();
+    }
+  });
+});
