@@ -442,6 +442,21 @@ describe("E.115 EXPORT_CSS selector prefix discipline", () => {
   });
 });
 
+describe("section emoji icon rendering (E.139)", () => {
+  it("emoji icon renders once, un-double-escaped, beside the title", () => {
+    const html = buildStaticExport({
+      ...baseInput,
+      links: [makeLink({ id: 1, title: "In section", sectionId: 7 })],
+      sections: [{ id: 7, title: "Writing", icon: "📝", orderIndex: 0 }],
+    });
+    // emoji passes through esc() untouched (esc handles & < > " only)
+    expect(html).toContain("📝");
+    expect(html).not.toContain("&#x1F4DD;"); // no hex-entity mangling
+    expect((html.match(/📝/g) ?? []).length).toBe(1); // exactly once
+    expect(html).toContain("Writing");
+  });
+});
+
 describe("section-header rule geometry (E.69)", () => {
   const headerFor = (alignment: "center" | "left" | "right") =>
     buildStaticExport({
