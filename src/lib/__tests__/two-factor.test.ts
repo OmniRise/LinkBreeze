@@ -100,7 +100,9 @@ describe("recovery codes", () => {
     }
   });
 
-  it("hash + verify round-trip", async () => {
+  // bcrypt(12) hash + 2 compares: under full-suite parallelism this CAN
+  // cross vitest's 5s default (same class as decision #9's totp fix).
+  it("hash + verify round-trip", { timeout: 30_000 }, async () => {
     const [code] = generateRecoveryCodes(1);
     const hash = await hashRecoveryCode(code);
     expect(hash).toMatch(/^\$2[aby]\$/); // bcrypt
