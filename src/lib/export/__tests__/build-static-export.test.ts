@@ -341,6 +341,58 @@ describe("corrupt socialLinks resilience (E.43)", () => {
   });
 });
 
+describe("input-order preservation (E.49)", () => {
+  const link = (id: number, title: string, orderIndex: number): LinkRow =>
+    ({
+      id,
+      pageId: 1,
+      sectionId: null,
+      orderIndex,
+      type: "url",
+      title,
+      description: null,
+      url: `https://example.com/${id}`,
+      icon: null,
+      iconUrl: null,
+      customIconUrl: null,
+      iconMode: "auto",
+      autoIcon: true,
+      imageUrl: null,
+      isHighlighted: false,
+      isActive: true,
+      scheduleStart: null,
+      scheduleEnd: null,
+      clicksCount: 0,
+      cardStyle: "compact",
+      popupText: null,
+      ctaLabel: null,
+      redirectSlug: null,
+      createdAt: "2026-01-01 00:00:00",
+    }) as unknown as LinkRow;
+
+  it("renders links in ARRAY order — never re-sorts by orderIndex", () => {
+    // deliberately adversarial: orderIndex says 5,1,3 but array says A,B,C
+    const links = [link(1, "Alpha", 5), link(2, "Bravo", 1), link(3, "Cobra", 3)];
+    const html = buildStaticExport({ ...baseInput, links });
+    const pos = (t: string) => html.indexOf(`>${t}</`);
+    expect(pos("Alpha")).toBeLessThan(pos("Bravo"));
+    expect(pos("Bravo")).toBeLessThan(pos("Cobra"));
+    // so byte-identity holds only for identical ARRAYS (the DB supplies
+    // ORDER BY order_index, id — queries pinned in route/E.24 tests)
+    const again = buildStaticExport({ ...baseInput, links });
+    expect(again).toBe(html);
+  });
+
+  it("tied orderIndex values never wobble between runs", () => {
+    const links = [link(1, "TieOne", 0), link(2, "TieTwo", 0), link(3, "TieThree", 0)];
+    const runs = Array.from({ length: 3 }, () =>
+      buildStaticExport({ ...baseInput, links }),
+    );
+    expect(runs[1]).toBe(runs[0]);
+    expect(runs[2]).toBe(runs[0]);
+  });
+});
+
 describe("data-URI asset passthrough (E.36)", () => {
   const uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==AAAA";
   const withDataAvatar: ExportInput = {

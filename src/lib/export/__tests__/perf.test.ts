@@ -106,3 +106,29 @@ describe("E.5 export size (50-link page)", () => {
     expect(perLink).toBeLessThan(2500);
   });
 });
+
+describe("E.48 length stress", () => {
+  it("100KB bio + 50 max-length descriptions build fast and under the cap", () => {
+    const long = "D".repeat(2000);
+    const links = Array.from({ length: 50 }, (_, i) => ({
+      ...makeLink(i + 1),
+      description: long,
+    }));
+    const input: ExportInput = {
+      page: { ...PAGE, bio: "B".repeat(100 * 1024) },
+      links,
+      sections: [],
+      theme: { primaryColor: "#533fd6", linkStyle: "glass", animationType: "lift" },
+      baseUrl: "https://links.example.com",
+    };
+    const t0 = performance.now();
+    const html = buildStaticExport(input);
+    const ms = performance.now() - t0;
+    const bytes = Buffer.byteLength(html, "utf-8");
+    // honest numbers: 100KB bio + 50×2KB descriptions + CSS ≈ ~250-300KB
+    expect(bytes).toBeGreaterThan(100 * 1024);
+    expect(bytes).toBeLessThan(EXPORT_MAX_BYTES);
+    // no quadratic join blowup — generous 1s tripwire (typical: <50ms)
+    expect(ms).toBeLessThan(1000);
+  });
+});
