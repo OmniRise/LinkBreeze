@@ -57,6 +57,37 @@ describe("GET /api/v1/links — conditional responses", () => {
     expect(text).toBe("");
   });
 
+  it("E.67: ?fields= projections carry their own validator — same projection 304s, different fields do not", async () => {
+    const sparse = await listLinks(req("/api/v1/links?fields=title,url"));
+    expect(sparse.status).toBe(200);
+    const etagSparse = sparse.headers.get("etag")!;
+    expect(etagSparse).toMatch(/^"[0-9a-f]{32}"$/);
+
+    // The sparse representation ≠ the full one, so their validators differ.
+    const full = await listLinks(req("/api/v1/links"));
+    expect(full.headers.get("etag")).not.toBe(etagSparse);
+
+    // Same projection → 304.
+    const same = await listLinks(
+      req("/api/v1/links?fields=title,url", { "if-none-match": etagSparse }),
+    );
+    expect(same.status).toBe(304);
+    expect(await same.text()).toBe("");
+
+    // Different field list = different representation → 200, new validator.
+    const otherFields = await listLinks(
+      req("/api/v1/links?fields=title", { "if-none-match": etagSparse }),
+    );
+    expect(otherFields.status).toBe(200);
+    expect(otherFields.headers.get("etag")).not.toBe(etagSparse);
+
+    // The full-list validator never 304s a sparse request either.
+    const crossFull = await listLinks(
+      req("/api/v1/links?fields=title,url", { "if-none-match": full.headers.get("etag")! }),
+    );
+    expect(crossFull.status).toBe(200);
+  });
+
   it("stale or foreign ETags still get full 200s; * still means 304", async () => {
     for (const bad of ['"00000000000000000000000000000000"', 'W/"stale"', '"x", "y"']) {
       const res = await listLinks(req("/api/v1/links", { "if-none-match": bad }));
