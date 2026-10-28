@@ -68,6 +68,13 @@ const en = {
     submit: "Sign in",
     submitPending: "Signing in…",
     invalidCredentials: "Invalid username or password.",
+    ssoButton: "Sign in with SSO",
+    ssoConnecting: "Redirecting…",
+    ssoError: "SSO sign-in failed. Contact your administrator.",
+    ssoErrorDisabled: "This account has been disabled.",
+    ssoErrorBound: "This SSO identity is already linked to another account.",
+    ssoErrorRetry: "The sign-in attempt expired or was already used. Try again.",
+    orDivider: "or",
     backToPage: "Back to page",
     welcomeBack: "Welcome back",
     totpPrompt: "Two-factor authentication",
@@ -636,6 +643,19 @@ const en = {
     subtitle:
       "Page configuration, appearance and account security for /{slug}",
 
+    oidc: {
+      title: "Single sign-on (OIDC)",
+      description: "Let members sign in through your identity provider — works with any standard OpenID Connect provider (Authentik, Keycloak, Authelia…).",
+      issuer: "Issuer URL",
+      issuerHint: "Discovery is fetched from /.well-known/openid-configuration",
+      clientId: "Client ID",
+      secretSet: "Client secret: set via the OIDC_CLIENT_SECRET environment variable.",
+      secretMissing: "Client secret missing: set the OIDC_CLIENT_SECRET environment variable on the server.",
+      jit: "Create accounts automatically on first sign-in (JIT)",
+      mode: "Sign-in mode",
+      modeOptional: "SSO alongside password sign-in",
+      modeReplaces: "SSO only (replaces password sign-in)",
+    },
     tabs: {
       general: "General",
       integration: "Integration",

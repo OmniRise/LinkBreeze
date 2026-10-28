@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 0a03f4f6e4ac ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: ab5088cb5061 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -60,6 +60,13 @@ const it: Messages = {
     submit: "Accedi",
     submitPending: "Accesso in corso…",
     invalidCredentials: "Nome utente o password non validi.",
+    ssoButton: "Accedi con SSO",
+    ssoConnecting: "Reindirizzamento…",
+    ssoError: "Accesso SSO non riuscito. Contatta l'amministratore.",
+    ssoErrorDisabled: "Questo account è stato disabilitato.",
+    ssoErrorBound: "Questa identità SSO è già collegata a un altro account.",
+    ssoErrorRetry: "Il tentativo di accesso è scaduto o è già stato usato. Riprova.",
+    orDivider: "oppure",
     backToPage: "Torna alla pagina",
     welcomeBack: "Bentornato",
     totpPrompt: "Autenticazione a due fattori",
@@ -628,6 +635,19 @@ const it: Messages = {
     subtitle:
       "Configurazione della pagina, aspetto e sicurezza dell'account per /{slug}",
 
+    oidc: {
+      title: "Accesso unico (OIDC)",
+      description: "I membri accedono tramite il tuo identity provider — funziona con qualsiasi provider OIDC standard (Authentik, Keycloak, Authelia…).",
+      issuer: "URL dell'issuer",
+      issuerHint: "Il discovery viene recuperato da /.well-known/openid-configuration",
+      clientId: "Client ID",
+      secretSet: "Client secret: impostato tramite la variabile d'ambiente OIDC_CLIENT_SECRET.",
+      secretMissing: "Client secret mancante: imposta la variabile d'ambiente OIDC_CLIENT_SECRET sul server.",
+      jit: "Crea account automaticamente al primo accesso (JIT)",
+      mode: "Modalità di accesso",
+      modeOptional: "SSO insieme all'accesso con password",
+      modeReplaces: "Solo SSO (sostituisce l'accesso con password)",
+    },
     tabs: {
       general: "Generale",
       integration: "Integrazione",

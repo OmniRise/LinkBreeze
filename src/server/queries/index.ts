@@ -13,6 +13,8 @@ import {
   analyticsClicks,
   subscribers,
   roles,
+  oidcIdentities,
+  oidcStates,
 } from "@/db/schema";
 import { resolveCapabilities, type RoleCapabilities } from "@/lib/ownership";
 import { PRESETS } from "@/lib/theme-presets";
@@ -961,6 +963,112 @@ export async function listInstanceAdminIds(): Promise<number[]> {
 export async function countPagesByOwner(userId: number): Promise<number> {
   const rows = await db.select({ c: sql<number>`count(*)` }).from(pages).where(eq(pages.userId, userId));
   return rows[0]?.c ?? 0;
+}
+
+// ─── OIDC SSO (#124 Phase 3) ──────────────────────────────────────────────────
+
+export type OidcStateRow = typeof oidcStates.$inferSelect;
+export type OidcIdentityRow = typeof oidcIdentities.$inferSelect;
+
+/** Persist one in-flight login attempt. Consumed exactly once, or expires.
+ *  Lazily clears expired rows so the table cannot grow unbounded. */
+export async function createOidcState(input: {
+  state: string;
+  codeVerifier: string;
+  redirectTo: string;
+  expiresAt: string;
+}): Promise<void> {
+  await db.delete(oidcStates).where(lt(oidcStates.expiresAt, new Date().toISOString()));
+  await db.insert(oidcStates).values(input);
+}
+
+/**
+ * Single-use consume: the row is deleted in the same statement that returns
+ * it, so a replayed state finds nothing. Returns null when the state is
+ * unknown. Expiry is checked by the caller against expires_at.
+ */
+export async function consumeOidcState(state: string): Promise<OidcStateRow | null> {
+  const rows = await db.delete(oidcStates).where(eq(oidcStates.state, state)).returning();
+  return rows[0] ?? null;
+}
+
+/** The local user an (issuer, subject) identity maps to, or null. */
+export async function findUserIdByOidcIdentity(
+  issuer: string,
+  subject: string,
+): Promise<OidcIdentityRow | null> {
+  const rows = await db
+    .select()
+    .from(oidcIdentities)
+    .where(and(eq(oidcIdentities.issuer, issuer), eq(oidcIdentities.subject, subject)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Link an OIDC identity to a local account (login binding or account linking). */
+export async function linkOidcIdentity(input: {
+  userId: number;
+  issuer: string;
+  subject: string;
+  preferredUsername: string | null;
+}): Promise<void> {
+  await db.insert(oidcIdentities).values({
+    userId: input.userId,
+    issuer: input.issuer,
+    subject: input.subject,
+    preferredUsername: input.preferredUsername,
+  });
+}
+
+/** Drop an identity link (un-linking from the profile surface). */
+export async function unlinkOidcIdentity(issuer: string, subject: string): Promise<void> {
+  await db
+    .delete(oidcIdentities)
+    .where(and(eq(oidcIdentities.issuer, issuer), eq(oidcIdentities.subject, subject)));
+}
+
+// ─── OIDC instance configuration (settings KV; secret stays env-only) ─────────
+
+export interface OidcInstanceConfig {
+  /** Configured AND structurally valid → SSO button renders. */
+  issuer: string;
+  clientId: string;
+  jit: boolean;
+  /** 'optional' (default) keeps the password form; 'replaces_local' hides it. */
+  mode: "optional" | "replaces_local";
+}
+
+export async function getOidcConfig(): Promise<OidcInstanceConfig | null> {
+  const [issuer, clientId, jit, mode] = await Promise.all([
+    getSetting("oidcIssuer"),
+    getSetting("oidcClientId"),
+    getSetting("oidcJit"),
+    getSetting("oidcMode"),
+  ]);
+  if (!issuer || !clientId) return null;
+  return {
+    issuer,
+    clientId,
+    jit: jit !== "off", // default on per the issue
+    mode: mode === "replaces_local" ? "replaces_local" : "optional",
+  };
+}
+
+export async function getOidcSettingsRaw(): Promise<{
+  issuer: string | null;
+  clientId: string | null;
+  jit: string | null;
+  mode: string | null;
+  defaultRoleId: string | null;
+}> {
+  const [issuer, clientId, jit, mode, defaultRoleId] = await Promise.all([
+    getSetting("oidcIssuer"),
+    getSetting("oidcClientId"),
+    getSetting("oidcJit"),
+    getSetting("oidcMode"),
+    getSetting("oidcDefaultRoleId"),
+  ]);
+  return { issuer, clientId, jit, mode, defaultRoleId };
 }
 
 export async function updateUserRole(userId: number, role: "admin" | "owner"): Promise<void> {
