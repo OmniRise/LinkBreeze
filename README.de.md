@@ -374,6 +374,7 @@ Die gesamte Konfiguration erfolgt über Umgebungsvariablen. **[`.env.example`](.
 | `EXTRA_SCRIPT_SRC` | _(leer)_ | Durch Leerzeichen getrennte Analyse-Domains für die CSP (z. B. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(leer)_ | Primärer Host der Verwaltung; die Admin-Host-Sperre eigener Domains liefert 404 auf allen anderen Hosts (Umgebungsvariable schlägt die Admin-Einstellung) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | `X-Forwarded-Host` für das Domain-Routing vertrauen - nur aktivieren, wenn ein Proxy die Kopfzeile ÜBERSCHREIBT (nginx, Caddy); der Standard-`Host`-Header lässt sich nicht fälschen |
+| `OIDC_CLIENT_SECRET` | _(leer)_ | Client-Secret für OIDC Single Sign-on (#124 Multi-User). Issuer, Client-ID, JIT-Bereitstellung und der Anmeldemodus werden unter Einstellungen → Sicherheit konfiguriert. Secrets bleiben env-only - Einstellungen werden 1:1 in Backups exportiert |
 
 <details>
 <summary>💳 &nbsp;Wallet-Pass-Variablen (Google Wallet / Apple Wallet)</summary>

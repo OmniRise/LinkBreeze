@@ -246,3 +246,44 @@ host redirect to the domain automatically. If your edge proxy makes 301s
 impossible, switch the canonical strategy to **Canonical tag only** — the
 page then emits `<link rel="canonical">` pointing at the domain root
 instead.
+
+## SSO (OIDC) sign-in not working
+
+LinkBreeze's SSO (#124 multi-user) talks to any standard OpenID Connect
+provider (Authentik, Keycloak, Authelia, Pocket ID...) via discovery - no
+per-provider configuration.
+
+**Setup checklist:**
+
+1. In your identity provider, register a confidential client (authorization
+   code flow + PKCE) with redirect URI `https://YOUR-LINKBREEZE-HOST/api/auth/oidc/callback`.
+2. Set the client secret as the `OIDC_CLIENT_SECRET` environment variable on
+   the LinkBreeze container and restart it. The secret is never entered in
+   the admin UI - settings are exported verbatim into backup files.
+3. In LinkBreeze, open **Settings → Security → Single sign-on** and fill in
+   the issuer URL (e.g. `https://idp.example.com/application/o/linkbreeze`)
+   and the client ID. LinkBreeze fetches
+   `/.well-known/openid-configuration` from that issuer.
+
+**Common failures:**
+
+- The login page shows no SSO button → issuer or client ID is empty, or
+  `OIDC_CLIENT_SECRET` is not set. All three are required.
+- "Could not reach the discovery document" → wrong issuer URL, or the
+  LinkBreeze container cannot reach the identity provider (check egress and
+  DNS). In production the issuer must be **https** - `http://localhost`
+  issuers only work for local development instances.
+- Login redirects back with an error immediately → the redirect URI
+  registered at the provider must match `https://YOUR-HOST/api/auth/oidc/callback`
+  byte-for-byte (scheme, host, path). Behind a proxy that rewrites
+  `Host`, set `LINKBREEZE_TRUST_X_FORWARDED_HOST=true` (only behind a proxy
+  you control that OVERWRITES the header).
+- "This SSO identity is already linked to another account" → the identity
+  provider account is bound to a different LinkBreeze user. Unbind it there
+  or use that account.
+- JIT accounts don't appear → JIT provisioning is off (Settings → Security),
+  or an admin disabled the account after creation (disabled accounts cannot
+  sign in via SSO either).
+- Locked out with SSO-only mode? Set the mode back to "SSO alongside
+  password sign-in" - or clear the `oidcMode` key in the `settings` table of
+  `data/linkbreeze.db` - then sign in with the local admin account.

@@ -10,6 +10,7 @@ import {
   getAllSubscribers,
   getActiveLinks,
   getOidcSettingsRaw,
+  getCapabilitiesForUser,
 } from "@/server/queries";
 import { isUpdateCheckEnabled, getUpdateStatus } from "@/lib/update-check";
 import { maybeRunScheduledBackup, getBackupOverview } from "@/server/backup-scheduler";
@@ -81,6 +82,9 @@ export default async function SettingsPage({
   // Update status card (Data tab): installed vs latest on GitHub + website.
   const updateStatus = await getUpdateStatus();
   const oidcRaw = await getOidcSettingsRaw();
+  const canManageInstance = session
+    ? (await getCapabilitiesForUser(session.userId)).caps.manageInstance
+    : false;
 
   // #83: opportunistic scheduled-backup trigger on admin loads (quiet
   // instances whose owners log in but get no public traffic still back up).
@@ -214,13 +218,15 @@ export default async function SettingsPage({
             <div className="flex flex-col gap-4">
               <ChangePasswordForm />
               <TwoFactorCard enabled={await getTotpEnabled()} />
-              <OidcCard
-                issuer={oidcRaw.issuer ?? ""}
-                clientId={oidcRaw.clientId ?? ""}
-                jit={oidcRaw.jit !== "off"}
-                mode={oidcRaw.mode === "replaces_local" ? "replaces_local" : "optional"}
-                secretSet={Boolean(process.env.OIDC_CLIENT_SECRET)}
-              />
+              {canManageInstance && (
+                <OidcCard
+                  issuer={oidcRaw.issuer ?? ""}
+                  clientId={oidcRaw.clientId ?? ""}
+                  jit={oidcRaw.jit !== "off"}
+                  mode={oidcRaw.mode === "replaces_local" ? "replaces_local" : "optional"}
+                  secretSet={Boolean(process.env.OIDC_CLIENT_SECRET)}
+                />
+              )}
             </div>
           ),
           data: (

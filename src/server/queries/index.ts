@@ -801,7 +801,11 @@ export function createFirstUser(
   return db.transaction((tx) => {
     const rows = tx.select({ c: sql<number>`count(*)` }).from(users).all();
     if ((rows[0]?.c ?? 0) > 0) return null;
-    return tx.insert(users).values({ username, passwordHash }).returning().all()[0];
+    // #124: the bootstrap user is the instance's first ADMIN. The wizard's
+    // register action passes role:'admin' explicitly; this API-setup path
+    // must agree, or API-installed instances boot an 'owner' that cannot
+    // administer anything (caught by live E2E).
+    return tx.insert(users).values({ username, passwordHash, role: "admin" }).returning().all()[0];
   });
 }
 

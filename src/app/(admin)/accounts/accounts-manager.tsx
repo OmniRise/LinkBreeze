@@ -108,20 +108,29 @@ export function AccountsManager({
   const runAction = (
     action: (...args: never[]) => Promise<{ success: boolean; error?: string }>,
     ...args: unknown[]
-  ) => {
+  ): Promise<void> => {
     setError(null);
-    startTransition(async () => {
-      const res = await savedAction.run(action, ...args);
-      if (!res.success) {
-        setError(localizeActionError(tErr, (res as { error: string }).error));
-      }
+    // Resolves when the transition (action + hook-driven refresh) settles, so
+    // callers can chain a trailing refresh — Next coalesces router.refresh()
+    // calls fired while another refresh transition is still pending, which
+    // silently dropped the list update on rapid back-to-back saves (caught
+    // by the live E2E: create role → create account → account row stale).
+    return new Promise<void>((resolve) => {
+      startTransition(async () => {
+        const res = await savedAction.run(action, ...args);
+        if (!res.success) {
+          setError(localizeActionError(tErr, (res as { error: string }).error));
+        }
+        resolve();
+      });
     });
   };
 
   const runForm = (
     action: (formData: FormData) => Promise<{ success: boolean; error?: string }>,
     formData: FormData,
-  ) => runAction(action as unknown as (...args: never[]) => Promise<{ success: boolean; error?: string }>, formData);
+  ): Promise<void> =>
+    runAction(action as unknown as (...args: never[]) => Promise<{ success: boolean; error?: string }>, formData);
 
   const openDelete = (account: AccountSummary) => {
     setDeleteTarget({ account, userCount: null });
@@ -163,7 +172,15 @@ export function AccountsManager({
               e.preventDefault();
               const form = e.currentTarget;
               const fd = new FormData(form);
-              runForm(createAccountAction, fd);
+              void runForm(createAccountAction, fd).then((() => {
+                // Next 16's client router cache serves the /accounts RSC
+                // payload for a while, and back-to-back saves (create role →
+                // create account) keep hitting it — router.refresh() alone
+                // left the new account invisible in the list (live E2E).
+                // A full reload always reflects the DB; account creation is
+                // a rare admin action, so the extra load is fine.
+                window.location.reload();
+              }));
               form.reset();
             }}
             className="flex flex-wrap items-end gap-3"

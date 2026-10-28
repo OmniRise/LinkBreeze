@@ -9,6 +9,8 @@
  */
 import { describe, it, expect } from "vitest";
 import "./integration-setup";
+import { db } from "./integration-setup";
+import * as schema from "@/db/schema";
 
 import {
   createUser,
@@ -26,6 +28,17 @@ import {
 import { canAccessPage } from "@/lib/ownership";
 
 describe("[integration] multi-user accounts", () => {
+  it("createFirstUser bootstraps an ADMIN (both setup paths must agree)", async () => {
+    // the harness seeds its own admin; wipe to exercise the first-user path
+    db.delete(schema.users).run();
+    const { createFirstUser } = await import("@/server/queries");
+    const u = createFirstUser("bootstrap", "hash");
+    expect(u).not.toBeNull();
+    expect(u!.role).toBe("admin");
+    // second call on a non-empty table returns null (TOCTOU guard intact)
+    expect(createFirstUser("second", "hash")).toBeNull();
+  });
+
   it("creates users with explicit role and lifecycle defaults", async () => {
     const admin = await createUser("root", "hash-a", { role: "admin" });
     const member = await createUser("member", "hash-m");

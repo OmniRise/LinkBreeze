@@ -374,6 +374,7 @@ cloudflared tunnel --url http://localhost:3000
 | `EXTRA_SCRIPT_SRC` | _(空)_ | CSP用のアナリティクスドメイン(空白区切り、例:`plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(空)_ | 管理画面をホストするプライマリホスト。カスタムドメインの管理ロックが他のすべてのホストに404を返します(環境変数は管理画面の設定より優先) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | ドメインルーティングで`X-Forwarded-Host`を信頼 - このヘッダーを上書きするプロキシ(nginx、Caddy)の背後でのみ有効化してください。デフォルトの`Host`ヘッダーは偽装できません |
+| `OIDC_CLIENT_SECRET` | _(空)_ | OIDC シングルサインオン用のクライアントシークレット（#124 マルチユーザー）。Issuer、クライアント ID、JIT プロビジョニング、サインイン方式は設定 → セキュリティで構成します。シークレットは環境変数のみ - 設定はバックアップにそのまま出力されます |
 
 <details>
 <summary>💳 &nbsp;ウォレットパス変数(Google Wallet / Apple Wallet)</summary>

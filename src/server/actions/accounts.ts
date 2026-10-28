@@ -154,6 +154,9 @@ export async function createAccountAction(formData: FormData): Promise<ActionRes
         userId: user.id,
       });
     }
+    // Every sibling action revalidates; create was the one that skipped it,
+    // so a fresh account could stay invisible in the list after a refresh.
+    revalidatePath("/accounts");
     return { success: true, accountId: user.id };
   } catch (err) {
     logError("createAccount", err, { username });
