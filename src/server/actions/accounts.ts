@@ -184,8 +184,10 @@ export async function setAccountRoleAction(
 
 const releaseSlugSchema = z.object({
   userId: z.coerce.number(),
-  releaseSlug: z.enum(["on", "off"]).optional(),
-  slug: z.string().optional(),
+  // FormData.get() yields NULL for absent fields — .nullish(), never .optional(),
+  // or an unchecked checkbox fails the whole parse (caught by tests-first).
+  releaseSlug: z.enum(["on", "off"]).nullish(),
+  slug: z.string().nullish(),
 });
 
 export async function deleteAccountAction(formData: FormData): Promise<ActionResult> {
@@ -218,6 +220,9 @@ export async function deleteAccountAction(formData: FormData): Promise<ActionRes
     if (page) {
       if (slug && releaseSlug !== "on") {
         const norm = normalizeSlug(slug);
+        // "###" normalizes to "" — reject rather than silently clearing the
+        // page's public address.
+        if (!norm) return validationError("Slug is required");
         const reason = slugError(norm);
         if (reason) return validationError(SLUG_ERRORS[reason]);
         await updatePage(page.id, { slug: norm });
@@ -263,6 +268,10 @@ export async function reassignPageSlugAction(formData: FormData): Promise<Action
   }
   const { pageId } = parsed.data;
   const norm = normalizeSlug(parsed.data.slug);
+  // Input is SANITIZED (spaces→dashes, symbols stripped) like every slug input
+  // in the app — but a fully-symbol input normalizes to "" and must be
+  // rejected, never silently clear the page's public address.
+  if (!norm) return validationError("Slug is required");
   const reason = slugError(norm);
   if (reason) return validationError(SLUG_ERRORS[reason]);
 
