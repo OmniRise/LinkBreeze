@@ -29,6 +29,18 @@ export const dynamic = "force-dynamic";
  *  - The post-login target is site-relative only (safeRedirectTo).
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  // Rate limit: 30 callback hits/min/IP. States are high-entropy (brute-force
+  // is hopeless), so this protects the DB writes and the discovery/token
+  // fetches from hammering, not secret guessing.
+  const cbIp =
+    (request.headers.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
+    (request.headers.get("x-real-ip") || "").toString() ||
+    "0.0.0.0";
+  const { rateLimit } = await import("@/lib/rate-limit");
+  if (!rateLimit(`oidc-cb:${cbIp}`, 30, 60_000).ok) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const fail = (reason: string) =>
     NextResponse.redirect(new URL(`/login?sso=${reason}`, request.url));
 
@@ -45,7 +57,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const stored = await consumeOidcState(state);
   if (!stored) return fail("invalid"); // unknown/replayed/already-used
-  if (new Date(stored.expiresAt).getTime() < Date.now()) return fail("expired");
+  // 30s leeway absorbs minor clock drift between app instances sharing the DB.
+  if (new Date(stored.expiresAt).getTime() + 30_000 < Date.now()) return fail("expired");
 
   const endpoints = await fetchDiscovery(config.issuer);
   if (!endpoints) return fail("discovery");

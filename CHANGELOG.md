@@ -56,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Unthrottled SSO endpoints (#124)** — the OIDC start action (10/min/IP — each call writes a state row and fetches discovery) and callback (30/min/IP) are now rate-limited like the local login; the state expiry check gained a 30s clock-drift leeway.
+
 - **SSO sign-in completed without storing the session (#124)** — the OIDC callback created the session correctly server-side but attached the cookie in a way a self-constructed redirect response drops, so the browser finished the flow signed out. The cookie is now set on the response itself. Caught by a real round-trip against a mock identity provider (`e2e/mock-oidc-idp.mjs` + `e2e/oidc-roundtrip-manual.mjs`): button → authorize (PKCE verified) → JIT provisioning → signed-in dashboard, replay and repeat-login behavior covered.
 
 - **Fresh API installs booted without an admin (#124)** — `/api/setup` created the first account with the default Member role, so API-installed instances had no working administrator (the setup wizard already passed the admin role). Both bootstrap paths now agree, with a regression test.

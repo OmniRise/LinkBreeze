@@ -7,6 +7,7 @@ import {
   validationError,
   unauthorizedError,
   notFoundError,
+  rateLimitError,
 } from "@/lib/errors";
 import { safeRedirectTo, isValidIssuerUrl } from "@/lib/oidc";
 import { createOidcState, getOidcConfig, updateSetting } from "@/server/queries";
@@ -43,6 +44,20 @@ export async function startOidcLoginAction(
   redirectTo?: string,
 ): Promise<ActionResult<{ authorizeUrl: string }>> {
   if (demoGuard()) return unauthorizedError();
+
+  // Rate limit: 10 starts/min/IP — each start writes a state row and triggers
+  // a discovery fetch, so unbounded calls are a cheap DoS vector.
+  const { headers } = await import("next/headers");
+  const h = await headers();
+  const ip =
+    (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
+    (h.get("x-real-ip") || "").toString() ||
+    "0.0.0.0";
+  const { rateLimit } = await import("@/lib/rate-limit");
+  const rl = rateLimit(`oidc-start:${ip}`, 10, 60_000);
+  if (!rl.ok) {
+    return rateLimitError(Math.ceil((rl.resetAt - Date.now()) / 1000));
+  }
 
   const config = await getOidcConfig();
   if (!config) return notFoundError("SSO is not configured on this instance");
