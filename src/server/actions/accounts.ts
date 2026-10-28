@@ -16,6 +16,7 @@ import {
 } from "@/lib/errors";
 import {
   listUsers,
+  listAccountSummaries,
   getUserById,
   getUserByUsername,
   createUser,
@@ -39,7 +40,11 @@ async function requireAdmin() {
   return { session, error: null };
 }
 
-/** Strip account fields that must never be returned to the client. */
+/**
+ * Strip account fields that must never be returned to the client.
+ * `pageSlug` is the page this account owns (null when it owns none) — the
+ * delete dialog needs it to offer the slug-release option.
+ */
 function publicAccount(u: {
   id: number;
   username: string;
@@ -47,6 +52,7 @@ function publicAccount(u: {
   status: string;
   createdAt: string;
   lastLoginAt: string | null;
+  pageSlug?: string | null;
 }) {
   return {
     id: u.id,
@@ -55,6 +61,7 @@ function publicAccount(u: {
     status: u.status,
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt,
+    pageSlug: u.pageSlug ?? null,
   };
 }
 
@@ -64,7 +71,7 @@ export async function listAccountsAction(): Promise<ActionResult<{ accounts: Acc
   if (demoGuard()) return unauthorizedError();
   const { error } = await requireAdmin();
   if (error) return error;
-  const accounts = (await listUsers()).map(publicAccount);
+  const accounts = (await listAccountSummaries()).map(publicAccount);
   return { success: true, accounts };
 }
 

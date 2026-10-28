@@ -56,7 +56,7 @@ describe("#94 search-engine visibility", () => {
     const r = await robots();
     expect(r.sitemap).toBeUndefined();
     expect(r.rules.disallow).toEqual([
-      "/login", "/setup", "/dashboard", "/links", "/profile", "/theme", "/settings", "/pages", "/domains", "/api/",
+      "/login", "/setup", "/dashboard", "/links", "/profile", "/theme", "/settings", "/pages", "/domains", "/accounts", "/api/",
     ]);
     expect(r.rules.disallow).not.toContain("/");
   });

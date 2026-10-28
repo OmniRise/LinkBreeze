@@ -152,6 +152,7 @@ export function isAdminPath(pathname: string): boolean {
     "/settings",
     "/pages",
     "/domains",
+    "/accounts",
   ];
   const adminExact = new Set(["/login", "/setup"]);
   const adminApiPrefixes = ["/api/setup", "/api/onboarding", "/api/backup"];

@@ -813,6 +813,36 @@ export async function listUsers(): Promise<UserRow[]> {
   return db.select().from(users).orderBy(asc(users.id));
 }
 
+/**
+ * Accounts joined with the page each one owns, for the /accounts admin list.
+ * One LEFT JOIN, so it stays a single query regardless of account count (no
+ * N+1). `pageSlug` is null when the account owns no page yet.
+ *
+ * Deliberately narrow: this row type never carries `passwordHash`,
+ * `totpSecret` or `recoveryCodes`, so those can't leak to the client by
+ * accident (defense in depth on top of `publicAccount`).
+ */
+export type AccountSummaryRow = Pick<
+  UserRow,
+  "id" | "username" | "role" | "status" | "createdAt" | "lastLoginAt"
+> & { pageSlug: string | null };
+
+export async function listAccountSummaries(): Promise<AccountSummaryRow[]> {
+  return db
+    .select({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+      status: users.status,
+      createdAt: users.createdAt,
+      lastLoginAt: users.lastLoginAt,
+      pageSlug: pages.slug,
+    })
+    .from(users)
+    .leftJoin(pages, eq(pages.userId, users.id))
+    .orderBy(asc(users.id));
+}
+
 export async function updateUserStatus(userId: number, status: "active" | "disabled"): Promise<void> {
   await db.update(users).set({ status }).where(eq(users.id, userId));
 }

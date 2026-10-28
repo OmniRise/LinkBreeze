@@ -133,6 +133,7 @@ describe("isAdminPath", () => {
       "/pages",
       "/pages/new",
       "/domains",
+      "/accounts",
       "/api/setup",
       "/api/onboarding",
       "/api/backup",

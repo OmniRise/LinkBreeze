@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 7f3b24d510f3 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 3a529c61a978 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -38,6 +38,7 @@ const it: Messages = {
     profile: "Profilo",
     domains: "Domini",
     primary: "Primario",
+    accounts: "Account",
   },
 
   shell: {
@@ -1142,6 +1143,53 @@ const it: Messages = {
   },
 
   // ─── Domini personalizzati (#85) ──────────────────────────────────────
+  // ─── Accounts (#124) ───────────────────────────────────────────────────
+  accounts: {
+    title: "Account",
+    description: "Gestisci chi può accedere. Ogni account possiede la sua pagina pubblica; gli admin gestiscono anche questa istanza.",
+    listTitle: "Tutti gli account",
+    empty: "Nessun account ancora.",
+    noPage: "Ancora nessuna pagina",
+    username: "Nome utente",
+    role: "Ruolo",
+    roleAdmin: "Admin",
+    roleOwner: "Owner",
+    status: "Stato",
+    statusActive: "Attivo",
+    statusDisabled: "Disabilitato",
+    createdAt: "Creato",
+    lastLogin: "Ultimo accesso",
+    never: "Mai",
+    createTitle: "Crea account",
+    createDescription: "I nuovi account iniziano come Owner con una pagina propria.",
+    createUsername: "Nome utente",
+    createPassword: "Password",
+    createPasswordHint: "Almeno 8 caratteri, con maiuscola, minuscola e una cifra.",
+    createRole: "Ruolo",
+    createSubmit: "Crea",
+    creating: "Creazione…",
+    created: "Account creato.",
+    actions: "Azioni",
+    enable: "Abilita",
+    disable: "Disabilita",
+    promoteToAdmin: "Rendi admin",
+    demoteToOwner: "Rendi owner",
+    enabled: "Account abilitato.",
+    disabled: "Account disabilitato.",
+    roleChanged: "Ruolo aggiornato.",
+    delete: "Elimina",
+    deleteSubmit: "Elimina account",
+    deleting: "Eliminazione…",
+    deleted: "Account eliminato.",
+    deleteTitle: "Elimina account",
+    deleteWarning: "Questo rimuove l'accesso di {username}. La pagina e i link restano salvi, a meno tu non liberi lo slug qui sotto.",
+    releaseSlugLabel: "Libera lo slug della pagina",
+    releaseSlugHint: "Libera l'indirizzo così un nuovo account può reclamarlo. Il contenuto resta ma va offline.",
+    cancel: "Annulla",
+    selfBadge: "Tu",
+    lastAdminHint: "L'ultimo admin attivo non può essere disabilitato né eliminato.",
+  },
+
   domains: {
     title: "Domini",
     description:

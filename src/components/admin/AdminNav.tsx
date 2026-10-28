@@ -10,6 +10,7 @@ import {
   Palette,
   Settings,
   Globe,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { PreviewButton } from "@/components/admin/PreviewPane";
@@ -22,6 +23,7 @@ const NAV: { href: string; label: keyof Messages["nav"] & string; icon: LucideIc
   { href: "/profile", label: "profile", icon: User },
   { href: "/theme", label: "theme", icon: Palette },
   { href: "/domains", label: "domains", icon: Globe },
+  { href: "/accounts", label: "accounts", icon: Users },
   { href: "/settings", label: "settings", icon: Settings },
 ];
 
