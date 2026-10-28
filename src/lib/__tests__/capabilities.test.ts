@@ -17,6 +17,7 @@ import {
   resolveCapabilities,
   canViewPage,
   canEditPage,
+  filterVisiblePages,
   type RoleRowLike,
 } from "@/lib/ownership";
 
@@ -100,6 +101,35 @@ describe("resolveCapabilities", () => {
   it("invalid visibility strings on custom roles deny by default (own)", () => {
     const garbage: RoleRowLike = { ...viewerRow, pagesVisibility: "everything" as never };
     expect(resolveCapabilities("owner", garbage).visibility).toBe("own");
+  });
+});
+
+describe("filterVisiblePages (admin page switcher / dashboard scoping)", () => {
+  const pages = [
+    { id: 10, slug: "alice", userId: 10 },
+    { id: 20, slug: "bob", userId: 20 },
+    { id: 30, slug: "legacy", userId: null },
+  ];
+  const memberCaps = { pagesLimit: 1, visibility: "own" as const, manageAccounts: false, manageInstance: false };
+  const viewerCaps = { pagesLimit: 3, visibility: "view_all" as const, manageAccounts: false, manageInstance: false };
+  const leadCaps = { pagesLimit: null, visibility: "manage_all" as const, manageAccounts: false, manageInstance: false };
+  const adminCaps = { pagesLimit: null, visibility: "manage_all" as const, manageAccounts: true, manageInstance: true };
+
+  it("own-visibility member sees ONLY their own pages (never legacy rows)", () => {
+    expect(filterVisiblePages(pages, memberCaps, 20).map((p) => p.id)).toEqual([20]);
+    expect(filterVisiblePages(pages, memberCaps, 99)).toEqual([]);
+  });
+
+  it("view_all member sees every page (read-only surface)", () => {
+    expect(filterVisiblePages(pages, viewerCaps, 20)).toHaveLength(3);
+  });
+
+  it("manage_all member sees every page", () => {
+    expect(filterVisiblePages(pages, leadCaps, 20)).toHaveLength(3);
+  });
+
+  it("full admin sees every page", () => {
+    expect(filterVisiblePages(pages, adminCaps, 1)).toHaveLength(3);
   });
 });
 

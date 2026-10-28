@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireInstanceAdminOrThrow } from "@/server/access";
 import { db } from "@/db";
 import { analyticsPageviews, analyticsClicks, links } from "@/db/schema";
 import { eq, gt } from "drizzle-orm";
@@ -9,10 +9,19 @@ import { csvCell } from "@/lib/csv";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** CSV export of raw analytics rows for the chosen range/metric. Auth-required. */
+/**
+ * CSV export of raw analytics rows for the chosen range/metric. Auth-required
+ * AND instance-admin-only (#124): the export is instance-wide, includes
+ * visitor hashes, and is exactly the surface a member must not read.
+ */
 export async function GET(request: NextRequest) {
-  if (!(await getSession())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    await requireInstanceAdminOrThrow();
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Unauthorized" },
+      { status: err instanceof Error && err.message === "Forbidden" ? 403 : 401 },
+    );
   }
 
   const sp = new URL(request.url).searchParams;

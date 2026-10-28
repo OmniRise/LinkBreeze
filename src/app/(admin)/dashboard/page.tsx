@@ -29,9 +29,13 @@ import {
   getProfile,
   getSetting,
   getSubscriberCount,
+  getCapabilitiesForUser,
   type AnalyticsRange,
   type BreakdownEntry,
 } from "@/server/queries";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { filterVisiblePages } from "@/lib/ownership";
 import { checkForUpdates } from "@/lib/update-check";
 import { maybeRunScheduledBackup, getBackupStatus } from "@/server/backup-scheduler";
 import { BackupFailureNotice } from "./backup-failure-notice";
@@ -318,11 +322,18 @@ export default async function DashboardPage({
   const { range: rangeParam, page: pageParam } = await searchParams;
   const range = parseRange(rangeParam);
 
+  const session = await getSession();
+  if (!session) redirect("/login");
+  // #124: the dashboard is scoped to the pages the actor's role may SEE —
+  // a plain member can't ?page= their way into someone else's stats.
+  const { caps } = await getCapabilitiesForUser(session.userId);
+  const canManageInstance = caps.manageInstance;
   const allPages = await getAllPages();
+  const visiblePages = filterVisiblePages(allPages, caps, session.userId);
   const activePage =
-    allPages.find((p) => p.id === Number(pageParam)) ??
-    allPages.find((p) => p.isDefault) ??
-    allPages[0];
+    visiblePages.find((p) => p.id === Number(pageParam)) ??
+    visiblePages.find((p) => p.isDefault) ??
+    visiblePages[0];
   const pageId = activePage?.id;
 
   const [stats, prevStats, links, breakdown, updateResult, profile, activeTheme, slug, retentionDays] = await Promise.all([
@@ -340,8 +351,9 @@ export default async function DashboardPage({
   const activeCount = links.filter((l) => l.isActive).length;
 
   // Quiet subscriber count — only when capture is on and someone subscribed.
+  // Instance-wide number → instance admins only (#124).
   const subscriberCount =
-    activePage?.emailCapture ? await getSubscriberCount() : 0;
+    canManageInstance && activePage?.emailCapture ? await getSubscriberCount() : 0;
   const viewSpark = stats.viewsPerDay.map((d) => d.views);
   const clickSpark = stats.viewsPerDay.map((d) => d.clicks);
 
@@ -368,10 +380,11 @@ export default async function DashboardPage({
 
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100dvh-3rem)]">
-      <UpdateChecker initialResult={updateResult} />
+      {/* Instance-level banners → instance admins only (#124). */}
+      {canManageInstance && <UpdateChecker initialResult={updateResult} />}
 
       {/* Scheduled backups failing (#83) — dismissible, re-arms on next failure */}
-      {showBackupNotice ? <BackupFailureNotice /> : null}
+      {canManageInstance && showBackupNotice ? <BackupFailureNotice /> : null}
 
       {/* Onboarding checklist — auto-hides when all done or dismissed */}
       <OnboardingChecklist

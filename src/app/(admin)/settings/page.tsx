@@ -137,6 +137,7 @@ export default async function SettingsPage({
       </div>
 
       <SettingsTabs
+        allowed={canManageInstance ? undefined : ["security"]}
         tabs={{
           general: (
             <GeneralTab

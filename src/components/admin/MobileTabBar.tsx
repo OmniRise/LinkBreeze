@@ -31,20 +31,35 @@ const TABS: {
   { href: "/settings", label: "settings", icon: Settings },
 ];
 
-/** Fixed opaque bottom tab bar (mobile only). Thumb-reachable, always visible. */
-export function MobileTabBar() {
+/** Fixed opaque bottom tab bar (mobile only). Thumb-reachable, always visible.
+ *  #124: instance-level tabs (theme, domains, accounts) render only for roles
+ *  holding the matching capability — pages behind them are gated server-side. */
+export function MobileTabBar({
+  canManageAccounts,
+  canManageInstance,
+}: {
+  canManageAccounts: boolean;
+  canManageInstance: boolean;
+}) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const pageParam = searchParams.get("page");
   const query = pageParam ? `?page=${pageParam}` : "";
 
+  const visible = TABS.filter(
+    (tab) =>
+      (tab.href !== "/accounts" || canManageAccounts) &&
+      (tab.href !== "/domains" || canManageInstance) &&
+      (tab.href !== "/theme" || canManageInstance),
+  );
+
   return (
     <nav
       aria-label={t("primary")}
       className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-lavender/12 bg-background px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-12px_rgba(5,3,20,0.85)] md:hidden"
     >
-      {TABS.map(({ href, label, icon: Icon }) => {
+      {visible.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
           <Link

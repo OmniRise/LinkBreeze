@@ -156,3 +156,18 @@ export function canEditPage(
   if (caps.visibility === "manage_all") return page.userId != null;
   return page.userId != null && page.userId === actor.userId;
 }
+
+/**
+ * Which pages may this actor SEE in the admin UI (page switcher, dashboard)?
+ *  - full admin / manage_all / view_all → every page
+ *  - own → only pages they own (legacy NULL-owner rows stay admin-only)
+ * Single choke point for the admin surface (layout switcher, dashboard);
+ * keep it next to the predicates so visibility rules can't drift apart.
+ */
+export function filterVisiblePages<
+  T extends { userId?: number | null },
+>(pages: T[], caps: RoleCapabilities, userId: number): T[] {
+  if (caps.manageAccounts && caps.manageInstance) return pages;
+  if (caps.visibility === "view_all" || caps.visibility === "manage_all") return pages;
+  return pages.filter((p) => p.userId != null && p.userId === userId);
+}

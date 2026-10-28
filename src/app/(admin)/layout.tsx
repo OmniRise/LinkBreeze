@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { AuroraBackground } from "@/components/aurora/AuroraBackground";
 import { MobileTabBar } from "@/components/admin/MobileTabBar";
 import { PageSwitcher } from "@/components/admin/PageSwitcher";
+import { getCapabilitiesForUser } from "@/server/queries";
+import { filterVisiblePages } from "@/lib/ownership";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { PreviewProvider } from "@/components/admin/PreviewPane";
 import { getLocale } from "@/i18n/server";
@@ -59,9 +61,13 @@ export default async function AdminLayout({
     return shell(children);
   }
 
-  // Load pages for the page switcher (only when authed).
+  // Load pages for the page switcher (only when authed). #124: the switcher
+  // and dashboard are scoped to the pages the user's role may SEE — a plain
+  // member never sees (or can pick) anyone else's page here.
+  const capsForUser = await getCapabilitiesForUser(session.userId);
   const allPages = await getAllPages();
-  const pageList = allPages.map((p) => ({
+  const visiblePages = filterVisiblePages(allPages, capsForUser.caps, session.userId);
+  const pageList = visiblePages.map((p) => ({
     id: p.id,
     slug: p.slug,
     title: p.title,
@@ -99,7 +105,7 @@ export default async function AdminLayout({
             </div>
 
             <React.Suspense fallback={null}>
-              <AdminNav />
+              <AdminNav canManageAccounts={capsForUser.caps.manageAccounts} canManageInstance={capsForUser.caps.manageInstance} />
             </React.Suspense>
 
             <div className="border-t border-border pt-3 mb-3">
@@ -183,7 +189,7 @@ export default async function AdminLayout({
               </div>
             </main>
             <React.Suspense fallback={null}>
-              <MobileTabBar />
+              <MobileTabBar canManageAccounts={capsForUser.caps.manageAccounts} canManageInstance={capsForUser.caps.manageInstance} />
             </React.Suspense>
           </div>
         </div>
