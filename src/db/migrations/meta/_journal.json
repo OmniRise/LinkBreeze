@@ -225,6 +225,27 @@
       "when": 1966777701100,
       "tag": "0031_custom_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1966777701200,
+      "tag": "0032_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1966777701300,
+      "tag": "0033_session_lifetime",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1966777701400,
+      "tag": "0034_invites",
+      "breakpoints": true
     }
   ]
 }

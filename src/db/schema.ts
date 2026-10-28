@@ -21,6 +21,12 @@ export const users = sqliteTable("users", {
   // #124 2B customizable roles: the role ROW is the source of truth; the text
   // role above stays as a legacy fast-path hint. NULL maps through the text.
   roleId: integer("role_id").references((): AnySQLiteColumn => roles.id, { onDelete: "set null" }),
+  // #124 follow-up session lifetime: idle = minutes of inactivity before the
+  // session dies; max = absolute hours since mint. NULL = inherit role, then
+  // the global KV defaults.
+  lastSeenAt: text("last_seen_at"), // action-based idle clock (throttled 1/min)
+  idleMinutes: integer("idle_minutes"),
+  maxHours: integer("max_hours"),
 });
 
 // ─── Customizable roles (#124 2B) ──────────────────────
@@ -37,7 +43,38 @@ export const roles = sqliteTable("roles", {
   pagesVisibility: text("pages_visibility").notNull().default("own"), // own | view_all | manage_all
   canManageAccounts: integer("can_manage_accounts", { mode: "boolean" }).notNull().default(false),
   canManageInstance: integer("can_manage_instance", { mode: "boolean" }).notNull().default(false),
+  // Per-role session overrides (NULL = use global KV defaults).
+  idleMinutes: integer("idle_minutes"),
+  maxHours: integer("max_hours"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
+// ─── Admin audit log (#124 follow-up) ──────────────────
+// Append-only. actor_user_id survives as NULL when the user is deleted;
+// actor_username is snapshotted so entries stay readable.
+export const auditLog = sqliteTable("audit_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  actorUserId: integer("actor_user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
+  actorUsername: text("actor_username"),
+  action: text("action").notNull(),
+  target: text("target"),
+  detail: text("detail"), // JSON
+  ip: text("ip"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
+// ─── Member invitations, stage 1 (#124 follow-up) ──────
+// Single-use links; only the SHA-256 hash of the token is stored. SMTP
+// delivery is stage 2 (outbound email layer issue).
+export const invites = sqliteTable("invites", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tokenHash: text("token_hash").notNull().unique(),
+  roleId: integer("role_id").references((): AnySQLiteColumn => roles.id, { onDelete: "set null" }),
+  createdBy: integer("created_by").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  expiresAt: text("expires_at").notNull(),
+  usedAt: text("used_at"),
+  usedBy: integer("used_by").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
 });
 
 // ─── Settings (key-value, runtime config) ─────────────

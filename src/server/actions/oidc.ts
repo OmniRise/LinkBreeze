@@ -12,9 +12,9 @@ import {
 import { safeRedirectTo, isValidIssuerUrl } from "@/lib/oidc";
 import { createOidcState, getOidcConfig, updateSetting } from "@/server/queries";
 import { requireInstanceAdmin } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { pickRequestHost } from "@/lib/host-routing";
 import {
-  fetchDiscovery,
   getOidcClientSecret,
   isProduction,
   randomState,
@@ -159,6 +159,13 @@ export async function saveOidcSettingsAction(formData: FormData): Promise<Action
   await updateSetting("oidcGroupClaim", groupClaim);
   await updateSetting("oidcNoGroupMatch", noGroupMatch);
   await updateSetting("oidcGroupRoleMap", JSON.stringify(parsedMap));
+  await recordAudit("settings.updated", "oidc", {
+    mode,
+    jit,
+    groupClaim,
+    noGroupMatch,
+    groupRules: parsedMap.length,
+  });
   return { success: true };
 }
 

@@ -32,7 +32,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/login", "/setup", "/dashboard", "/links", "/profile", "/theme", "/settings", "/pages", "/domains", "/accounts", "/api/"],
+      disallow: ["/login", "/setup", "/dashboard", "/links", "/profile", "/theme", "/settings", "/pages", "/domains", "/accounts", "/audit", "/api/"],
     },
     sitemap: hidden ? undefined : `${origin}/sitemap.xml`,
     host: origin,

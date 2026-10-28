@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: b1fb368d5e1b ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 6453e9499a35 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -39,6 +39,7 @@ const it: Messages = {
     domains: "Domini",
     primary: "Primario",
     accounts: "Account",
+    audit: "Audit",
   },
 
   shell: {
@@ -1175,6 +1176,45 @@ const it: Messages = {
 
   // ─── Domini personalizzati (#85) ──────────────────────────────────────
   // ─── Accounts (#124) ───────────────────────────────────────────────────
+  audit: {
+    title: "Registro di controllo",
+    description: "Eventi di sicurezza: account, ruoli, accessi, modifiche alle impostazioni.",
+    filterActor: "Attore",
+    filterAllActors: "Tutti gli attori",
+    filterAction: "Azione",
+    filterAllActions: "Tutte le azioni",
+    filterRange: "Periodo",
+    rangeAll: "Tutto il periodo",
+    rangeDays: "{days} giorni",
+    apply: "Applica",
+    clear: "Azzera",
+    empty: "Nessuna voce corrisponde ai filtri.",
+    when: "Quando",
+    who: "Chi",
+    what: "Cosa",
+    targetCol: "Destinazione",
+    ipCol: "IP",
+    system: "Sistema",
+    showing: "{count, plural, one {# voce} other {# voci}}",
+    older: "Precedenti",
+    action: {
+      'account.created': "Account creato",
+      'account.updated': "Account aggiornato",
+      'account.disabled': "Account disattivato",
+      'account.enabled': "Account riattivato",
+      'account.deleted': "Account eliminato",
+      'role.assigned': "Ruolo assegnato",
+      'role.created': "Ruolo creato",
+      'role.updated': "Ruolo aggiornato",
+      'role.deleted': "Ruolo eliminato",
+      'login.success': "Accesso riuscito",
+      'login.failed': "Accesso non riuscito",
+      'sso.linked': "Identità SSO collegata",
+      'sso.login': "Accesso SSO",
+      'sso.refused': "Accesso SSO rifiutato",
+      'settings.updated': "Impostazioni modificate",
+    },
+  },
   accounts: {
     title: "Account",
     description: "Gestisci chi può accedere. Ogni account possiede la sua pagina pubblica; gli admin gestiscono anche questa istanza.",

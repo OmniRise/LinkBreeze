@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getSession } from "@/lib/auth";
+import { recordAudit } from "@/server/audit";
 import { getUserById, consumeOidcState, getOidcConfig, findUserIdByOidcIdentity, linkOidcIdentity } from "@/server/queries";
 import { safeRedirectTo } from "@/lib/oidc";
 import {
@@ -99,7 +100,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // every SSO login; "refuse" policy blocks logins with no matching group;
   // the last-admin invariant guards every resync.
   const mapping = await resolveOidcRole(userinfo.groups);
-  if (mapping.refused) return fail("norole");
+  if (mapping.refused) {
+    await recordAudit("sso.refused", userinfo.preferredUsername ?? userinfo.sub, { issuer: config.issuer });
+    return fail("norole");
+  }
 
   if (session) {
     // Account linking: bind this identity to the signed-in account. If the
@@ -114,6 +118,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         subject: userinfo.sub,
         preferredUsername: userinfo.preferredUsername,
       });
+      await recordAudit("sso.linked", session.username, { issuer: config.issuer });
     }
     userId = session.userId;
     username = session.username;
@@ -148,6 +153,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const sessionCookie = await buildSessionCookie(userId, username);
   const { touchLastLogin } = await import("@/server/queries");
   await touchLastLogin(userId);
+  await recordAudit("sso.login", username, {
+    issuer: config.issuer,
+    provisioned: existing ? undefined : true,
+    roleMapped: mapping.applied && mapping.roleId != null ? mapping.roleId : undefined,
+  }, { actor: { userId, username } });
 
   const response = NextResponse.redirect(new URL(safeRedirectTo(stored.redirectTo), request.url));
   response.cookies.set(sessionCookie.name, sessionCookie.value, {

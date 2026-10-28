@@ -77,8 +77,13 @@ export function OidcCard({
     }
   }, [groupRoleMap]);
   const [mapRows, setMapRows] = React.useState<{ group: string; roleId: number }[]>(initialMap);
-  // Reset local rows when the server value changes after a save.
-  React.useEffect(() => setMapRows(initialMap), [initialMap]);
+  // Reset local rows when the server value changes after a save (render-time
+  // reconciliation — setState-in-effect trips the cascading-render rule).
+  const [syncedMap, setSyncedMap] = React.useState(initialMap);
+  if (syncedMap !== initialMap) {
+    setSyncedMap(initialMap);
+    setMapRows(initialMap);
+  }
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

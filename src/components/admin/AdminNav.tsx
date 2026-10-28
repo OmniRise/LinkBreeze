@@ -10,6 +10,7 @@ import {
   Palette,
   Settings,
   Globe,
+  ScrollText,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const NAV: { href: string; label: keyof Messages["nav"] & string; icon: LucideIc
   { href: "/theme", label: "theme", icon: Palette },
   { href: "/domains", label: "domains", icon: Globe },
   { href: "/accounts", label: "accounts", icon: Users },
+  { href: "/audit", label: "audit", icon: ScrollText },
   { href: "/settings", label: "settings", icon: Settings },
 ];
 
@@ -46,6 +48,7 @@ export function AdminNav({
   const visible = NAV.filter(
     (item) =>
       (item.href !== "/accounts" || canManageAccounts) &&
+      (item.href !== "/audit" || canManageInstance) &&
       (item.href !== "/domains" || canManageInstance) &&
       (item.href !== "/theme" || canManageInstance),
   );

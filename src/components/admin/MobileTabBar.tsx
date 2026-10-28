@@ -9,6 +9,7 @@ import {
   Palette,
   Settings,
   Globe,
+  ScrollText,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const TABS: {
   { href: "/theme", label: "theme", icon: Palette },
   { href: "/domains", label: "domains", icon: Globe },
   { href: "/accounts", label: "accounts", icon: Users },
+  { href: "/audit", label: "audit", icon: ScrollText },
   { href: "/settings", label: "settings", icon: Settings },
 ];
 
@@ -50,6 +52,7 @@ export function MobileTabBar({
   const visible = TABS.filter(
     (tab) =>
       (tab.href !== "/accounts" || canManageAccounts) &&
+      (tab.href !== "/audit" || canManageInstance) &&
       (tab.href !== "/domains" || canManageInstance) &&
       (tab.href !== "/theme" || canManageInstance),
   );

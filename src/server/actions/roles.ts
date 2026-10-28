@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
+import { recordAudit } from "@/server/audit";
 import {
   type ActionResult,
   validationError,
@@ -112,6 +113,7 @@ export async function createRoleAction(formData: FormData): Promise<ActionResult
   if (existing) return conflictError("A role with this name already exists");
 
   const created = await createRole(parsed.data);
+  await recordAudit("role.created", created.name, { roleId: created.id });
   revalidatePath("/accounts");
   return { success: true, roleId: created.id };
 }
@@ -151,6 +153,7 @@ export async function updateRoleAction(formData: FormData): Promise<ActionResult
   const { getSetting, updateSetting } = await import("@/server/queries");
   const v = Number(await getSetting("sessionVersion")) || 0;
   await updateSetting("sessionVersion", String(v + 1));
+  await recordAudit("role.updated", fields.data.name, { roleId: parsed.data.roleId });
   revalidatePath("/accounts");
   return { success: true };
 }
@@ -189,6 +192,7 @@ export async function deleteRoleAction(formData: FormData): Promise<ActionResult
   }
 
   await deleteRole(roleId);
+  await recordAudit("role.deleted", role.name, { roleId, movedUsersTo: reassignTo ?? null });
   revalidatePath("/accounts");
   return { success: true };
 }

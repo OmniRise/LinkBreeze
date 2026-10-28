@@ -8,7 +8,6 @@ import {
   createUser,
   countPagesByOwner,
   getCapabilitiesForUser,
-  getRoleById,
   createPage,
   getAllPages,
   getUserById,

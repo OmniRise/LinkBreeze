@@ -84,7 +84,7 @@ describe("parseDiscovery", () => {
   });
 
   it("rejects documents missing required endpoints", () => {
-    const { authorization_endpoint, ...noAuth } = GOOD;
+    const noAuth = { ...GOOD, authorization_endpoint: undefined };
     expect(parseDiscovery(noAuth, "https://idp.example.com")).toBeNull();
     expect(parseDiscovery({ ...GOOD, token_endpoint: undefined }, "https://idp.example.com")).toBeNull();
     expect(parseDiscovery({ ...GOOD, userinfo_endpoint: undefined }, "https://idp.example.com")).toBeNull();

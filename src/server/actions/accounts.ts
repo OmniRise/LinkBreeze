@@ -33,6 +33,7 @@ import {
   updateSetting,
 } from "@/server/queries";
 import { requireAccountsAdmin, requireInstanceAdmin } from "@/server/access";
+import { recordAudit } from "@/server/audit";
 import { normalizeSlug, slugError, SLUG_ERRORS } from "@/lib/link-slug";
 
 /** First page slug for a new account: the username, made unique with -2/-3… */
@@ -154,6 +155,7 @@ export async function createAccountAction(formData: FormData): Promise<ActionRes
         userId: user.id,
       });
     }
+    await recordAudit("account.created", username, { roleId: roleId ?? null });
     // Every sibling action revalidates; create was the one that skipped it,
     // so a fresh account could stay invisible in the list after a refresh.
     revalidatePath("/accounts");
@@ -193,6 +195,7 @@ export async function setAccountStatusAction(
   }
 
   await updateUserStatus(userId, status);
+  await recordAudit(status === "disabled" ? "account.disabled" : "account.enabled", target.username);
   revalidatePath("/accounts");
   return { success: true };
 }
@@ -229,6 +232,7 @@ export async function assignAccountRoleAction(
 
   const { updateUserRoleById } = await import("@/server/queries");
   await updateUserRoleById(userId, roleId);
+  await recordAudit("role.assigned", target.username, { roleId });
   // Capabilities changed → existing sessions carry stale role claims. Bump
   // the sessionVersion so every session re-mints with the correct role.
   const v = Number(await getSetting("sessionVersion")) || 0;
@@ -294,6 +298,7 @@ export async function deleteAccountAction(formData: FormData): Promise<ActionRes
       // cascades to NULL via the FK — content preserved, slug reusable later.
     }
     await deleteUser(userId);
+    await recordAudit("account.deleted", target.username);
   } catch (err) {
     logError("deleteAccount", err, { userId });
     return {
@@ -323,6 +328,7 @@ export async function setAccountPagePolicyAction(policy: "per_user" | "manual"):
   if (denied) return denied;
   if (policy !== "per_user" && policy !== "manual") return validationError("Invalid policy");
   await updateSetting("accountPagePolicy", policy);
+  await recordAudit("settings.updated", "accountPagePolicy", { policy });
   revalidatePath("/accounts");
   return { success: true };
 }

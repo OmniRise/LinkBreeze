@@ -47,6 +47,7 @@ const en = {
     domains: "Domains",
     primary: "Primary",
     accounts: "Accounts",
+    audit: "Audit log",
   },
 
   shell: {
@@ -1182,6 +1183,45 @@ const en = {
   },
 
   // ─── Accounts (#124) ───────────────────────────────────────────────────
+  audit: {
+    title: "Audit log",
+    description: "Security-relevant events: accounts, roles, sign-ins, settings changes.",
+    filterActor: "Actor",
+    filterAllActors: "All actors",
+    filterAction: "Action",
+    filterAllActions: "All actions",
+    filterRange: "Period",
+    rangeAll: "All time",
+    rangeDays: "{days} days",
+    apply: "Apply",
+    clear: "Clear",
+    empty: "No entries match the current filters.",
+    when: "When",
+    who: "Who",
+    what: "What",
+    targetCol: "Target",
+    ipCol: "IP",
+    system: "System",
+    showing: "{count, plural, one {# entry} other {# entries}}",
+    older: "Older",
+    action: {
+      'account.created': "Account created",
+      'account.updated': "Account updated",
+      'account.disabled': "Account disabled",
+      'account.enabled': "Account enabled",
+      'account.deleted': "Account deleted",
+      'role.assigned': "Role assigned",
+      'role.created': "Role created",
+      'role.updated': "Role updated",
+      'role.deleted': "Role deleted",
+      'login.success': "Sign-in succeeded",
+      'login.failed': "Sign-in failed",
+      'sso.linked': "SSO identity linked",
+      'sso.login': "SSO sign-in",
+      'sso.refused': "SSO sign-in refused",
+      'settings.updated': "Settings changed",
+    },
+  },
   accounts: {
     title: "Accounts",
     description:

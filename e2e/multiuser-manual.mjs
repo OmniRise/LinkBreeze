@@ -1,4 +1,3 @@
-/* eslint-disable */
 // #124 live E2E — multi-user + roles UI flows against a throwaway instance.
 // Run: node e2e-multiuser.mjs (from the worktree root, server on :4321)
 import { chromium } from "playwright-core";

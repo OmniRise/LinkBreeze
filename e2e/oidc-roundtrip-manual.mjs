@@ -1,4 +1,3 @@
-/* eslint-disable */
 // #124 — REAL OIDC round-trip against a local mock IdP (mock-idp.mjs on :9999).
 // Covers: SSO button → authorize (state+PKCE) → callback → PKCE validation at
 // the token endpoint → JIT provisioning → session → replay rejection →
