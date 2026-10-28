@@ -20,8 +20,9 @@ import {
   getLink,
   reorderLinks as reorderLinksQuery,
   isSlugTaken,
+  getCapabilitiesForUser,
 } from "@/server/queries";
-import { canAccessPage } from "@/lib/ownership";
+import { canEditPage } from "@/lib/ownership";
 import {
   normalizeSlug,
   slugError,
@@ -46,9 +47,10 @@ async function requireAuth(): Promise<boolean> {
 /**
  * #124 page-ownership gate for link mutations. Resolves the target page
  * (explicit pageId, else the link's own page via getLink) and asserts the
- * session may act on it. Admins pass for any page; owners only for their own.
- * Pass linkId when the mutation targets an existing link so the page is derived
- * from that link rather than a client-supplied pageId.
+ * session may EDIT it — capabilities from the role ROW. Admins and manage_all
+ * roles pass for any page; owners only for their own. Pass linkId when the
+ * mutation targets an existing link so the page is derived from that link
+ * rather than a client-supplied pageId.
  */
 async function assertLinkPageAccess(
   session: { userId: number; role?: string },
@@ -68,7 +70,8 @@ async function assertLinkPageAccess(
   }
   const page = await getPageById(pageId);
   if (!page) return notFoundError("Page not found");
-  if (!canAccessPage(session, page)) {
+  const { caps } = await getCapabilitiesForUser(session.userId);
+  if (!canEditPage(caps, session, page)) {
     return forbiddenError("You do not have access to this page");
   }
   return null;

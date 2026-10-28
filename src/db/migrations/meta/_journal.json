@@ -218,6 +218,13 @@
       "when": 1966777701000,
       "tag": "0030_oidc_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1966777701100,
+      "tag": "0031_custom_roles",
+      "breakpoints": true
     }
   ]
 }

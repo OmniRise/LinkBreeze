@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import {
   CheckCircle2,
   Loader2,
+  Lock,
+  Pencil,
   Plus,
   ShieldCheck,
   Trash2,
@@ -16,11 +18,17 @@ import { localizeActionError } from "@/lib/action-error-i18n";
 import { useSavedAction } from "@/hooks/use-saved-action";
 import type { AccountSummary } from "@/server/actions/accounts";
 import {
+  assignAccountRoleAction,
   createAccountAction,
   deleteAccountAction,
-  setAccountRoleAction,
+  setAccountPagePolicyAction,
   setAccountStatusAction,
 } from "@/server/actions/accounts";
+import {
+  createRoleAction,
+  deleteRoleAction,
+  updateRoleAction,
+} from "@/server/actions/roles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,28 +51,47 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 
 /**
- * Accounts manager (#124): the admin list of sign-in accounts, a create form,
- * per-account enable/disable + role toggle, and a delete dialog that offers to
- * release the owned page's slug. All mutations go through the admin-gated
- * server actions in `@/server/actions/accounts`.
- *
- * The page slug lives on the row (`pageSlug`) because the delete dialog needs
- * it to explain what the "release slug" checkbox will free up.
+ * Accounts manager (#124 2B): the admin list of sign-in accounts, a create
+ * form with a role picker, per-account role assignment, enable/disable, a
+ * delete dialog that offers to release the owned page's slug, the instance
+ * page policy, and the role model editor. All mutations go through the
+ * capability-gated server actions in `@/server/actions/{accounts,roles}`.
  */
 
 const SELECT_CLASSES =
   "h-9 rounded-lg border border-input bg-transparent px-2 text-sm text-foreground outline-none transition-colors [color-scheme:light] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 dark:[color-scheme:dark]";
 
+export interface RoleRowLite {
+  id: number;
+  name: string;
+  isBuiltin: boolean;
+  pagesLimit: number | null;
+  pagesVisibility: string;
+  canManageAccounts: boolean;
+  canManageInstance: boolean;
+}
+
 interface DeleteTarget {
   account: AccountSummary;
+  userCount: number | null;
+}
+
+interface RoleDialogState {
+  role: RoleRowLite | null; // null = create
 }
 
 export function AccountsManager({
   accounts,
+  roles,
+  pagePolicy,
   currentUserId,
+  canManageInstance,
 }: {
   accounts: AccountSummary[];
+  roles: RoleRowLite[];
+  pagePolicy: "per_user" | "manual";
   currentUserId: number;
+  canManageInstance: boolean;
 }) {
   const t = useTranslations("accounts");
   const tErr = useTranslations("errors");
@@ -73,6 +100,10 @@ export function AccountsManager({
   const [error, setError] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget | null>(null);
   const [releaseSlug, setReleaseSlug] = React.useState(false);
+  const [roleDialog, setRoleDialog] = React.useState<RoleDialogState | null>(null);
+  const [roleDeleteTarget, setRoleDeleteTarget] = React.useState<RoleRowLite | null>(null);
+
+  const memberRole = roles.find((r) => r.name === "Member") ?? roles[0];
 
   const runAction = (
     action: (...args: never[]) => Promise<{ success: boolean; error?: string }>,
@@ -93,7 +124,7 @@ export function AccountsManager({
   ) => runAction(action as unknown as (...args: never[]) => Promise<{ success: boolean; error?: string }>, formData);
 
   const openDelete = (account: AccountSummary) => {
-    setDeleteTarget({ account });
+    setDeleteTarget({ account, userCount: null });
     setReleaseSlug(false);
     setError(null);
   };
@@ -109,6 +140,9 @@ export function AccountsManager({
     setDeleteTarget(null);
     runForm(deleteAccountAction, fd);
   };
+
+  const visibilityLabel = (v: string) =>
+    v === "manage_all" ? t("visManageAll") : v === "view_all" ? t("visViewAll") : t("visOwn");
 
   return (
     <div className="flex flex-col gap-6">
@@ -159,13 +193,17 @@ export function AccountsManager({
               />
             </FormField>
             <FormField label={t("createRole")} htmlFor="new-role">
-              <select id="new-role" name="role" defaultValue="owner" className={SELECT_CLASSES}>
-                <option value="owner" className="bg-background text-foreground">
-                  {t("roleOwner")}
-                </option>
-                <option value="admin" className="bg-background text-foreground">
-                  {t("roleAdmin")}
-                </option>
+              <select
+                id="new-role"
+                name="roleId"
+                defaultValue={memberRole?.id ?? ""}
+                className={SELECT_CLASSES}
+              >
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id} className="bg-background text-foreground">
+                    {r.name}
+                  </option>
+                ))}
               </select>
             </FormField>
             <Button type="submit" size="sm" disabled={pending}>
@@ -215,7 +253,7 @@ export function AccountsManager({
                   ) : (
                     <UserCog className="size-3" aria-hidden />
                   )}
-                  {a.role === "admin" ? t("roleAdmin") : t("roleOwner")}
+                  {a.roleName ?? (a.role === "admin" ? t("roleAdmin") : t("roleOwner"))}
                 </Badge>
 
                 {a.status === "active" ? (
@@ -230,6 +268,31 @@ export function AccountsManager({
                 {isSelf && <Badge variant="secondary">{t("selfBadge")}</Badge>}
 
                 <div className="ml-auto flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="sr-only">{t("createRole")}</span>
+                    <select
+                      aria-label={t("createRole")}
+                      value={a.roleId ?? ""}
+                      disabled={pending}
+                      onChange={(e) =>
+                        runAction(
+                          assignAccountRoleAction as unknown as (
+                            ...args: never[]
+                          ) => Promise<{ success: boolean; error?: string }>,
+                          a.id,
+                          Number(e.target.value),
+                        )
+                      }
+                      className={`${SELECT_CLASSES} h-8`}
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id} className="bg-background text-foreground">
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
                   <Button
                     type="button"
                     variant="outline"
@@ -251,25 +314,6 @@ export function AccountsManager({
 
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={pending || isSelf}
-                    title={isSelf ? t("lastAdminHint") : undefined}
-                    onClick={() =>
-                      runAction(
-                        setAccountRoleAction as unknown as (
-                          ...args: never[]
-                        ) => Promise<{ success: boolean; error?: string }>,
-                        a.id,
-                        a.role === "admin" ? ("owner" as const) : ("admin" as const),
-                      )
-                    }
-                  >
-                    {a.role === "admin" ? t("demoteToOwner") : t("promoteToAdmin")}
-                  </Button>
-
-                  <Button
-                    type="button"
                     variant="destructive"
                     size="sm"
                     disabled={pending || isSelf}
@@ -286,7 +330,117 @@ export function AccountsManager({
         </CardContent>
       </Card>
 
-      {/* ── Delete dialog ─────────────────────────────────────────────────── */}
+      {/* ── Page policy (instance setting) ────────────────────────────────── */}
+      {canManageInstance && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("pagePolicyTitle")}</CardTitle>
+            <CardDescription>{t("pagePolicyDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="sr-only">{t("pagePolicyTitle")}</span>
+              <select
+                value={pagePolicy}
+                disabled={pending}
+                onChange={(e) =>
+                  runAction(
+                    setAccountPagePolicyAction as unknown as (
+                      ...args: never[]
+                    ) => Promise<{ success: boolean; error?: string }>,
+                    e.target.value,
+                  )
+                }
+                className={SELECT_CLASSES}
+              >
+                <option value="per_user" className="bg-background text-foreground">
+                  {t("policyPerUser")}
+                </option>
+                <option value="manual" className="bg-background text-foreground">
+                  {t("policyManual")}
+                </option>
+              </select>
+            </label>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Role model ────────────────────────────────────────────────────── */}
+      {canManageInstance && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle>{t("rolesTitle")}</CardTitle>
+                <CardDescription>{t("rolesDescription")}</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRoleDialog({ role: null })}
+              >
+                <Plus className="size-3.5" aria-hidden />
+                {t("roleNew")}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {roles.map((r) => {
+              const isAdminRow = r.isBuiltin && r.name === "Admin";
+              return (
+                <div
+                  key={r.id}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3"
+                >
+                  <span className="text-sm font-medium">{r.name}</span>
+                  {r.isBuiltin && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Lock className="size-3" aria-hidden />
+                      {t("builtinBadge")}
+                    </Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {r.pagesLimit == null
+                      ? t("pagesLimitUnlimited")
+                      : t("pagesLimitValue", { count: r.pagesLimit })}
+                    {" · "}
+                    {visibilityLabel(r.pagesVisibility)}
+                    {r.canManageAccounts ? ` · ${t("canManageAccountsShort")}` : ""}
+                    {r.canManageInstance ? ` · ${t("canManageInstanceShort")}` : ""}
+                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={pending || isAdminRow}
+                      title={isAdminRow ? t("adminRoleLocked") : undefined}
+                      onClick={() => setRoleDialog({ role: r })}
+                    >
+                      <Pencil className="size-3.5" aria-hidden />
+                      <span className="sr-only">{t("roleEdit")}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={pending || r.isBuiltin}
+                      title={r.isBuiltin ? t("builtinRoleLocked") : undefined}
+                      onClick={() => setRoleDeleteTarget(r)}
+                      aria-label={`${t("roleDeleteTitle")} ${r.name}`}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Delete account dialog ─────────────────────────────────────────── */}
       <Dialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -336,6 +490,168 @@ export function AccountsManager({
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Create / edit role dialog ─────────────────────────────────────── */}
+      <Dialog
+        open={roleDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setRoleDialog(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {roleDialog?.role ? t("roleEditTitle", { name: roleDialog.role.name }) : t("roleNew")}
+            </DialogTitle>
+            <DialogDescription>{t("roleDialogDescription")}</DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const fd = new FormData(form);
+              if (roleDialog?.role) {
+                fd.set("roleId", String(roleDialog.role.id));
+                setRoleDialog(null);
+                runForm(updateRoleAction, fd);
+              } else {
+                setRoleDialog(null);
+                runForm(createRoleAction, fd);
+              }
+            }}
+            className="flex flex-col gap-4"
+          >
+            <FormField label={t("roleNameLabel")} htmlFor="role-name">
+              <Input
+                id="role-name"
+                name="name"
+                defaultValue={roleDialog?.role?.name ?? ""}
+                required
+                maxLength={64}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </FormField>
+            <FormField
+              label={t("pagesLimitLabel")}
+              htmlFor="role-limit"
+              hint={t("pagesLimitHint")}
+            >
+              <Input
+                id="role-limit"
+                name="pagesLimit"
+                type="number"
+                min={0}
+                step={1}
+                defaultValue={roleDialog?.role?.pagesLimit ?? ""}
+                className="w-32"
+              />
+            </FormField>
+            <FormField label={t("visibilityLabel")} htmlFor="role-visibility">
+              <select
+                id="role-visibility"
+                name="pagesVisibility"
+                defaultValue={roleDialog?.role?.pagesVisibility ?? "own"}
+                className={SELECT_CLASSES}
+              >
+                <option value="own" className="bg-background text-foreground">
+                  {t("visOwn")}
+                </option>
+                <option value="view_all" className="bg-background text-foreground">
+                  {t("visViewAll")}
+                </option>
+                <option value="manage_all" className="bg-background text-foreground">
+                  {t("visManageAll")}
+                </option>
+              </select>
+            </FormField>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="canManageAccounts"
+                defaultChecked={roleDialog?.role?.canManageAccounts ?? false}
+                className="size-4"
+              />
+              {t("canManageAccountsLabel")}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="canManageInstance"
+                defaultChecked={roleDialog?.role?.canManageInstance ?? false}
+                className="size-4"
+              />
+              {t("canManageInstanceLabel")}
+            </label>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRoleDialog(null)}>
+                {t("cancel")}
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                ) : (
+                  t("roleSubmit")
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete role dialog ────────────────────────────────────────────── */}
+      <Dialog
+        open={roleDeleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRoleDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("roleDeleteTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("roleDeleteWarning", { name: roleDeleteTarget?.name ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              setRoleDeleteTarget(null);
+              runForm(deleteRoleAction, fd);
+            }}
+            className="flex flex-col gap-4"
+          >
+            <input type="hidden" name="roleId" value={roleDeleteTarget?.id ?? ""} />
+            <FormField label={t("reassignLabel")} htmlFor="role-reassign">
+              <select id="role-reassign" name="reassignTo" className={SELECT_CLASSES}>
+                <option value="" className="bg-background text-foreground">
+                  {t("reassignNone")}
+                </option>
+                {roles
+                  .filter((r) => r.id !== roleDeleteTarget?.id)
+                  .map((r) => (
+                    <option key={r.id} value={r.id} className="bg-background text-foreground">
+                      {r.name}
+                    </option>
+                  ))}
+              </select>
+            </FormField>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRoleDeleteTarget(null)}>
+                {t("cancel")}
+              </Button>
+              <Button type="submit" variant="destructive" disabled={pending}>
+                {pending ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                ) : (
+                  t("roleDeleteSubmit")
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

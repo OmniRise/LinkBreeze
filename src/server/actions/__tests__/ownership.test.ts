@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   deletePage: vi.fn(async () => undefined),
   getDefaultPage: vi.fn(async () => ({ id: 1, slug: "home", userId: 1 })),
   getAllPages: vi.fn(async (): Promise<{ id: number; slug: string }[]> => []),
-  getPageById: vi.fn(async (id: number): Promise<{ id: number; slug: string; userId: number | null } | null> => null),
+  getPageById: vi.fn(async (id: number): Promise<{ id: number; slug: string; userId: number | null } | null> => ({ id, slug: "stub", userId: null })),
   createLink: vi.fn(async () => undefined),
   updateLink: vi.fn(async () => undefined),
   deleteLink: vi.fn(async () => undefined),
@@ -35,6 +35,10 @@ const mocks = vi.hoisted(() => ({
   getLink: vi.fn(async (): Promise<{ id: number; pageId: number } | null> => null),
   reorderLinks: vi.fn(async () => undefined),
   isSlugTaken: vi.fn(async () => false),
+  getCapabilitiesForUser: vi.fn(async (userId: number): Promise<{ roleText: string; caps: { pagesLimit: number | null; visibility: string; manageAccounts: boolean; manageInstance: boolean } }> => ({
+    roleText: userId === 1 ? "admin" : "owner",
+    caps: userId === 1 ? { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true } : { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false },
+  })),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -55,6 +59,7 @@ vi.mock("@/server/queries", () => ({
   getLink: mocks.getLink,
   reorderLinks: mocks.reorderLinks,
   isSlugTaken: mocks.isSlugTaken,
+  getCapabilitiesForUser: mocks.getCapabilitiesForUser,
 }));
 
 import { updatePageAction, deletePageAction } from "@/server/actions/pages";
@@ -75,12 +80,25 @@ function fd(data: Record<string, string>): FormData {
 
 function asBob() {
   mocks.getSession.mockResolvedValue({ userId: 2, username: "bob", exp: Date.now() + 60000, pv: 1, role: "owner" });
+  // capability source of truth: bob is a plain member (own visibility)
+  mocks.getCapabilitiesForUser.mockResolvedValue({
+    roleText: "owner",
+    caps: { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false },
+  });
 }
 function asAlice() {
   mocks.getSession.mockResolvedValue({ userId: 1, username: "alice", exp: Date.now() + 60000, pv: 1, role: "owner" });
+  mocks.getCapabilitiesForUser.mockResolvedValue({
+    roleText: "owner",
+    caps: { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false },
+  });
 }
 function asAdmin() {
   mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" });
+  mocks.getCapabilitiesForUser.mockResolvedValue({
+    roleText: "admin",
+    caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true },
+  });
 }
 
 beforeEach(() => {

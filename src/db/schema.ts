@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, unique } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ─── Users ─────────────────────────────────────────────
@@ -18,6 +18,26 @@ export const users = sqliteTable("users", {
   totpSecret: text("totp_secret"),
   totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
   recoveryCodes: text("recovery_codes"),
+  // #124 2B customizable roles: the role ROW is the source of truth; the text
+  // role above stays as a legacy fast-path hint. NULL maps through the text.
+  roleId: integer("role_id").references((): AnySQLiteColumn => roles.id, { onDelete: "set null" }),
+});
+
+// ─── Customizable roles (#124 2B) ──────────────────────
+// A role sets what its members may do instance-wide. pagesLimit NULL =
+// unlimited. pagesVisibility: 'own' (only their pages), 'view_all' (read any
+// page), 'manage_all' (edit any page). canManageAccounts/canManageInstance
+// gate the /accounts + settings surfaces. Admin/Member ship as builtins
+// (is_builtin) — the actions refuse to delete or strip them.
+export const roles = sqliteTable("roles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  isBuiltin: integer("is_builtin", { mode: "boolean" }).notNull().default(false),
+  pagesLimit: integer("pages_limit"), // NULL = unlimited
+  pagesVisibility: text("pages_visibility").notNull().default("own"), // own | view_all | manage_all
+  canManageAccounts: integer("can_manage_accounts", { mode: "boolean" }).notNull().default(false),
+  canManageInstance: integer("can_manage_instance", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
 // ─── Settings (key-value, runtime config) ─────────────

@@ -2,13 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
 import {
   type ActionResult,
   validationError,
-  unauthorizedError,
 } from "@/lib/errors";
+import { requireInstanceAdmin } from "@/server/access";
 import { updateSetting as updateSettingQuery } from "@/server/queries";
 
 
@@ -33,7 +32,9 @@ const settingsSchema = z.object({
 export async function updateSettings(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const parsed = settingsSchema.safeParse({
     slug: formData.get("slug"),

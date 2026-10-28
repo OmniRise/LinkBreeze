@@ -31,6 +31,11 @@ vi.mock("@/lib/favicon", () => ({
   extractDomain: mocks.extractDomain,
 }));
 vi.mock("@/server/queries", () => ({
+  // #124 2B: capability gate (access.ts) resolves the session's role ROW.
+  getCapabilitiesForUser: vi.fn(async (): Promise<{ roleText: string; caps: { pagesLimit: number | null; visibility: string; manageAccounts: boolean; manageInstance: boolean } }> => ({
+    roleText: "admin",
+    caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true },
+  })),
   getDefaultPage: mocks.getDefaultPage,
   getPageById: mocks.getPageById,
   createLink: mocks.createLink,

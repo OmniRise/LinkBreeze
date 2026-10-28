@@ -49,6 +49,15 @@ vi.mock("@/lib/auth", () => ({
   destroySession: vi.fn(async () => {}),
 }));
 
+// #124: the capability gates resolve the session user's role ROW from the DB.
+// Seed the admin (role text 'admin'; role_id NULL maps through the legacy
+// text to ADMIN capabilities) so instance-level actions are authorized.
+try {
+  db.insert(schema.users).values({ username: "admin", passwordHash: "seed", role: "admin" }).run();
+} catch {
+  // already seeded (hot module reload)
+}
+
 // Re-export for use in tests
 export { db, schema };
 

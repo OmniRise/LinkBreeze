@@ -16,14 +16,13 @@ import {
   analyticsPageviews,
   analyticsClicks,
 } from "@/db/schema";
-import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
 import {
   type ActionResult,
   validationError,
   conflictError,
-  unauthorizedError,
 } from "@/lib/errors";
+import { requireInstanceAdmin, requireInstanceAdminOrThrow } from "@/server/access";
 import { UPLOADS_DIR, ensureUploadsDir, sniffFontFormat } from "@/lib/uploads";
 import { parseCustomFontId, customFontFamily } from "@/lib/custom-fonts";
 import {
@@ -136,7 +135,9 @@ export async function exportBackupPayload(): Promise<BackupPayload> {
 export async function restoreBackup(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   // Same invariant the scheduled paths enforce: never restore while a
   // backup (or another restore) is running — a snapshot taken mid-restore
@@ -167,7 +168,9 @@ export async function restoreBackup(formData: FormData): Promise<ActionResult> {
 export async function clearAnalytics(): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   db.transaction((tx) => {
     tx.delete(analyticsPageviews).run();
@@ -184,7 +187,9 @@ export async function clearAnalytics(): Promise<ActionResult> {
 export async function setRetention(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const raw = (formData.get("retention") as string) || "";
   const days = raw && /^\d+$/.test(raw) ? Number(raw) : 0;
@@ -201,7 +206,7 @@ export async function setRetention(formData: FormData): Promise<ActionResult> {
  */
 export async function exportTheme(id: number): Promise<ExportableTheme> {
   if (demoGuard()) throw new Error("read-only");
-  if (!(await getSession())) throw new Error("Unauthorized");
+  await requireInstanceAdminOrThrow();
 
   const rows = await db.select().from(themes).where(eq(themes.id, id)).limit(1);
   const theme = rows[0];
@@ -298,7 +303,9 @@ export async function exportTheme(id: number): Promise<ExportableTheme> {
 
 /** Import a previously-exported theme, creating a new (inactive) copy. */
 export async function importTheme(json: string): Promise<ActionResult> {
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
   const blocked = demoGuard();
   if (blocked) return blocked;
 

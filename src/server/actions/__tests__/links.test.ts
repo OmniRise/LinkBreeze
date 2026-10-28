@@ -59,6 +59,12 @@ vi.mock("@/server/queries", () => ({
   getLink: vi.fn(async () => ({ id: 1, pageId: 1 })),
   getPageById: vi.fn(async () => ({ id: 1, slug: "home", userId: 1 })),
   getDefaultPage: vi.fn(async () => ({ id: 1, slug: "home", userId: 1 })),
+  // #124 2B: the capability gate resolves the session user's role ROW.
+  getCapabilitiesForUser: vi.fn(async (): Promise<{ roleText: string; caps: { pagesLimit: number | null; visibility: string; manageAccounts: boolean; manageInstance: boolean } }> => ({
+    roleText: "admin",
+    caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true },
+  })),
+  countPagesByOwner: vi.fn(async (): Promise<number> => 0),
 }));
 
 import { createLink, updateLink, deleteLink, createDivider } from "@/server/actions/links";

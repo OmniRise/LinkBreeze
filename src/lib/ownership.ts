@@ -1,16 +1,24 @@
 /**
- * Ownership & role helpers (#124 multi-user).
+ * Ownership & capability helpers (#124 multi-user).
  *
  * Pure module — no `@/db`, no `server-only` — so unit tests can exercise the
- * role/ownership logic directly. The session carries a `role` claim; these
- * helpers centralize the two rules that must never drift:
+ * role/ownership logic directly. Two layers:
  *
+ * LEGACY (kept for sessions + bootstrapped instances): a session carries a
+ * `role` text claim; normalizeRole/canAccessPage implement the two rules that
+ * must never drift:
  *  1. Backward compat: a session minted before multi-user (or a user row with
  *     role NULL) is treated as ADMIN — the bootstrapped admin is never silently
  *     demoted. Same for the DEMO_AUTO_LOGIN mock session.
  *  2. Ownership: a non-admin ('owner') may only touch rows whose userId matches
  *     their own. A row with userId NULL is a legacy single-user row — visible to
  *     admins only (an owner must not claim another user's legacy data).
+ *
+ * 2B CAPABILITIES: a role ROW (roles table) is the source of truth. The text
+ * role is only a fast-path hint. resolveCapabilities() collapses (legacy text,
+ * role row) into concrete capabilities; canViewPage/canEditPage apply them.
+ * The builtin Admin row is immune to stripping — a corrupted row can never
+ * lock the instance out.
  */
 import type { SessionPayload } from "@/lib/session-token";
 
@@ -44,4 +52,107 @@ export function canAccessPage(
   if (!page) return false;
   if (normalizeRole(session.role) === "admin") return true;
   return page.userId != null && page.userId === session.userId;
+}
+
+// ─── 2B: role-row capabilities ──────────────────────────────────────────────
+
+export type PageVisibility = "own" | "view_all" | "manage_all";
+
+/** The subset of a roles row the resolver needs (keeps this module pure). */
+export interface RoleRowLike {
+  name: string;
+  isBuiltin: boolean;
+  pagesLimit: number | null;
+  pagesVisibility: string;
+  canManageAccounts: boolean;
+  canManageInstance: boolean;
+}
+
+export interface RoleCapabilities {
+  /** Max pages a member may own; NULL = unlimited. */
+  pagesLimit: number | null;
+  visibility: PageVisibility;
+  manageAccounts: boolean;
+  manageInstance: boolean;
+}
+
+export const ADMIN_CAPABILITIES: RoleCapabilities = {
+  pagesLimit: null,
+  visibility: "manage_all",
+  manageAccounts: true,
+  manageInstance: true,
+};
+
+export const MEMBER_CAPABILITIES: RoleCapabilities = {
+  pagesLimit: 1,
+  visibility: "own",
+  manageAccounts: false,
+  manageInstance: false,
+};
+
+const VISIBILITIES: PageVisibility[] = ["own", "view_all", "manage_all"];
+
+function toVisibility(raw: string): PageVisibility {
+  return VISIBILITIES.includes(raw as PageVisibility) ? (raw as PageVisibility) : "own";
+}
+
+/**
+ * Collapse (legacy text role, role row) into concrete capabilities.
+ *
+ * Order of authority:
+ *  1. Builtin Admin row → ALWAYS ADMIN_CAPABILITIES (immune to stripping).
+ *  2. Custom/builtin Member row → its own flags (garbage visibility → 'own').
+ *  3. No row → legacy text mapping ('admin' → Admin, everything else →
+ *     Member). Unknown/absent text denies by default.
+ */
+export function resolveCapabilities(
+  roleText: string | null | undefined,
+  roleRow: RoleRowLike | null | undefined,
+): RoleCapabilities {
+  if (roleRow) {
+    if (roleRow.isBuiltin && roleRow.name === "Admin") return ADMIN_CAPABILITIES;
+    return {
+      pagesLimit: roleRow.pagesLimit ?? null,
+      visibility: toVisibility(roleRow.pagesVisibility),
+      manageAccounts: !!roleRow.canManageAccounts,
+      manageInstance: !!roleRow.canManageInstance,
+    };
+  }
+  return normalizeRole(roleText) === "admin" ? ADMIN_CAPABILITIES : MEMBER_CAPABILITIES;
+}
+
+type PageRef = { userId?: number | null } | null | undefined;
+type Actor = { userId: number };
+
+/**
+ * May this actor READ this page? Admin-caps and manage_all pass for every
+ * owned page; view_all passes for owned pages but legacy (userId NULL) rows
+ * stay admin-only; own = only their own rows.
+ */
+export function canViewPage(
+  caps: RoleCapabilities,
+  actor: Actor,
+  page: PageRef,
+): boolean {
+  if (!page) return false;
+  if (caps.manageAccounts && caps.manageInstance) {
+    // full admin (builtin Admin or capability-complete custom role)
+    return true;
+  }
+  if (caps.visibility === "manage_all" || caps.visibility === "view_all") {
+    return page.userId != null;
+  }
+  return page.userId != null && page.userId === actor.userId;
+}
+
+/** May this actor EDIT this page? manage_all grants cross-user write; view_all does NOT. */
+export function canEditPage(
+  caps: RoleCapabilities,
+  actor: Actor,
+  page: PageRef,
+): boolean {
+  if (!page) return false;
+  if (caps.manageAccounts && caps.manageInstance) return true;
+  if (caps.visibility === "manage_all") return page.userId != null;
+  return page.userId != null && page.userId === actor.userId;
 }

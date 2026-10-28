@@ -14,7 +14,8 @@ import {
   ErrorCode,
   logError,
 } from "@/lib/errors";
-import { canAccessPage } from "@/lib/ownership";
+import { canEditPage } from "@/lib/ownership";
+import { getCapabilitiesForUser, countPagesByOwner } from "@/server/queries";
 import {
   createPage as createPageQuery,
   updatePage as updatePageQuery,
@@ -25,9 +26,11 @@ import {
 } from "@/server/queries";
 
 /**
- * Load a page and assert the current session may act on it (#124). Admins pass
- * for any page; owners only for their own. Returns the page on success, or an
- * error ActionResult (not-found / forbidden) the caller returns as-is.
+ * Load a page and assert the current session may EDIT it (#124). The actor's
+ * capabilities come from the role ROW (getCapabilitiesForUser); admins and
+ * manage_all roles pass for any page, owners only for their own. Returns the
+ * page on success, or an error ActionResult (not-found / forbidden) the
+ * caller returns as-is.
  */
 async function assertPageAccess(
   pageId: number,
@@ -36,9 +39,10 @@ async function assertPageAccess(
   if (!session) return { page: null, error: unauthorizedError() };
   const page = await getPageById(pageId);
   // Return not-found (not forbidden) for a missing page so we don't leak which
-  // ids exist; canAccessPage also rejects null.
+  // ids exist; canEditPage also rejects null.
   if (!page) return { page: null, error: notFoundError("Page not found") };
-  if (!canAccessPage(session, page)) {
+  const { caps } = await getCapabilitiesForUser(session.userId);
+  if (!canEditPage(caps, session, page)) {
     return { page: null, error: forbiddenError("You do not have access to this page") };
   }
   return { page, error: null };
@@ -78,7 +82,9 @@ const createPageSchema = z.object({
 export async function createPageAction(formData: FormData): Promise<ActionResult<{ pageId: number }>> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const { caps } = await getCapabilitiesForUser(session.userId);
 
   const parsed = createPageSchema.safeParse({
     slug: (formData.get("slug") as string)?.trim().toLowerCase(),
@@ -97,8 +103,19 @@ export async function createPageAction(formData: FormData): Promise<ActionResult
 
   // #124: an owner's new page is owned by them; an admin creating a page leaves
   // it unowned (legacy/admin-managed) unless they pass an explicit owner later.
-  const session = await getSession();
-  const ownerUserId = session && session.role !== "admin" ? session.userId : null;
+  const ownerUserId = session.role !== "admin" ? session.userId : null;
+
+  // 2B: a role's pagesLimit caps how many pages a member may OWN. Unlimited
+  // (NULL) or full-admin capabilities skip the count; import paths are
+  // instance-admin-gated so this is the only member-reachable creator.
+  if (ownerUserId != null && caps.pagesLimit != null) {
+    const owned = await countPagesByOwner(ownerUserId);
+    if (owned >= caps.pagesLimit) {
+      return forbiddenError(
+        `Your plan allows ${caps.pagesLimit} page${caps.pagesLimit === 1 ? "" : "s"}. Ask your administrator for more.`,
+      );
+    }
+  }
 
   const page = await createPageQuery({
     slug: parsed.data.slug,

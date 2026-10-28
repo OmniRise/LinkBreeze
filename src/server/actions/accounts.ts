@@ -8,36 +8,51 @@ import {
   type ActionResult,
   validationError,
   unauthorizedError,
-  forbiddenError,
   conflictError,
   notFoundError,
   ErrorCode,
   logError,
 } from "@/lib/errors";
 import {
-  listUsers,
   listAccountSummaries,
   getUserById,
   getUserByUsername,
   createUser,
   updateUserStatus,
-  updateUserRole,
   deleteUser,
   getPageByOwner,
   setPageOwner,
   updatePage,
   getPageById,
+  createPage,
+  getAllPages,
+  getRoleById,
+  listInstanceAdminIds,
+  getCapabilitiesForUser,
+  getSetting,
+  updateSetting,
 } from "@/server/queries";
+import { requireAccountsAdmin, requireInstanceAdmin } from "@/server/access";
 import { normalizeSlug, slugError, SLUG_ERRORS } from "@/lib/link-slug";
 
-/** Admin-only precondition shared by every account action. */
-async function requireAdmin() {
-  const session = await getSession();
-  if (!session) return { session: null, error: unauthorizedError() };
-  if (session.role !== "admin") {
-    return { session, error: forbiddenError("Only admins can manage accounts") };
+/** First page slug for a new account: the username, made unique with -2/-3… */
+async function uniqueSlugForUsername(username: string): Promise<string> {
+  const base = normalizeSlug(username) || "user";
+  const taken = new Set((await getAllPages()).map((p) => p.slug.toLowerCase()));
+  if (!taken.has(base.toLowerCase()) && !slugError(base)) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base}-${i}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
   }
-  return { session, error: null };
+}
+
+/**
+ * #124 2B.4 — instance page policy: 'per_user' (default) auto-creates each
+ * new account's own public page; 'manual' leaves new pages to the admin.
+ */
+async function accountPagePolicy(): Promise<"per_user" | "manual"> {
+  const v = await getSetting("accountPagePolicy");
+  return v === "manual" ? "manual" : "per_user";
 }
 
 /**
@@ -49,6 +64,8 @@ function publicAccount(u: {
   id: number;
   username: string;
   role: string;
+  roleId?: number | null;
+  roleName?: string | null;
   status: string;
   createdAt: string;
   lastLoginAt: string | null;
@@ -58,6 +75,8 @@ function publicAccount(u: {
     id: u.id,
     username: u.username,
     role: u.role,
+    roleId: u.roleId ?? null,
+    roleName: u.roleName ?? null,
     status: u.status,
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt,
@@ -69,8 +88,8 @@ export type AccountSummary = ReturnType<typeof publicAccount>;
 
 export async function listAccountsAction(): Promise<ActionResult<{ accounts: AccountSummary[] }>> {
   if (demoGuard()) return unauthorizedError();
-  const { error } = await requireAdmin();
-  if (error) return error;
+  const denied = await requireAccountsAdmin();
+  if (denied) return denied;
   const accounts = (await listAccountSummaries()).map(publicAccount);
   return { success: true, accounts };
 }
@@ -95,30 +114,46 @@ const passwordSchema = z
 
 export async function createAccountAction(formData: FormData): Promise<ActionResult<{ accountId: number }>> {
   if (demoGuard()) return unauthorizedError();
-  const { error } = await requireAdmin();
-  if (error) return error;
+  const denied = await requireAccountsAdmin();
+  if (denied) return denied;
 
   const parsed = z
     .object({
       username: usernameSchema,
       password: passwordSchema,
-      role: z.enum(["admin", "owner"]).default("owner"),
+      // Role ROW id. Absent → the builtin Member role.
+      roleId: z.coerce.number().int().positive().nullish(),
     })
     .safeParse({
       username: formData.get("username"),
       password: formData.get("password"),
-      role: formData.get("role") || "owner",
+      roleId: formData.get("roleId"),
     });
   if (!parsed.success) {
     return validationError(parsed.error.issues[0]?.message ?? "Invalid input");
   }
-  const { username, password, role } = parsed.data;
+  const { username, password, roleId } = parsed.data;
 
   const existing = await getUserByUsername(username);
   if (existing) return conflictError("Username already taken");
 
+  // Validate the role up front (a bad id would otherwise silently yield the
+  // legacy text mapping instead of the role the admin picked).
+  if (roleId) {
+    const role = await getRoleById(roleId);
+    if (!role) return notFoundError("Role not found");
+  }
+
   try {
-    const user = await createUser(username, await hashPassword(password), { role });
+    const user = await createUser(username, await hashPassword(password), roleId ? { roleId } : {});
+    // 2B.4 page policy: 'per_user' (default) provisions the account's own page.
+    if (await accountPagePolicy() !== "manual") {
+      await createPage({
+        slug: await uniqueSlugForUsername(username),
+        title: username,
+        userId: user.id,
+      });
+    }
     return { success: true, accountId: user.id };
   } catch (err) {
     logError("createAccount", err, { username });
@@ -135,18 +170,23 @@ export async function setAccountStatusAction(
   status: "active" | "disabled",
 ): Promise<ActionResult> {
   if (demoGuard()) return unauthorizedError();
-  const { session, error } = await requireAdmin();
-  if (error) return error;
+  const denied = await requireAccountsAdmin();
+  if (denied) return denied;
+  const session = await getSession();
+  if (!session) return unauthorizedError();
 
   const target = await getUserById(userId);
   if (!target) return notFoundError("Account not found");
-  if (userId === session!.userId && status === "disabled") {
+  if (userId === session.userId && status === "disabled") {
     return validationError("You cannot disable your own account");
   }
-  // Never disable the last active admin — that would lock the instance.
-  if (status === "disabled" && target.role === "admin") {
-    const admins = (await listUsers()).filter((u) => u.role === "admin" && u.status === "active");
-    if (admins.length <= 1) return validationError("Cannot disable the last active admin");
+  // Never disable the last instance admin (capability-based: a custom role
+  // holding manageAccounts+manageInstance counts, a legacy text admin counts).
+  if (status === "disabled") {
+    const adminIds = await listInstanceAdminIds();
+    if (adminIds.includes(userId) && adminIds.length <= 1) {
+      return validationError("Cannot disable the last active admin");
+    }
   }
 
   await updateUserStatus(userId, status);
@@ -154,28 +194,40 @@ export async function setAccountStatusAction(
   return { success: true };
 }
 
-export async function setAccountRoleAction(
+/**
+ * Assign a role ROW to an account (#124 2B). The text-role action this
+ * replaces stayed backwards compatible via the resolver: NULL role_id maps
+ * through the legacy text. The last-admin invariant is capability-based.
+ */
+export async function assignAccountRoleAction(
   userId: number,
-  role: "admin" | "owner",
+  roleId: number,
 ): Promise<ActionResult> {
   if (demoGuard()) return unauthorizedError();
-  const { session, error } = await requireAdmin();
-  if (error) return error;
+  const denied = await requireAccountsAdmin();
+  if (denied) return denied;
 
   const target = await getUserById(userId);
   if (!target) return notFoundError("Account not found");
-  if (userId === session!.userId && role === "owner") {
-    return validationError("You cannot remove your own admin role");
-  }
-  if (target.role === "admin" && role === "owner") {
-    const admins = (await listUsers()).filter((u) => u.role === "admin" && u.status === "active");
-    if (admins.length <= 1) return validationError("Cannot demote the last active admin");
+  const role = await getRoleById(roleId);
+  if (!role) return notFoundError("Role not found");
+
+  const caps = await getCapabilitiesForUser(userId);
+  const wasFullAdmin = caps.caps.manageAccounts && caps.caps.manageInstance;
+  const willBeFullAdmin =
+    (role.isBuiltin && role.name === "Admin") ||
+    (role.canManageAccounts && role.canManageInstance);
+  if (wasFullAdmin && !willBeFullAdmin) {
+    const adminIds = await listInstanceAdminIds();
+    if (adminIds.length <= 1) {
+      return validationError("Cannot demote the last active admin");
+    }
   }
 
-  await updateUserRole(userId, role);
-  // Role changed → existing sessions carry a stale role claim. Bump the
-  // sessionVersion so every session re-mints with the correct role.
-  const { updateSetting, getSetting } = await import("@/server/queries");
+  const { updateUserRoleById } = await import("@/server/queries");
+  await updateUserRoleById(userId, roleId);
+  // Capabilities changed → existing sessions carry stale role claims. Bump
+  // the sessionVersion so every session re-mints with the correct role.
   const v = Number(await getSetting("sessionVersion")) || 0;
   await updateSetting("sessionVersion", String(v + 1));
   revalidatePath("/accounts");
@@ -192,8 +244,10 @@ const releaseSlugSchema = z.object({
 
 export async function deleteAccountAction(formData: FormData): Promise<ActionResult> {
   if (demoGuard()) return unauthorizedError();
-  const { session, error } = await requireAdmin();
-  if (error) return error;
+  const denied = await requireAccountsAdmin();
+  if (denied) return denied;
+  const session = await getSession();
+  if (!session) return unauthorizedError();
 
   const parsed = releaseSlugSchema.safeParse({
     userId: formData.get("userId"),
@@ -205,14 +259,15 @@ export async function deleteAccountAction(formData: FormData): Promise<ActionRes
   }
   const { userId, releaseSlug, slug } = parsed.data;
 
-  if (userId === session!.userId) {
+  if (userId === session.userId) {
     return validationError("You cannot delete your own account");
   }
   const target = await getUserById(userId);
   if (!target) return notFoundError("Account not found");
-  if (target.role === "admin") {
-    const admins = (await listUsers()).filter((u) => u.role === "admin" && u.status === "active");
-    if (admins.length <= 1) return validationError("Cannot delete the last active admin");
+  const caps = await getCapabilitiesForUser(userId);
+  if (caps.caps.manageAccounts && caps.caps.manageInstance) {
+    const adminIds = await listInstanceAdminIds();
+    if (adminIds.length <= 1) return validationError("Cannot delete the last active admin");
   }
 
   const page = await getPageByOwner(userId);
@@ -254,10 +309,25 @@ const reassignSchema = z.object({
   slug: z.string().min(1, "Slug is required"),
 });
 
+/**
+ * 2B.4 — instance page policy: 'per_user' (default) auto-creates each new
+ * account's own page; 'manual' leaves new pages to the admin. Instance-level
+ * setting → manageInstance required.
+ */
+export async function setAccountPagePolicyAction(policy: "per_user" | "manual"): Promise<ActionResult> {
+  if (demoGuard()) return unauthorizedError();
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
+  if (policy !== "per_user" && policy !== "manual") return validationError("Invalid policy");
+  await updateSetting("accountPagePolicy", policy);
+  revalidatePath("/accounts");
+  return { success: true };
+}
+
 export async function reassignPageSlugAction(formData: FormData): Promise<ActionResult> {
   if (demoGuard()) return unauthorizedError();
-  const { error } = await requireAdmin();
-  if (error) return error;
+  const denied = await requireAccountsAdmin();
+  if (denied) return denied;
 
   const parsed = reassignSchema.safeParse({
     pageId: formData.get("pageId"),

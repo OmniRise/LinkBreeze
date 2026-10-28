@@ -32,6 +32,11 @@ vi.mock("node:fs/promises", () => ({
   unlink: mocks.unlink,
 }));
 vi.mock("@/server/queries", () => ({
+  // #124 2B: capability gate (access.ts) resolves the session's role ROW.
+  getCapabilitiesForUser: vi.fn(async (): Promise<{ roleText: string; caps: { pagesLimit: number | null; visibility: string; manageAccounts: boolean; manageInstance: boolean } }> => ({
+    roleText: "admin",
+    caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true },
+  })),
   insertCustomFont: mocks.insertCustomFont,
   updateCustomFontFamily: mocks.updateCustomFontFamily,
   getCustomFontById: mocks.getCustomFontById,

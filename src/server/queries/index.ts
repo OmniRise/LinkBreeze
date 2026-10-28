@@ -12,7 +12,9 @@ import {
   analyticsPageviews,
   analyticsClicks,
   subscribers,
+  roles,
 } from "@/db/schema";
+import { resolveCapabilities, type RoleCapabilities } from "@/lib/ownership";
 import { PRESETS } from "@/lib/theme-presets";
 import {
   eq,
@@ -409,6 +411,16 @@ export async function reorderLinks(orderedIds: number[]): Promise<void> {
 
 export type LinkSectionRow = typeof linkSections.$inferSelect;
 
+/** The page a section belongs to (null when the section doesn't exist). */
+export async function getSectionPageId(sectionId: number): Promise<number | null> {
+  const rows = await db
+    .select({ pageId: linkSections.pageId })
+    .from(linkSections)
+    .where(eq(linkSections.id, sectionId))
+    .limit(1);
+  return rows[0]?.pageId ?? null;
+}
+
 export async function getSectionsByPage(pageId: number): Promise<LinkSectionRow[]> {
   return db
     .select()
@@ -758,11 +770,17 @@ export async function getUserByUsername(username: string): Promise<UserRow | nul
 export async function createUser(
   username: string,
   passwordHash: string,
-  opts: { role?: "admin" | "owner" } = {},
+  opts: { role?: "admin" | "owner"; roleId?: number } = {},
 ): Promise<UserRow> {
   const created = await db
     .insert(users)
-    .values({ username, passwordHash, role: opts.role ?? "owner" })
+    .values({
+      username,
+      passwordHash,
+      role: opts.role ?? "owner",
+      // Role ROW reference (#124 2B); NULL maps through the legacy text role.
+      roleId: opts.roleId ?? null,
+    })
     .returning();
   return created[0];
 }
@@ -825,7 +843,7 @@ export async function listUsers(): Promise<UserRow[]> {
 export type AccountSummaryRow = Pick<
   UserRow,
   "id" | "username" | "role" | "status" | "createdAt" | "lastLoginAt"
-> & { pageSlug: string | null };
+> & { roleId: number | null; roleName: string | null; pageSlug: string | null };
 
 export async function listAccountSummaries(): Promise<AccountSummaryRow[]> {
   return db
@@ -833,6 +851,8 @@ export async function listAccountSummaries(): Promise<AccountSummaryRow[]> {
       id: users.id,
       username: users.username,
       role: users.role,
+      roleId: users.roleId,
+      roleName: roles.name,
       status: users.status,
       createdAt: users.createdAt,
       lastLoginAt: users.lastLoginAt,
@@ -840,6 +860,7 @@ export async function listAccountSummaries(): Promise<AccountSummaryRow[]> {
     })
     .from(users)
     .leftJoin(pages, eq(pages.userId, users.id))
+    .leftJoin(roles, eq(users.roleId, roles.id))
     .orderBy(asc(users.id));
 }
 
@@ -847,8 +868,108 @@ export async function updateUserStatus(userId: number, status: "active" | "disab
   await db.update(users).set({ status }).where(eq(users.id, userId));
 }
 
+// ─── Customizable roles (#124 2B) ─────────────────────────────────────────────
+
+export type RoleRow = typeof roles.$inferSelect;
+
+export async function listRoles(): Promise<RoleRow[]> {
+  return db.select().from(roles).orderBy(desc(roles.isBuiltin), asc(roles.id));
+}
+
+export async function getRoleById(roleId: number): Promise<RoleRow | null> {
+  const rows = await db.select().from(roles).where(eq(roles.id, roleId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getRoleByName(name: string): Promise<RoleRow | null> {
+  const rows = await db.select().from(roles).where(eq(roles.name, name)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createRole(input: {
+  name: string;
+  pagesLimit: number | null;
+  pagesVisibility: string;
+  canManageAccounts: boolean;
+  canManageInstance: boolean;
+}): Promise<RoleRow> {
+  const created = await db.insert(roles).values(input).returning();
+  return created[0];
+}
+
+export async function updateRole(
+  roleId: number,
+  patch: Partial<{ name: string; pagesLimit: number | null; pagesVisibility: string; canManageAccounts: boolean; canManageInstance: boolean }>,
+): Promise<void> {
+  await db.update(roles).set(patch).where(eq(roles.id, roleId));
+}
+
+export async function deleteRole(roleId: number): Promise<void> {
+  await db.delete(roles).where(eq(roles.id, roleId));
+}
+
+export async function countUsersWithRole(roleId: number): Promise<number> {
+  const rows = await db.select({ c: sql<number>`count(*)` }).from(users).where(eq(users.roleId, roleId));
+  return rows[0]?.c ?? 0;
+}
+
+/** Move every user of one role to another (role-delete reassignment). */
+export async function moveUsersToRole(fromRoleId: number, toRoleId: number): Promise<void> {
+  await db.update(users).set({ roleId: toRoleId }).where(eq(users.roleId, fromRoleId));
+}
+
+/**
+ * Resolve a user's capabilities from the role ROW (source of truth), mapping
+ * a NULL/missing row through the legacy text role. One query; the collapse
+ * rules live in the pure resolver (ownership.ts).
+ */
+export async function getCapabilitiesForUser(
+  userId: number,
+): Promise<{ roleText: string | null; caps: RoleCapabilities }> {
+  const rows = await db
+    .select({ roleText: users.role, roleRow: roles })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+  const row = rows[0];
+  return {
+    roleText: row?.roleText ?? null,
+    caps: resolveCapabilities(row?.roleText ?? null, row?.roleRow ?? null),
+  };
+}
+
+/**
+ * Every account that holds BOTH manageAccounts AND manageInstance — the
+ * instance-admin set the last-admin invariant counts. Legacy text admins
+ * (role_id NULL) count too, so pre-2B bootstrapped admins are never lost.
+ */
+export async function listInstanceAdminIds(): Promise<number[]> {
+  const rows = await db
+    .select({ id: users.id, roleText: users.role, roleRow: roles })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id));
+  return rows
+    .filter((r) => {
+      const caps = resolveCapabilities(r.roleText, r.roleRow);
+      return caps.manageAccounts && caps.manageInstance;
+    })
+    .map((r) => r.id);
+}
+
+/** How many pages a user currently owns (pagesLimit enforcement). */
+export async function countPagesByOwner(userId: number): Promise<number> {
+  const rows = await db.select({ c: sql<number>`count(*)` }).from(pages).where(eq(pages.userId, userId));
+  return rows[0]?.c ?? 0;
+}
+
 export async function updateUserRole(userId: number, role: "admin" | "owner"): Promise<void> {
   await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+/** #124 2B: assign a role ROW to a user (the capability source of truth). */
+export async function updateUserRoleById(userId: number, roleId: number | null): Promise<void> {
+  await db.update(users).set({ roleId }).where(eq(users.id, userId));
 }
 
 /** Stamp last_login_at on a successful sign-in (local or OIDC). */

@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   createUser: vi.fn(async () => ({ id: 9 })),
   updateUserStatus: vi.fn(async () => undefined),
   updateUserRole: vi.fn(async () => undefined),
+  updateUserRoleById: vi.fn(async () => undefined),
   deleteUser: vi.fn(async () => undefined),
   getPageByOwner: vi.fn(async (): Promise<{ id: number; slug: string; userId: number } | null> => null),
   setPageOwner: vi.fn(async () => undefined),
@@ -33,6 +34,14 @@ const mocks = vi.hoisted(() => ({
   getPageById: vi.fn(async (): Promise<{ id: number; slug: string; userId: number } | null> => null),
   getSetting: vi.fn(async (): Promise<string | null> => null),
   updateSetting: vi.fn(async () => undefined),
+  createPage: vi.fn(async () => ({ id: 50 })),
+  getAllPages: vi.fn(async (): Promise<{ id: number; slug: string }[]> => []),
+  getRoleById: vi.fn(async (): Promise<Record<string, unknown> | null> => null),
+  listInstanceAdminIds: vi.fn(async (): Promise<number[]> => [1, 2]),
+  getCapabilitiesForUser: vi.fn(async (userId: number): Promise<{ roleText: string; caps: { pagesLimit: number | null; visibility: string; manageAccounts: boolean; manageInstance: boolean } }> => ({
+    roleText: userId === 1 ? "admin" : "owner",
+    caps: userId === 1 ? { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true } : { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false },
+  })),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -46,6 +55,7 @@ vi.mock("@/server/queries", () => ({
   createUser: mocks.createUser,
   updateUserStatus: mocks.updateUserStatus,
   updateUserRole: mocks.updateUserRole,
+  updateUserRoleById: mocks.updateUserRoleById,
   deleteUser: mocks.deleteUser,
   getPageByOwner: mocks.getPageByOwner,
   setPageOwner: mocks.setPageOwner,
@@ -53,13 +63,18 @@ vi.mock("@/server/queries", () => ({
   getPageById: mocks.getPageById,
   getSetting: mocks.getSetting,
   updateSetting: mocks.updateSetting,
+  createPage: mocks.createPage,
+  getAllPages: mocks.getAllPages,
+  getRoleById: mocks.getRoleById,
+  listInstanceAdminIds: mocks.listInstanceAdminIds,
+  getCapabilitiesForUser: mocks.getCapabilitiesForUser,
 }));
 
 import {
   listAccountsAction,
   createAccountAction,
   setAccountStatusAction,
-  setAccountRoleAction,
+  assignAccountRoleAction,
   deleteAccountAction,
   reassignPageSlugAction,
 } from "@/server/actions/accounts";
@@ -79,11 +94,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.demoGuard.mockReturnValue(null);
   mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" });
+  mocks.getCapabilitiesForUser.mockResolvedValue({
+    roleText: "admin",
+    caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true },
+  });
+  mocks.listInstanceAdminIds.mockResolvedValue([1, 2]);
   mocks.getUserById.mockResolvedValue(null);
   mocks.getUserByUsername.mockResolvedValue(null);
   mocks.getPageByOwner.mockResolvedValue(null);
   mocks.getPageById.mockResolvedValue(null);
-  mocks.getSetting.mockResolvedValue("3");
+  mocks.getRoleById.mockResolvedValue(null);
+  mocks.getAllPages.mockResolvedValue([]);
+  mocks.getSetting.mockResolvedValue(null); // accountPagePolicy default: per_user
   seedUsers([
     { id: 1, role: "admin", status: "active" },
     { id: 2, role: "admin", status: "active" },
@@ -98,20 +120,24 @@ describe("admin gating (every account action)", () => {
     expect((await listAccountsAction()).success).toBe(false);
     expect((await createAccountAction(fd({ username: "bob", password: "Password1" }))).success).toBe(false);
     expect((await setAccountStatusAction(2, "disabled")).success).toBe(false);
-    expect((await setAccountRoleAction(2, "owner")).success).toBe(false);
+    expect((await assignAccountRoleAction(2, 2)).success).toBe(false);
     expect((await deleteAccountAction(fd({ userId: "2" }))).success).toBe(false);
     expect((await reassignPageSlugAction(fd({ pageId: "1", slug: "x" }))).success).toBe(false);
   });
 
   it("rejects non-admin (owner) sessions with forbidden", async () => {
     mocks.getSession.mockResolvedValue({ userId: 5, username: "member", exp: Date.now() + 60000, pv: 1, role: "owner" });
+    mocks.getCapabilitiesForUser.mockResolvedValue({
+      roleText: "owner",
+      caps: { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false },
+    });
     const res = await createAccountAction(fd({ username: "bob", password: "Password1" }));
     expect(res.success).toBe(false);
     if (!res.success) expect(res.errorCode).toBe("forbidden");
     expect(mocks.createUser).not.toHaveBeenCalled();
     expect((await listAccountsAction()).success).toBe(false);
     expect((await setAccountStatusAction(2, "disabled")).success).toBe(false);
-    expect((await setAccountRoleAction(2, "owner")).success).toBe(false);
+    expect((await assignAccountRoleAction(2, 2)).success).toBe(false);
     expect((await deleteAccountAction(fd({ userId: "2" }))).success).toBe(false);
     expect((await reassignPageSlugAction(fd({ pageId: "1", slug: "x" }))).success).toBe(false);
   });
@@ -152,13 +178,35 @@ describe("createAccountAction", () => {
     const res = await createAccountAction(fd({ username: "bob", password: "Password1" }));
     expect(res.success).toBe(true);
     expect(mocks.hashPassword).toHaveBeenCalledWith("Password1");
-    expect(mocks.createUser).toHaveBeenCalledWith("bob", "hashed-Password1", { role: "owner" });
+    expect(mocks.createUser).toHaveBeenCalledWith("bob", "hashed-Password1", {});
   });
 
-  it("honors an explicit admin role", async () => {
-    const res = await createAccountAction(fd({ username: "bob", password: "Password1", role: "admin" }));
+  it("honors an explicit role row id and validates it exists", async () => {
+    mocks.getRoleById.mockResolvedValue({ id: 5, name: "Editor", isBuiltin: false });
+    const res = await createAccountAction(fd({ username: "bob", password: "Password1", roleId: "5" }));
     expect(res.success).toBe(true);
-    expect(mocks.createUser).toHaveBeenCalledWith("bob", "hashed-Password1", { role: "admin" });
+    expect(mocks.createUser).toHaveBeenCalledWith("bob", "hashed-Password1", { roleId: 5 });
+  });
+
+  it("rejects an unknown role id with not-found", async () => {
+    const res = await createAccountAction(fd({ username: "bob", password: "Password1", roleId: "99" }));
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.errorCode).toBe("not_found");
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("2B.4 page policy per_user (default): provisions the account's own page, slug collision-safe", async () => {
+    mocks.getAllPages.mockResolvedValue([{ id: 1, slug: "bob" }]);
+    const res = await createAccountAction(fd({ username: "bob", password: "Password1" }));
+    expect(res.success).toBe(true);
+    expect(mocks.createPage).toHaveBeenCalledWith({ slug: "bob-2", title: "bob", userId: 9 });
+  });
+
+  it("2B.4 page policy manual: NO page is provisioned", async () => {
+    mocks.getSetting.mockResolvedValue("manual");
+    const res = await createAccountAction(fd({ username: "bob", password: "Password1" }));
+    expect(res.success).toBe(true);
+    expect(mocks.createPage).not.toHaveBeenCalled();
   });
 
   it("rejects duplicate usernames with conflict", async () => {
@@ -244,33 +292,59 @@ describe("setAccountStatusAction", () => {
 
 // ─────────────────────────── setAccountRoleAction ───────────────────────────
 
-describe("setAccountRoleAction", () => {
-  it("changes a role and bumps sessionVersion (stale role claims must die)", async () => {
-    mocks.getUserById.mockResolvedValue({ id: 2, role: "owner", status: "active" });
-    const res = await setAccountRoleAction(2, "admin");
+describe("assignAccountRoleAction", () => {
+  const memberRole = { id: 2, name: "Member", isBuiltin: true, pagesLimit: 1, pagesVisibility: "own", canManageAccounts: false, canManageInstance: false };
+  const adminRole = { id: 1, name: "Admin", isBuiltin: true, pagesLimit: null, pagesVisibility: "manage_all", canManageAccounts: true, canManageInstance: true };
+
+  it("assigns a role row and bumps sessionVersion (stale claims must die)", async () => {
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    mocks.getRoleById.mockResolvedValue(memberRole);
+    // keyed by userId: the gate resolves the SESSION (admin), the action resolves the TARGET (member)
+    mocks.getCapabilitiesForUser.mockImplementation(async (userId: number) =>
+      userId === 3
+        ? { roleText: "owner", caps: { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false } }
+        : { roleText: "admin", caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true } },
+    );
+    const res = await assignAccountRoleAction(3, 2);
     expect(res.success).toBe(true);
-    expect(mocks.updateUserRole).toHaveBeenCalledWith(2, "admin");
-    expect(mocks.updateSetting).toHaveBeenCalledWith("sessionVersion", "4");
+    expect(mocks.updateUserRoleById).toHaveBeenCalledWith(3, 2);
+    expect(mocks.updateSetting).toHaveBeenCalledWith("sessionVersion", "1");
   });
 
-  it("refuses to remove your own admin role", async () => {
+  it("refuses to demote the LAST instance admin (capability-based)", async () => {
     mocks.getUserById.mockResolvedValue({ id: 1, role: "admin", status: "active" });
-    const res = await setAccountRoleAction(1, "owner");
+    mocks.getRoleById.mockResolvedValue(memberRole);
+    mocks.listInstanceAdminIds.mockResolvedValue([1]);
+    const res = await assignAccountRoleAction(1, 2);
     expect(res.success).toBe(false);
-    expect(mocks.updateUserRole).not.toHaveBeenCalled();
-    expect(mocks.updateSetting).not.toHaveBeenCalled();
+    expect(mocks.updateUserRoleById).not.toHaveBeenCalled();
   });
 
-  it("refuses to demote the last active admin", async () => {
-    seedUsers([{ id: 1, role: "admin", status: "active" }]);
+  it("ALLOWS demotion when a second instance admin exists (handover)", async () => {
     mocks.getUserById.mockResolvedValue({ id: 1, role: "admin", status: "active" });
-    const res = await setAccountRoleAction(1, "owner");
-    expect(res.success).toBe(false);
-    expect(mocks.updateUserRole).not.toHaveBeenCalled();
+    mocks.getRoleById.mockResolvedValue(memberRole);
+    mocks.listInstanceAdminIds.mockResolvedValue([1, 2]);
+    const res = await assignAccountRoleAction(1, 2);
+    expect(res.success).toBe(true);
+    expect(mocks.updateUserRoleById).toHaveBeenCalledWith(1, 2);
   });
 
-  it("returns not-found for an unknown user", async () => {
-    const res = await setAccountRoleAction(42, "admin");
+  it("assigning the Admin role to a member never trips the invariant", async () => {
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    mocks.getRoleById.mockResolvedValue(adminRole);
+    mocks.getCapabilitiesForUser.mockImplementation(async (userId: number) =>
+      userId === 3
+        ? { roleText: "owner", caps: { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false } }
+        : { roleText: "admin", caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true } },
+    );
+    const res = await assignAccountRoleAction(3, 1);
+    expect(res.success).toBe(true);
+  });
+
+  it("returns not-found for an unknown user or role", async () => {
+    expect((await assignAccountRoleAction(42, 2)).success).toBe(false);
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    const res = await assignAccountRoleAction(3, 99);
     expect(res.success).toBe(false);
     if (!res.success) expect(res.errorCode).toBe("not_found");
   });
