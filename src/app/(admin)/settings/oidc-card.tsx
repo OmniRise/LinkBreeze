@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { KeyRound, Loader2 } from "lucide-react";
+import {
+  KeyRound,
+  Loader2,
+  Plus,
+} from "lucide-react";
 
 import { localizeActionError } from "@/lib/action-error-i18n";
 import { useSavedAction } from "@/hooks/use-saved-action";
@@ -35,12 +39,20 @@ export function OidcCard({
   jit,
   mode,
   secretSet,
+  groupClaim,
+  noGroupMatch,
+  groupRoleMap,
+  roles,
 }: {
   issuer: string;
   clientId: string;
   jit: boolean;
   mode: "optional" | "replaces_local";
   secretSet: boolean;
+  groupClaim: string;
+  noGroupMatch: "default_role" | "refuse";
+  groupRoleMap: string;
+  roles: { id: number; name: string }[];
 }) {
   const t = useTranslations("settings.oidc");
   const tCommon = useTranslations("common");
@@ -50,9 +62,29 @@ export function OidcCard({
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState(false);
 
+  const initialMap: { group: string; roleId: number }[] = React.useMemo(() => {
+    try {
+      const parsed: unknown = JSON.parse(groupRoleMap);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(
+        (e): e is { group: string; roleId: number } =>
+          typeof e === "object" && e !== null &&
+          typeof (e as { group?: unknown }).group === "string" &&
+          typeof (e as { roleId?: unknown }).roleId === "number",
+      );
+    } catch {
+      return [];
+    }
+  }, [groupRoleMap]);
+  const [mapRows, setMapRows] = React.useState<{ group: string; roleId: number }[]>(initialMap);
+  // Reset local rows when the server value changes after a save.
+  React.useEffect(() => setMapRows(initialMap), [initialMap]);
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    // The editor keeps the rows in state; serialize them for the action.
+    fd.set("groupRoleMap", JSON.stringify(mapRows.filter((r) => r.group.trim() !== "")));
     setError(null);
     setSaved(false);
     startTransition(async () => {
@@ -115,6 +147,100 @@ export function OidcCard({
             <input type="checkbox" name="jit" defaultChecked={jit} className="size-4" />
             {t("jit")}
           </label>
+
+          {/* ── Group → role mapping ─────────────────────────────────────── */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+            <FormField
+              label={t("groupClaim")}
+              htmlFor="oidc-group-claim"
+              hint={t("groupClaimHint")}
+            >
+              <Input
+                id="oidc-group-claim"
+                name="groupClaim"
+                defaultValue={groupClaim}
+                autoComplete="off"
+                spellCheck={false}
+                className="max-w-xs"
+              />
+            </FormField>
+
+            <p className="text-sm font-medium">{t("groupMapTitle")}</p>
+            <p className="text-xs text-muted-foreground">{t("groupMapHint")}</p>
+            {mapRows.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {mapRows.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      value={row.group}
+                      onChange={(e) =>
+                        setMapRows((rows) => rows.map((r, j) => (j === i ? { ...r, group: e.target.value } : r)))
+                      }
+                      aria-label={t("groupMapGroup")}
+                      placeholder={t("groupMapGroup")}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="max-w-48"
+                    />
+                    <span aria-hidden className="text-xs text-muted-foreground">→</span>
+                    <select
+                      value={row.roleId}
+                      onChange={(e) =>
+                        setMapRows((rows) => rows.map((r, j) => (j === i ? { ...r, roleId: Number(e.target.value) } : r)))
+                      }
+                      aria-label={t("groupMapRole")}
+                      className={SELECT_CLASSES}
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id} className="bg-background text-foreground">
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setMapRows((rows) => rows.filter((_, j) => j !== i))}
+                      aria-label={t("groupMapRemove")}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setMapRows((rows) => [...rows, { group: "", roleId: roles[0]?.id ?? 0 }])
+                }
+                disabled={roles.length === 0}
+              >
+                <Plus className="size-3.5" aria-hidden />
+                {t("groupMapAdd")}
+              </Button>
+            </div>
+
+            <FormField label={t("noGroupMatch")} htmlFor="oidc-no-group-match">
+              <select
+                id="oidc-no-group-match"
+                name="noGroupMatch"
+                defaultValue={noGroupMatch}
+                className={SELECT_CLASSES}
+              >
+                <option value="default_role" className="bg-background text-foreground">
+                  {t("noMatchDefault")}
+                </option>
+                <option value="refuse" className="bg-background text-foreground">
+                  {t("noMatchRefuse")}
+                </option>
+              </select>
+            </FormField>
+          </div>
 
           <FormField label={t("mode")} htmlFor="oidc-mode">
             <select id="oidc-mode" name="mode" defaultValue={mode} className={SELECT_CLASSES}>

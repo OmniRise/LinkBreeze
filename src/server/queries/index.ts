@@ -1064,15 +1064,43 @@ export async function getOidcSettingsRaw(): Promise<{
   jit: string | null;
   mode: string | null;
   defaultRoleId: string | null;
+  groupClaim: string | null;
+  noGroupMatch: string | null;
+  groupRoleMap: string | null;
 }> {
-  const [issuer, clientId, jit, mode, defaultRoleId] = await Promise.all([
-    getSetting("oidcIssuer"),
-    getSetting("oidcClientId"),
-    getSetting("oidcJit"),
-    getSetting("oidcMode"),
-    getSetting("oidcDefaultRoleId"),
-  ]);
-  return { issuer, clientId, jit, mode, defaultRoleId };
+  const [issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap] =
+    await Promise.all([
+      getSetting("oidcIssuer"),
+      getSetting("oidcClientId"),
+      getSetting("oidcJit"),
+      getSetting("oidcMode"),
+      getSetting("oidcDefaultRoleId"),
+      getSetting("oidcGroupClaim"),
+      getSetting("oidcNoGroupMatch"),
+      getSetting("oidcGroupRoleMap"),
+    ]);
+  return { issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap };
+}
+
+/** Parse the stored group→role rules JSON; garbage returns [] (mapping off). */
+export function parseGroupRoleMap(raw: string | null): { group: string; roleId: number }[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const out: { group: string; roleId: number }[] = [];
+    for (const entry of parsed) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const group = (entry as Record<string, unknown>).group;
+      const roleId = (entry as Record<string, unknown>).roleId;
+      if (typeof group !== "string" || group.trim() === "") continue;
+      if (typeof roleId !== "number" || !Number.isInteger(roleId) || roleId <= 0) continue;
+      out.push({ group: group.trim(), roleId });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 export async function updateUserRole(userId: number, role: "admin" | "owner"): Promise<void> {

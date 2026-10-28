@@ -4,11 +4,13 @@ import { getSession } from "@/lib/auth";
 import { getUserById, consumeOidcState, getOidcConfig, findUserIdByOidcIdentity, linkOidcIdentity } from "@/server/queries";
 import { safeRedirectTo } from "@/lib/oidc";
 import {
+  applyGroupRoleResync,
   fetchDiscovery,
   exchangeCode,
   fetchUserInfo,
   getOidcClientSecret,
   provisionOidcUser,
+  resolveOidcRole,
 } from "@/server/oidc-flow";
 import { pickRequestHost } from "@/lib/host-routing";
 
@@ -93,9 +95,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   let userId: number;
   let username: string;
 
+  // Group → role mapping (locked design): first-match rules, evaluated on
+  // every SSO login; "refuse" policy blocks logins with no matching group;
+  // the last-admin invariant guards every resync.
+  const mapping = await resolveOidcRole(userinfo.groups);
+  if (mapping.refused) return fail("norole");
+
   if (session) {
     // Account linking: bind this identity to the signed-in account. If the
     // identity is already bound to a DIFFERENT account, refuse (no takeover).
+    // Deliberately does NOT touch the actor's role — resync happens on SSO
+    // logins, and demoting the acting admin mid-link would be surprising.
     if (existing && existing.userId !== session.userId) return fail("bound");
     if (!existing) {
       await linkOidcIdentity({
@@ -111,6 +121,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const user = await getUserById(existing.userId);
     if (!user) return fail("unavailable");
     if (user.status === "disabled") return fail("disabled");
+    // Mapping wins on every SSO login (invariant-guarded inside).
+    if (mapping.applied && mapping.roleId != null) {
+      await applyGroupRoleResync(user.id, userinfo.groups);
+    }
     userId = user.id;
     username = user.username;
   } else {
@@ -119,6 +133,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       username: userinfo.preferredUsername ?? userinfo.sub,
       issuer: config.issuer,
       subject: userinfo.sub,
+      mappedRoleId: mapping.applied && mapping.roleId != null ? mapping.roleId : null,
     });
     if (!provisioned) return fail("jit");
     userId = provisioned.userId;

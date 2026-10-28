@@ -14,6 +14,7 @@ import {
   parseDiscovery,
   createPkce,
   safeRedirectTo,
+  resolveRoleFromGroups,
   STATE_TTL_MS,
 } from "@/lib/oidc";
 
@@ -148,5 +149,57 @@ describe("safeRedirectTo", () => {
 describe("STATE_TTL_MS", () => {
   it("is 10 minutes", () => {
     expect(STATE_TTL_MS).toBe(10 * 60 * 1000);
+  });
+});
+
+// ─────────────────────────── group → role mapping ───────────────────────────
+
+describe("resolveRoleFromGroups (SSO group mapping)", () => {
+  const rules = [
+    { group: "editors", roleId: 3 },
+    { group: "admins", roleId: 1 },
+  ];
+
+  it("FIRST matching rule wins (ordered list)", () => {
+    const r = resolveRoleFromGroups(["admins", "editors"], rules, 2, "default_role");
+    expect(r).toEqual({ applied: true, roleId: 3, matchedGroup: "editors", refused: false });
+  });
+
+  it("trims whitespace on both sides when matching", () => {
+    const r = resolveRoleFromGroups(["  editors  "], rules, 2, "default_role");
+    expect(r.roleId).toBe(3);
+    const r2 = resolveRoleFromGroups(["editors"], [{ group: " editors ", roleId: 3 }], 2, "default_role");
+    expect(r2.roleId).toBe(3);
+  });
+
+  it("is otherwise exact-match (no substring or case-insensitive surprises)", () => {
+    const r = resolveRoleFromGroups(["Editors"], rules, 2, "default_role");
+    expect(r.matchedGroup).toBeNull();
+    const r2 = resolveRoleFromGroups(["editor"], rules, 2, "default_role");
+    expect(r2.matchedGroup).toBeNull();
+  });
+
+  it("no match + default_role policy → default role id", () => {
+    const r = resolveRoleFromGroups(["norelated"], rules, 2, "default_role");
+    expect(r).toEqual({ applied: true, roleId: 2, matchedGroup: null, refused: false });
+  });
+
+  it("no match + refuse policy → refused login, null role", () => {
+    const r = resolveRoleFromGroups(["norelated"], rules, 2, "refuse");
+    expect(r).toEqual({ applied: true, roleId: null, matchedGroup: null, refused: true });
+  });
+
+  it("empty rules = mapping system INACTIVE (existing users keep their role)", () => {
+    const r = resolveRoleFromGroups(["anything"], [], 2, "default_role");
+    expect(r).toEqual({ applied: false, roleId: null, matchedGroup: null, refused: false });
+    const r2 = resolveRoleFromGroups(["anything"], [], 2, "refuse");
+    expect(r2.applied).toBe(false);
+    expect(r2.refused).toBe(false);
+  });
+
+  it("null default role + default_role policy → roleId null (caller falls back to Member)", () => {
+    const r = resolveRoleFromGroups(["norelated"], rules, null, "default_role");
+    expect(r.applied).toBe(true);
+    expect(r.roleId).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: ab5088cb5061 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: b1fb368d5e1b ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -647,6 +647,17 @@ const it: Messages = {
       mode: "Modalità di accesso",
       modeOptional: "SSO insieme all'accesso con password",
       modeReplaces: "Solo SSO (sostituisce l'accesso con password)",
+      groupClaim: "Claim dei gruppi",
+      groupClaimHint: "Il claim nella risposta del provider che elenca i gruppi dell'utente.",
+      groupMapTitle: "Gruppo → ruolo",
+      groupMapHint: "Vince la prima regola corrispondente. Valutata a ogni accesso SSO; senza corrispondenza si applica la regola sotto.",
+      groupMapAdd: "Aggiungi regola",
+      groupMapGroup: "Gruppo",
+      groupMapRole: "Ruolo",
+      groupMapRemove: "Rimuovi regola",
+      noGroupMatch: "Quando nessun gruppo corrisponde",
+      noMatchDefault: "Usa il ruolo predefinito",
+      noMatchRefuse: "Rifiuta l'accesso",
     },
     tabs: {
       general: "Generale",

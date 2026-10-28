@@ -11,6 +11,7 @@ import {
   getActiveLinks,
   getOidcSettingsRaw,
   getCapabilitiesForUser,
+  listRoles,
 } from "@/server/queries";
 import { isUpdateCheckEnabled, getUpdateStatus } from "@/lib/update-check";
 import { maybeRunScheduledBackup, getBackupOverview } from "@/server/backup-scheduler";
@@ -82,6 +83,7 @@ export default async function SettingsPage({
   // Update status card (Data tab): installed vs latest on GitHub + website.
   const updateStatus = await getUpdateStatus();
   const oidcRaw = await getOidcSettingsRaw();
+  const roleRows = await listRoles();
   const canManageInstance = session
     ? (await getCapabilitiesForUser(session.userId)).caps.manageInstance
     : false;
@@ -226,6 +228,10 @@ export default async function SettingsPage({
                   jit={oidcRaw.jit !== "off"}
                   mode={oidcRaw.mode === "replaces_local" ? "replaces_local" : "optional"}
                   secretSet={Boolean(process.env.OIDC_CLIENT_SECRET)}
+                  groupClaim={oidcRaw.groupClaim ?? "groups"}
+                  noGroupMatch={oidcRaw.noGroupMatch === "refuse" ? "refuse" : "default_role"}
+                  groupRoleMap={oidcRaw.groupRoleMap ?? "[]"}
+                  roles={roleRows.map((r) => ({ id: r.id, name: r.name }))}
                 />
               )}
             </div>

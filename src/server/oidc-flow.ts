@@ -11,10 +11,12 @@ import {
   getRoleById,
   createPage,
   getAllPages,
+  getUserById,
 } from "@/server/queries";
 import {
   isValidIssuerUrl,
   parseDiscovery,
+  resolveRoleFromGroups,
   type OidcEndpoints,
 } from "@/lib/oidc";
 import { normalizeSlug } from "@/lib/link-slug";
@@ -118,6 +120,7 @@ export async function exchangeCode(input: {
 export interface OidcUserInfo {
   sub: string;
   preferredUsername: string | null;
+  groups: string[];
 }
 
 export async function fetchUserInfo(
@@ -130,12 +133,19 @@ export async function fetchUserInfo(
       headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
     });
     if (typeof doc !== "object" || doc === null) return null;
-    const sub = (doc as Record<string, unknown>).sub;
+    const d = doc as Record<string, unknown>;
+    const sub = d.sub;
     if (typeof sub !== "string" || sub.length === 0) return null;
-    const preferred = (doc as Record<string, unknown>).preferred_username;
+    const preferred = d.preferred_username;
+    // #124 group mapping: IdPs send a groups array (Authentik natively;
+    // Keycloak via a client mapper). Absent → empty list (mapping inert).
+    const groups = Array.isArray(d.groups)
+      ? d.groups.filter((g): g is string => typeof g === "string")
+      : [];
     return {
       sub,
       preferredUsername: typeof preferred === "string" && preferred.length > 0 ? preferred : null,
+      groups,
     };
   } catch {
     return null;
@@ -179,6 +189,8 @@ export async function provisionOidcUser(input: {
   username: string;
   issuer: string;
   subject: string;
+  /** Role from the group mapping (wins over the default role). */
+  mappedRoleId?: number | null;
 }): Promise<{ userId: number; username: string } | null> {
   const jit = (await getSetting("oidcJit")) !== "off";
   if (!jit) return null;
@@ -188,12 +200,9 @@ export async function provisionOidcUser(input: {
   // for JIT accounts unless an admin sets a password.
   const randomPassword = randomBytes(32).toString("base64url");
   const { hashPassword } = await import("@/lib/auth");
-  const defaultRoleIdRaw = await getSetting("oidcDefaultRoleId");
-  const defaultRoleId = defaultRoleIdRaw ? Number(defaultRoleIdRaw) : null;
-  let roleId: number | null = null;
-  if (defaultRoleId != null && Number.isInteger(defaultRoleId)) {
-    roleId = (await getRoleById(defaultRoleId)) ? defaultRoleId : null;
-  }
+  // Role precedence: group mapping > default role setting > Member (null).
+  const roleId =
+    input.mappedRoleId != null ? input.mappedRoleId : await resolvedDefaultRoleId();
 
   const user = await createUser(username, await hashPassword(randomPassword), roleId ? { roleId } : {});
 
@@ -229,4 +238,84 @@ export function randomState(): string {
 
 export function pkceChallenge(verifier: string): string {
   return createHash("sha256").update(verifier).digest("base64url");
+}
+
+/** The configured default JIT role id, validated to exist (null → Member). */
+async function resolvedDefaultRoleId(): Promise<number | null> {
+  const raw = await getSetting("oidcDefaultRoleId");
+  const id = raw ? Number(raw) : null;
+  if (id == null || !Number.isInteger(id) || id <= 0) return null;
+  const { getRoleById } = await import("@/server/queries");
+  return (await getRoleById(id)) ? id : null;
+}
+
+// ─── SSO group → role mapping (#124) ────────────────────────────────────────
+
+export interface GroupRoleOutcome {
+  refused: boolean;
+  /** The role the mapping assigns (or null → fall back to default/Member). */
+  roleId: number | null;
+  applied: boolean;
+}
+
+/**
+ * Resolve the target role for an SSO identity from its groups. Loads the
+ * ordered rules, the no-match policy, and the default role from the settings
+ * KV; the matching itself is the pure resolver in lib/oidc.ts.
+ */
+export async function resolveOidcRole(groups: string[]): Promise<GroupRoleOutcome> {
+  const { getOidcSettingsRaw, parseGroupRoleMap, getRoleById } = await import("@/server/queries");
+  const raw = await getOidcSettingsRaw();
+  // Rules referencing a since-deleted role are inert (the map is JSON — no FK
+  // protects it), so each rule's role is verified before it can match.
+  const rules: { group: string; roleId: number }[] = [];
+  for (const rule of parseGroupRoleMap(raw.groupRoleMap)) {
+    if (await getRoleById(rule.roleId)) rules.push(rule);
+  }
+  const policy = raw.noGroupMatch === "refuse" ? "refuse" : "default_role";
+  const defaultRoleId = raw.defaultRoleId ? Number(raw.defaultRoleId) : null;
+  const r = resolveRoleFromGroups(groups, rules, defaultRoleId, policy);
+  return { refused: r.refused, roleId: r.roleId, applied: r.applied };
+}
+
+/**
+ * Re-sync a user's role from the group mapping on SSO login (mapping wins,
+ * per the locked design). The last-admin invariant guards it: a demotion
+ * that would strip the instance's last admin is silently skipped — the user
+ * keeps the old role rather than locking the instance out.
+ * Returns the (possibly unchanged) roleId now in effect.
+ */
+export async function applyGroupRoleResync(
+  userId: number,
+  groups: string[],
+): Promise<number | null> {
+  const outcome = await resolveOidcRole(groups);
+  if (outcome.refused || !outcome.applied || outcome.roleId == null) {
+    return null; // nothing to apply (caller handles refusal beforehand)
+  }
+  const { getCapabilitiesForUser, getRoleById, listInstanceAdminIds, updateUserRoleById, getSetting, updateSetting } =
+    await import("@/server/queries");
+  const current = await getUserById(userId);
+  if (current?.roleId === outcome.roleId) return outcome.roleId;
+
+  const targetRole = await getRoleById(outcome.roleId);
+  const caps = (await getCapabilitiesForUser(userId)).caps;
+  const wasFullAdmin = caps.manageAccounts && caps.manageInstance;
+  const targetIsFullAdmin =
+    !!targetRole &&
+    ((targetRole.isBuiltin && targetRole.name === "Admin") ||
+      (targetRole.canManageAccounts && targetRole.canManageInstance));
+
+  if (wasFullAdmin && !targetIsFullAdmin) {
+    const adminIds = await listInstanceAdminIds();
+    if (adminIds.length <= 1) {
+      return null; // keep the old role — never lock the instance out
+    }
+  }
+
+  await updateUserRoleById(userId, outcome.roleId);
+  // Role changed → existing sessions carry stale claims; re-mint.
+  const v = Number(await getSetting("sessionVersion")) || 0;
+  await updateSetting("sessionVersion", String(v + 1));
+  return outcome.roleId;
 }

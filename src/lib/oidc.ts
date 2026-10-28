@@ -107,6 +107,48 @@ export function parseDiscovery(
   };
 }
 
+/**
+ * SSO group → role mapping (#124): resolve which role an identity's groups
+ * map to. Rules are an ordered list — FIRST match wins. When nothing matches:
+ *  - "default_role" policy → the instance's default role id (or null when
+ *    unset, meaning the caller falls back to Member)
+ *  - "refuse" policy       → null AND refused=true (login is denied)
+ * No rules at all → the mapping system is INACTIVE: not applied (applied=false),
+ * so existing users keep their role and JIT falls back to the default role.
+ */
+export interface GroupRoleRule {
+  group: string;
+  roleId: number;
+}
+
+export interface GroupRoleResolution {
+  applied: boolean;
+  roleId: number | null;
+  matchedGroup: string | null;
+  refused: boolean;
+}
+
+export function resolveRoleFromGroups(
+  groups: string[],
+  rules: GroupRoleRule[],
+  defaultRoleId: number | null,
+  noMatchPolicy: "default_role" | "refuse",
+): GroupRoleResolution {
+  if (rules.length === 0) {
+    return { applied: false, roleId: null, matchedGroup: null, refused: false };
+  }
+  const normalized = new Set(groups.map((g) => g.trim()));
+  for (const rule of rules) {
+    if (normalized.has(rule.group.trim())) {
+      return { applied: true, roleId: rule.roleId, matchedGroup: rule.group, refused: false };
+    }
+  }
+  if (noMatchPolicy === "refuse") {
+    return { applied: true, roleId: null, matchedGroup: null, refused: true };
+  }
+  return { applied: true, roleId: defaultRoleId, matchedGroup: null, refused: false };
+}
+
 /** RFC 7636 PKCE pair: high-entropy verifier + its S256 challenge. */
 export function createPkce(): { verifier: string; challenge: string } {
   const verifier = randomBytes(32).toString("base64url");

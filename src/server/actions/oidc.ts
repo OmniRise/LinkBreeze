@@ -106,6 +106,8 @@ export async function saveOidcSettingsAction(formData: FormData): Promise<Action
   const clientId = String(formData.get("clientId") ?? "").trim();
   const jit = formData.get("jit") === "on";
   const mode = String(formData.get("mode") ?? "optional");
+  const groupClaim = String(formData.get("groupClaim") ?? "").trim() || "groups";
+  const noGroupMatch = String(formData.get("noGroupMatch") ?? "default_role");
 
   if (issuer && !isValidIssuerUrl(issuer, { production: isProduction() })) {
     return validationError("Issuer must be an https URL (http://localhost only outside production) without query or fragment");
@@ -118,11 +120,45 @@ export async function saveOidcSettingsAction(formData: FormData): Promise<Action
   if (mode === "replaces_local" && (!issuer || !clientId || !getOidcClientSecret())) {
     return validationError("Replacing local login requires issuer, client id, and OIDC_CLIENT_SECRET to be set");
   }
+  if (!/^[A-Za-z0-9_.-]+$/.test(groupClaim)) {
+    return validationError("Group claim must be a simple claim name (letters, digits, dots, dashes, underscores)");
+  }
+  if (noGroupMatch !== "default_role" && noGroupMatch !== "refuse") {
+    return validationError("Invalid no-match policy");
+  }
+  // Group→role rules arrive as JSON in a hidden input (the card editor builds
+  // them). Validate strictly: parseable, well-formed, roles must EXIST.
+  const { parseGroupRoleMap, getRoleById } = await import("@/server/queries");
+  const mapRaw = String(formData.get("groupRoleMap") ?? "[]");
+  const parsedMap = parseGroupRoleMap(mapRaw);
+  const submittedCount = (() => {
+    try {
+      const arr: unknown = JSON.parse(mapRaw);
+      return Array.isArray(arr) ? arr.length : -1;
+    } catch {
+      return -1;
+    }
+  })();
+  if (submittedCount < 0 || parsedMap.length !== submittedCount) {
+    return validationError("Group mapping is malformed");
+  }
+  for (const rule of parsedMap) {
+    if (!(await getRoleById(rule.roleId))) {
+      return validationError(`Group mapping references a role that no longer exists (id ${rule.roleId})`);
+    }
+  }
+  const seen = new Set(parsedMap.map((r) => r.group));
+  if (seen.size !== parsedMap.length) {
+    return validationError("Each group may appear only once in the mapping");
+  }
 
   await updateSetting("oidcIssuer", issuer);
   await updateSetting("oidcClientId", clientId);
   await updateSetting("oidcJit", jit ? "on" : "off");
   await updateSetting("oidcMode", mode);
+  await updateSetting("oidcGroupClaim", groupClaim);
+  await updateSetting("oidcNoGroupMatch", noGroupMatch);
+  await updateSetting("oidcGroupRoleMap", JSON.stringify(parsedMap));
   return { success: true };
 }
 

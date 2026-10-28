@@ -11,6 +11,8 @@ const CLIENT_SECRET = "e2e-client-secret";
 const SUB = "test-sub-42";
 const USERNAME = "sso.tester";
 const ACCESS = "mock-access-token";
+/** Groups the mock IdP attests — mapped to a role in the round-trip test. */
+const GROUPS = ["sso-editors", "all-staff"];
 
 /** code → { codeVerifier (challenge to check), redirectUri } */
 const codes = new Map();
@@ -69,7 +71,7 @@ const server = http.createServer((req, res) => {
       return;
     }
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ sub: SUB, preferred_username: USERNAME, email: "sso@example.com" }));
+    res.end(JSON.stringify({ sub: SUB, preferred_username: USERNAME, email: "sso@example.com", groups: GROUPS }));
     return;
   }
   res.writeHead(404).end();
