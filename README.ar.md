@@ -375,6 +375,7 @@ cloudflared tunnel --url http://localhost:3000
 | `LINKBREEZE_PRIMARY_HOST` | _(فارغ)_ | المستضيف الأساسي الذي تعمل عليه لوحة الإدارة؛ قفل النطاقات المخصص يُرجع 404 لكل مستضيف آخر (متغير البيئة يتجاوز إعداد الإدارة) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | الثقة بترويسة `X-Forwarded-Host` لتوجيه النطاقات - فعّلها فقط خلف وكيل يعيد كتابة الترويسة (nginx و Caddy)؛ ترويسة `Host` الافتراضية لا يمكن تزويرها |
 | `OIDC_CLIENT_SECRET` | _（فارغ）_ | سر العميل لتسجيل الدخول الموحد OIDC (#124 متعدد المستخدمين). الـ Issuer ومعرّف العميل وتوفير JIT ووضع الدخول تُضبط من الإعدادات → الأمان. الأسرار تبقى في متغيرات البيئة فقط - تُصدَّر الإعدادات كما هي في النسخ الاحتياطية |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | استثناء اختباري: السماح بـ issuer لـ OIDC عبر http في شبكة موثوقة (الإنتاج يتطلب https) |
 
 <details>
 <summary>💳 &nbsp;متغيرات تذاكر المحفظة (Google Wallet / Apple Wallet)</summary>

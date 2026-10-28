@@ -375,6 +375,7 @@ cloudflared tunnel --url http://localhost:3000
 | `LINKBREEZE_PRIMARY_HOST` | _(空)_ | 管理画面をホストするプライマリホスト。カスタムドメインの管理ロックが他のすべてのホストに404を返します(環境変数は管理画面の設定より優先) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | ドメインルーティングで`X-Forwarded-Host`を信頼 - このヘッダーを上書きするプロキシ(nginx、Caddy)の背後でのみ有効化してください。デフォルトの`Host`ヘッダーは偽装できません |
 | `OIDC_CLIENT_SECRET` | _(空)_ | OIDC シングルサインオン用のクライアントシークレット（#124 マルチユーザー）。Issuer、クライアント ID、JIT プロビジョニング、サインイン方式は設定 → セキュリティで構成します。シークレットは環境変数のみ - 設定はバックアップにそのまま出力されます |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | テスト用例外：信頼した LAN 内の http OIDC issuer を許可（本番は https 必須） |
 
 <details>
 <summary>💳 &nbsp;ウォレットパス変数(Google Wallet / Apple Wallet)</summary>

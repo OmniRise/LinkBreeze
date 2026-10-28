@@ -375,6 +375,7 @@ cloudflared tunnel --url http://localhost:3000
 | `LINKBREEZE_PRIMARY_HOST` | _（空）_ | 管理后台所在的主机；自定义域名的主机锁定会对其他所有主机返回 404（环境变量优先于后台设置） |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | 让域名路由信任 `X-Forwarded-Host` - 仅在代理会覆写该请求头时启用（nginx、Caddy）；默认的 `Host` 请求头无法被伪造 |
 | `OIDC_CLIENT_SECRET` | _（空）_ | OIDC 单点登录的客户端密钥（#124 多用户）。Issuer、客户端 ID、JIT 供应和登录方式在 设置 → 安全 中配置。密钥仅存于环境变量 - 设置会原样导出到备份中 |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | 测试例外：允许受信任局域网内的 http OIDC issuer（生产环境必须 https） |
 
 <details>
 <summary>💳 &nbsp;钱包通行证变量（Google Wallet / Apple Wallet）</summary>

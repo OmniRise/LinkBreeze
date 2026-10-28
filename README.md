@@ -375,6 +375,7 @@ All configuration is via environment variables. **[`.env.example`](.env.example)
 | `LINKBREEZE_PRIMARY_HOST` | _(empty)_ | Primary host your admin lives on; the custom-domains admin lock 404s every other host (env beats the admin setting) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Trust `X-Forwarded-Host` for domain routing - only enable behind a proxy that OVERWRITES it (nginx, Caddy); the default `Host` header cannot be spoofed |
 | `OIDC_CLIENT_SECRET` | _(empty)_ | Client secret for OIDC single sign-on (#124 multi-user). Issuer, client ID, JIT provisioning, and the sign-in mode are configured in Settings → Security. Secrets stay env-only - settings are exported verbatim into backups |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Testing escape hatch: allow an http OIDC issuer on a trusted LAN (production requires https) |
 
 <details>
 <summary>💳 &nbsp;Wallet pass variables (Google Wallet / Apple Wallet)</summary>

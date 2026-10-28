@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getSession, createSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { getUserById, consumeOidcState, getOidcConfig, findUserIdByOidcIdentity, linkOidcIdentity } from "@/server/queries";
 import { safeRedirectTo } from "@/lib/oidc";
 import {
@@ -112,9 +112,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     username = provisioned.username;
   }
 
-  await createSession(userId, username);
+  // Route-handler gotcha (caught by the live IdP round-trip): cookies().set
+  // inside this handler does NOT survive a self-constructed
+  // NextResponse.redirect — the session cookie must be attached to the
+  // response object itself.
+  const { buildSessionCookie } = await import("@/lib/auth");
+  const sessionCookie = await buildSessionCookie(userId, username);
   const { touchLastLogin } = await import("@/server/queries");
   await touchLastLogin(userId);
 
-  return NextResponse.redirect(new URL(safeRedirectTo(stored.redirectTo), request.url));
+  const response = NextResponse.redirect(new URL(safeRedirectTo(stored.redirectTo), request.url));
+  response.cookies.set(sessionCookie.name, sessionCookie.value, {
+    httpOnly: sessionCookie.httpOnly,
+    sameSite: sessionCookie.sameSite,
+    secure: sessionCookie.secure,
+    path: sessionCookie.path,
+    maxAge: sessionCookie.maxAge,
+  });
+  return response;
 }

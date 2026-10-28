@@ -80,14 +80,18 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 /**
- * Set a signed, httpOnly session cookie.
+ * Build the signed session cookie config WITHOUT touching the cookie store —
+ * for Route Handlers that must attach it to a hand-built NextResponse
+ * (cookies().set is lost on self-constructed redirect responses there).
  */
-export async function createSession(userId: number, username: string): Promise<void> {
+export async function buildSessionCookie(
+  userId: number,
+  username: string,
+): Promise<{ name: string; value: string; httpOnly: boolean; sameSite: "lax"; secure: boolean; path: string; maxAge: number }> {
   const pv = Number(await getSetting("sessionVersion")) || 0;
   // #124: stamp the role claim from the DB so admin-only actions can trust it.
   const { getUserById } = await import("@/server/queries");
   const role = (await getUserById(userId))?.role ?? "admin";
-  const store = await cookies();
   const payload: SessionPayload = {
     userId,
     username,
@@ -97,12 +101,29 @@ export async function createSession(userId: number, username: string): Promise<v
   };
   const token = createToken(payload);
   const secure = await isHttps();
-  store.set(SESSION_COOKIE, token, {
+  return {
+    name: SESSION_COOKIE,
+    value: token,
     httpOnly: true,
     sameSite: "lax",
     secure,
     path: "/",
     maxAge: SESSION_MAX_AGE,
+  };
+}
+
+/**
+ * Set a signed, httpOnly session cookie.
+ */
+export async function createSession(userId: number, username: string): Promise<void> {
+  const store = await cookies();
+  const cookie = await buildSessionCookie(userId, username);
+  store.set(cookie.name, cookie.value, {
+    httpOnly: cookie.httpOnly,
+    sameSite: cookie.sameSite,
+    secure: cookie.secure,
+    path: cookie.path,
+    maxAge: cookie.maxAge,
   });
 }
 

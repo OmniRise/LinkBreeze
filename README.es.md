@@ -375,6 +375,7 @@ Toda la configuración se realiza mediante variables de entorno. **[`.env.exampl
 | `LINKBREEZE_PRIMARY_HOST` | _(vacío)_ | Host principal donde vive tu administración; el bloqueo de dominios personalizados devuelve 404 en todos los demás hosts (la variable de entorno tiene prioridad sobre el ajuste) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Confiar en `X-Forwarded-Host` para el enrutamiento de dominios - actívalo solo detrás de un proxy que SOBREESCRIBA la cabecera (nginx, Caddy); la cabecera `Host` por defecto no puede falsificarse |
 | `OIDC_CLIENT_SECRET` | _(vacío)_ | Secreto de cliente para el inicio de sesión único OIDC (#124 multiusuario). El emisor, el ID de cliente, el aprovisionamiento JIT y el modo de inicio se configuran en Ajustes → Seguridad. Los secretos solo por entorno - los ajustes se exportan tal cual en las copias de seguridad |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Excepción de pruebas: permitir un emisor OIDC http en una LAN de confianza (producción exige https) |
 
 <details>
 <summary>💳 &nbsp;Variables de wallet pass (Google Wallet / Apple Wallet)</summary>

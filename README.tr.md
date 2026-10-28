@@ -375,6 +375,7 @@ Tüm yapılandırma ortam değişkenleri üzerinden yapılır. **[`.env.example`
 | `LINKBREEZE_PRIMARY_HOST` | _(boş)_ | Yönetim panelinin barındığı birincil host; özel alan adı yönetici kilidi diğer tüm hostlara 404 döndürür (ortam değişkeni, panodaki ayarı geçersiz kılar) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Alan adı yönlendirmesi için `X-Forwarded-Host` başlığına güven - yalnızca bu başlığı ÜZERİNE YAZAN bir proxy arkasında etkinleştir (nginx, Caddy); varsayılan `Host` başlığı sahteciliğe açık değildir |
 | `OIDC_CLIENT_SECRET` | _(boş)_ | OIDC tek oturum açma için istemci sırrı (#124 çok kullanıcılı). Issuer, istemci kimliği, JIT sağlama ve giriş modu Ayarlar → Güvenlik bölümünde yapılandırılır. Sırlar yalnızca ortam değişkeninde kalır - ayarlar yedeklere olduğu gibi aktarılır |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Test istisnası: güvenilen bir LAN'da http OIDC issuer'a izin ver (üretim https ister) |
 
 <details>
 <summary>💳 &nbsp;Cüzdan kartı değişkenleri (Google Wallet / Apple Wallet)</summary>
