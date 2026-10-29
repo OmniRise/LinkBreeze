@@ -39,9 +39,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("@/lib/auth", () => ({ getSession: mocks.getSession }));
+vi.mock("@/lib/auth", () => ({
+  getSession: mocks.getSession,
+  verifyPassword: vi.fn(async (pw: string) => pw === "correct-horse"),
+}));
 vi.mock("@/lib/demo-guard", () => ({ demoGuard: mocks.demoGuard }));
 vi.mock("@/server/queries", () => ({
+  getUserById: vi.fn(async () => ({ id: 1, username: 'admin', passwordHash: 'h', role: 'admin', status: 'active' })),
   getCapabilitiesForUser: mocks.getCapabilitiesForUser,
   listRoles: mocks.listRoles,
   getRoleById: mocks.getRoleById,
@@ -63,6 +67,9 @@ import {
 
 function fd(data: Record<string, string>): FormData {
   const f = new FormData();
+  // Destructive actions require password re-entry; harness verifyPassword →
+  // true so tests default to a "correct" confirmation.
+  f.set("confirmPassword", "correct-horse");
   for (const [k, v] of Object.entries(data)) f.set(k, v);
   return f;
 }
@@ -129,6 +136,8 @@ describe("createRoleAction", () => {
       pagesVisibility: "view_all",
       canManageAccounts: false,
       canManageInstance: false,
+      idleMinutes: null,
+      maxHours: null,
     });
   });
 

@@ -8,6 +8,7 @@ import {
   Lock,
   Pencil,
   Plus,
+  Hourglass,
   ShieldCheck,
   Trash2,
   UserCog,
@@ -19,6 +20,7 @@ import { useSavedAction } from "@/hooks/use-saved-action";
 import type { AccountSummary } from "@/server/actions/accounts";
 import {
   assignAccountRoleAction,
+  setUserSessionOverrideAction,
   createAccountAction,
   deleteAccountAction,
   setAccountPagePolicyAction,
@@ -69,6 +71,8 @@ export interface RoleRowLite {
   pagesVisibility: string;
   canManageAccounts: boolean;
   canManageInstance: boolean;
+  idleMinutes: number | null;
+  maxHours: number | null;
 }
 
 interface DeleteTarget {
@@ -102,6 +106,8 @@ export function AccountsManager({
   const [releaseSlug, setReleaseSlug] = React.useState(false);
   const [roleDialog, setRoleDialog] = React.useState<RoleDialogState | null>(null);
   const [roleDeleteTarget, setRoleDeleteTarget] = React.useState<RoleRowLite | null>(null);
+  const [deletePassword, setDeletePassword] = React.useState("");
+  const [sessionTarget, setSessionTarget] = React.useState<AccountSummary | null>(null);
 
   const memberRole = roles.find((r) => r.name === "Member") ?? roles[0];
 
@@ -135,6 +141,7 @@ export function AccountsManager({
   const openDelete = (account: AccountSummary) => {
     setDeleteTarget({ account, userCount: null });
     setReleaseSlug(false);
+    setDeletePassword("");
     setError(null);
   };
 
@@ -143,6 +150,7 @@ export function AccountsManager({
     const fd = new FormData();
     fd.set("userId", String(deleteTarget.account.id));
     fd.set("releaseSlug", releaseSlug ? "on" : "off");
+    fd.set("confirmPassword", deletePassword);
     if (releaseSlug && deleteTarget.account.pageSlug) {
       fd.set("slug", deleteTarget.account.pageSlug);
     }
@@ -331,6 +339,18 @@ export function AccountsManager({
 
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => setSessionTarget(a)}
+                    aria-label={`${t("sessionTitle")} ${a.username}`}
+                    title={t("sessionTitle")}
+                  >
+                    <Hourglass className="size-3.5" aria-hidden />
+                  </Button>
+
+                  <Button
+                    type="button"
                     variant="destructive"
                     size="sm"
                     disabled={pending || isSelf}
@@ -492,6 +512,21 @@ export function AccountsManager({
             </label>
           )}
 
+          <FormField
+            label={t("confirmPassword")}
+            htmlFor="delete-confirm-password"
+            hint={t("confirmPasswordHint")}
+          >
+            <Input
+              id="delete-confirm-password"
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </FormField>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
               {t("cancel")}
@@ -566,6 +601,34 @@ export function AccountsManager({
                 className="w-32"
               />
             </FormField>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                label={t("roleIdleMinutes")}
+                htmlFor="role-idle"
+                hint={t("roleSessionHint")}
+              >
+                <Input
+                  id="role-idle"
+                  name="idleMinutes"
+                  type="number"
+                  min={1}
+                  step={1}
+                  defaultValue={roleDialog?.role?.idleMinutes ?? ""}
+                  placeholder={t("pagesLimitPlaceholder")}
+                />
+              </FormField>
+              <FormField label={t("roleMaxHours")} htmlFor="role-max">
+                <Input
+                  id="role-max"
+                  name="maxHours"
+                  type="number"
+                  min={1}
+                  step={1}
+                  defaultValue={roleDialog?.role?.maxHours ?? ""}
+                  placeholder={t("pagesLimitPlaceholder")}
+                />
+              </FormField>
+            </div>
             <FormField label={t("visibilityLabel")} htmlFor="role-visibility">
               <select
                 id="role-visibility"
@@ -666,6 +729,71 @@ export function AccountsManager({
                 ) : (
                   t("roleDeleteSubmit")
                 )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Per-user session override dialog ──────────────────────────────── */}
+      <Dialog
+        open={sessionTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setSessionTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Hourglass className="size-4" aria-hidden />
+              {t("sessionTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("sessionHint")}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const target = sessionTarget;
+              if (!target) return;
+              const fd = new FormData(e.currentTarget);
+              fd.set("userId", String(target.id));
+              setSessionTarget(null);
+              runForm(setUserSessionOverrideAction, fd);
+            }}
+            className="flex flex-col gap-4"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label={t("roleIdleMinutes")} htmlFor="session-override-idle">
+                <Input
+                  id="session-override-idle"
+                  name="idleMinutes"
+                  type="number"
+                  min={1}
+                  step={1}
+                  autoComplete="off"
+                  placeholder={t("roleSessionInherit")}
+                />
+              </FormField>
+              <FormField label={t("roleMaxHours")} htmlFor="session-override-max">
+                <Input
+                  id="session-override-max"
+                  name="maxHours"
+                  type="number"
+                  min={1}
+                  step={1}
+                  autoComplete="off"
+                  placeholder={t("roleSessionInherit")}
+                />
+              </FormField>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setSessionTarget(null)}>
+                {t("cancel")}
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : t("sessionSave")}
               </Button>
             </DialogFooter>
           </form>

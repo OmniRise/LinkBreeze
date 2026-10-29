@@ -82,3 +82,41 @@ export async function updateSettings(formData: FormData): Promise<ActionResult> 
   revalidatePath("/");
   return { success: true };
 }
+
+// ─── Session lifetime — global defaults (#124 follow-up) ────────────────────
+
+const sessionLimitsSchema = z.object({
+  sessionIdleMinutes: z
+    .union([z.literal(""), z.string()])
+    .nullish()
+    .transform((v) => (v === "" || v == null ? null : Number(v)))
+    .pipe(z.number("Invalid idle minutes").int("Invalid idle minutes").positive("Idle minutes must be positive").max(60 * 24 * 365, "Idle minutes too large").nullable()),
+  sessionMaxHours: z
+    .union([z.literal(""), z.string()])
+    .nullish()
+    .transform((v) => (v === "" || v == null ? null : Number(v)))
+    .pipe(z.number("Invalid max hours").int("Invalid max hours").positive("Max hours must be positive").max(24 * 365 * 5, "Max hours too large").nullable()),
+});
+
+/** Global defaults (Settings → Security). Empty = built-in defaults. */
+export async function saveSessionLimitsAction(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
+
+  const parsed = sessionLimitsSchema.safeParse({
+    sessionIdleMinutes: formData.get("sessionIdleMinutes"),
+    sessionMaxHours: formData.get("sessionMaxHours"),
+  });
+  if (!parsed.success) {
+    return validationError(parsed.error.issues[0]?.message ?? "Invalid input");
+  }
+  const { sessionIdleMinutes, sessionMaxHours } = parsed.data;
+  if (sessionIdleMinutes != null) await updateSettingQuery("sessionIdleMinutes", String(sessionIdleMinutes));
+  if (sessionMaxHours != null) await updateSettingQuery("sessionMaxHours", String(sessionMaxHours));
+  const { recordAudit } = await import("@/server/audit");
+  await recordAudit("settings.updated", "sessionLifetime", { sessionIdleMinutes, sessionMaxHours });
+  revalidatePath("/settings");
+  return { success: true };
+}

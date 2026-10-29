@@ -34,6 +34,7 @@ import {
 } from "@/server/queries";
 import { requireAccountsAdmin, requireInstanceAdmin } from "@/server/access";
 import { recordAudit } from "@/server/audit";
+import { requirePasswordConfirmation } from "@/server/actions/confirm";
 import { normalizeSlug, slugError, SLUG_ERRORS } from "@/lib/link-slug";
 
 /** First page slug for a new account: the username, made unique with -2/-3… */
@@ -271,6 +272,10 @@ export async function deleteAccountAction(formData: FormData): Promise<ActionRes
   }
   const target = await getUserById(userId);
   if (!target) return notFoundError("Account not found");
+  // Re-auth before destructive ops (locked design): the acting admin must
+  // re-enter their password, so a stolen unlocked tab can't wipe accounts.
+  const confirm = await requirePasswordConfirmation(formData);
+  if (confirm) return confirm;
   const caps = await getCapabilitiesForUser(userId);
   if (caps.caps.manageAccounts && caps.caps.manageInstance) {
     const adminIds = await listInstanceAdminIds();
@@ -362,5 +367,50 @@ export async function reassignPageSlugAction(formData: FormData): Promise<Action
   await updatePage(pageId, { slug: norm });
   revalidatePath("/accounts");
   revalidatePath(`/${norm}`, "layout");
+  return { success: true };
+}
+
+// ─── Per-user session override (#124 follow-up session lifetime) ────────────
+
+const sessionOverrideSchema = z.object({
+  userId: z.coerce.number().int().positive(),
+  idleMinutes: z
+    .union([z.literal(""), z.string()])
+    .nullish()
+    .transform((v) => (v === "" || v == null ? null : Number(v)))
+    .pipe(z.number("Invalid idle minutes").int("Invalid idle minutes").positive("Idle minutes must be positive").max(60 * 24 * 365, "Idle minutes too large").nullable()),
+  maxHours: z
+    .union([z.literal(""), z.string()])
+    .nullish()
+    .transform((v) => (v === "" || v == null ? null : Number(v)))
+    .pipe(z.number("Invalid max hours").int("Invalid max hours").positive("Max hours must be positive").max(24 * 365 * 5, "Max hours too large").nullable()),
+});
+
+/** Empty fields = inherit (role, then global). */
+export async function setUserSessionOverrideAction(formData: FormData): Promise<ActionResult> {
+  if (demoGuard()) return unauthorizedError();
+  const denied = await requireAccountsAdmin();
+  if (denied) return denied;
+
+  const parsed = sessionOverrideSchema.safeParse({
+    userId: formData.get("userId"),
+    idleMinutes: formData.get("idleMinutes"),
+    maxHours: formData.get("maxHours"),
+  });
+  if (!parsed.success) {
+    return validationError(parsed.error.issues[0]?.message ?? "Invalid input");
+  }
+  const { userId, idleMinutes, maxHours } = parsed.data;
+  const target = await getUserById(userId);
+  if (!target) return notFoundError("Account not found");
+
+  const { setUserSessionOverride } = await import("@/server/queries");
+  await setUserSessionOverride(userId, idleMinutes, maxHours);
+  // A shorter limit may now apply — force re-mint on next request.
+  const { getSetting, updateSetting } = await import("@/server/queries");
+  const v = Number(await getSetting("sessionVersion")) || 0;
+  await updateSetting("sessionVersion", String(v + 1));
+  await recordAudit("settings.updated", `sessionOverride:${target.username}`, { idleMinutes, maxHours });
+  revalidatePath("/accounts");
   return { success: true };
 }

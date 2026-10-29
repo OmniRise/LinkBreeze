@@ -638,6 +638,16 @@ const en = {
   },
 
   settings: {
+    session: {
+      title: "Session lifetime",
+      description: "Global defaults for how long sign-ins stay valid. Idle = closed after inactivity; max = absolute cap. Roles and accounts can override.",
+      idleMinutes: "Idle timeout (minutes)",
+      maxHours: "Absolute lifetime (hours)",
+      placeholderDefault: "Default",
+      save: "Save",
+      saving: "Saving…",
+      saved: "Saved.",
+    },
     title: "Settings",
     qrTitle: "QR Code",
     qrCardDesc: "Customize and download the QR for /{slug}. Scan to open your public page — use it on print or screens.",
@@ -1223,6 +1233,17 @@ const en = {
     },
   },
   accounts: {
+    pagesLimitPlaceholder: "Unlimited",
+    roleSessionInherit: "Inherit",
+    sessionSave: "Save override",
+    confirmPassword: "Your password",
+    confirmPasswordHint: "Re-enter your password to confirm deletion.",
+    sessionTitle: "Session override",
+    sessionHint: "Optional per-account overrides. Empty = inherit role, then global.",
+    sessionSaved: "Session override saved.",
+    roleIdleMinutes: "Idle timeout (minutes)",
+    roleMaxHours: "Absolute lifetime (hours)",
+    roleSessionHint: "Optional overrides for this role's sessions. Empty = global default.",
     title: "Accounts",
     description:
       "Manage who can sign in. Each account owns its own public page; admins can also manage this instance.",

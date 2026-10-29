@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
 import { recordAudit } from "@/server/audit";
+import { requirePasswordConfirmation } from "@/server/actions/confirm";
 import {
   type ActionResult,
   validationError,
@@ -81,6 +82,19 @@ function parseRoleForm(formData: FormData) {
       pagesVisibility: visibilitySchema,
       canManageAccounts: flag,
       canManageInstance: flag,
+      // Session lifetime overrides (minutes / hours, empty = inherit global)
+      idleMinutes: z
+        .string()
+        .trim()
+        .nullish()
+        .transform((v) => (v === "" || v == null ? null : Number(v)))
+        .pipe(z.number("Invalid idle minutes").int().positive().max(60 * 24 * 365).nullable()),
+      maxHours: z
+        .string()
+        .trim()
+        .nullish()
+        .transform((v) => (v === "" || v == null ? null : Number(v)))
+        .pipe(z.number("Invalid max hours").int().positive().max(24 * 365 * 5).nullable()),
     })
     .safeParse({
       name: formData.get("name"),
@@ -88,6 +102,8 @@ function parseRoleForm(formData: FormData) {
       pagesVisibility: formData.get("pagesVisibility") || "own",
       canManageAccounts: formData.get("canManageAccounts"),
       canManageInstance: formData.get("canManageInstance"),
+      idleMinutes: formData.get("idleMinutes"),
+      maxHours: formData.get("maxHours"),
     });
 }
 
@@ -174,6 +190,9 @@ export async function deleteRoleAction(formData: FormData): Promise<ActionResult
 
   const role = await getRoleById(roleId);
   if (!role) return notFoundError("Role not found");
+  // Re-auth before destructive ops: deleting a role touches every holder.
+  const confirm = await requirePasswordConfirmation(formData);
+  if (confirm) return confirm;
   // Builtins anchor the whole model: Admin is the lockout insurance, Member
   // is the default for JIT provisioning and account creation.
   if (role.isBuiltin) return validationError("Built-in roles cannot be deleted");

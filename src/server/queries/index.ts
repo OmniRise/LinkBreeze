@@ -898,6 +898,8 @@ export async function createRole(input: {
   pagesVisibility: string;
   canManageAccounts: boolean;
   canManageInstance: boolean;
+  idleMinutes?: number | null;
+  maxHours?: number | null;
 }): Promise<RoleRow> {
   const created = await db.insert(roles).values(input).returning();
   return created[0];
@@ -905,7 +907,7 @@ export async function createRole(input: {
 
 export async function updateRole(
   roleId: number,
-  patch: Partial<{ name: string; pagesLimit: number | null; pagesVisibility: string; canManageAccounts: boolean; canManageInstance: boolean }>,
+  patch: Partial<{ name: string; pagesLimit: number | null; pagesVisibility: string; canManageAccounts: boolean; canManageInstance: boolean; idleMinutes: number | null; maxHours: number | null }>,
 ): Promise<void> {
   await db.update(roles).set(patch).where(eq(roles.id, roleId));
 }
@@ -1115,6 +1117,58 @@ export async function updateUserRoleById(userId: number, roleId: number | null):
 /** Stamp last_login_at on a successful sign-in (local or OIDC). */
 export async function touchLastLogin(userId: number): Promise<void> {
   await db.update(users).set({ lastLoginAt: sql`(datetime('now'))` }).where(eq(users.id, userId));
+}
+
+/**
+ * Session lifetime sources for one user (#124 follow-up): the raw three
+ * layers (user override → role → global KV) for resolveSessionLimits().
+ * One query for the user+role, two for the KV pair.
+ */
+export async function getSessionLimitSources(userId: number): Promise<{
+  userIdleMinutes: number | null;
+  userMaxHours: number | null;
+  roleIdleMinutes: number | null;
+  roleMaxHours: number | null;
+  globalIdleMinutes: number | null;
+  globalMaxHours: number | null;
+}> {
+  const [user] = await db
+    .select({
+      idleMinutes: users.idleMinutes,
+      maxHours: users.maxHours,
+      roleIdle: roles.idleMinutes,
+      roleMax: roles.maxHours,
+    })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+  const [globalIdle, globalMax] = await Promise.all([
+    getSetting("sessionIdleMinutes"),
+    getSetting("sessionMaxHours"),
+  ]);
+  return {
+    userIdleMinutes: user?.idleMinutes ?? null,
+    userMaxHours: user?.maxHours ?? null,
+    roleIdleMinutes: user?.roleIdle ?? null,
+    roleMaxHours: user?.roleMax ?? null,
+    globalIdleMinutes: globalIdle != null ? Number(globalIdle) : null,
+    globalMaxHours: globalMax != null ? Number(globalMax) : null,
+  };
+}
+
+/** Action-based idle clock: refreshed (throttled by the caller) on admin ACTIONS. */
+export async function touchUserLastSeen(userId: number): Promise<void> {
+  await db.update(users).set({ lastSeenAt: sql`(datetime('now'))` }).where(eq(users.id, userId));
+}
+
+/** Per-user session override (null = inherit role/global). */
+export async function setUserSessionOverride(
+  userId: number,
+  idleMinutes: number | null,
+  maxHours: number | null,
+): Promise<void> {
+  await db.update(users).set({ idleMinutes, maxHours }).where(eq(users.id, userId));
 }
 
 /**

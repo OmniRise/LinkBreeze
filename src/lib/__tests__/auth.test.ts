@@ -51,6 +51,17 @@ vi.mock("@/server/queries", () => ({
     role: "admin",
     status: "active",
   }),
+  // #124 follow-up: session lifetime sources (no overrides configured here —
+  // the built-in defaults apply).
+  getSessionLimitSources: async () => ({
+    userIdleMinutes: null,
+    userMaxHours: null,
+    roleIdleMinutes: null,
+    roleMaxHours: null,
+    globalIdleMinutes: null,
+    globalMaxHours: null,
+  }),
+  touchUserLastSeen: async () => undefined,
 }));
 
 import { createSession, getSession, destroySession } from "@/lib/auth";

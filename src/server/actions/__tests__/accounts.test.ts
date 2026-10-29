@@ -45,7 +45,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("@/lib/auth", () => ({ getSession: mocks.getSession, hashPassword: mocks.hashPassword }));
+vi.mock("@/lib/auth", () => ({
+  getSession: mocks.getSession,
+  hashPassword: mocks.hashPassword,
+  verifyPassword: vi.fn(async (pw: string) => pw === "correct-horse"),
+}));
 vi.mock("@/lib/demo-guard", () => ({ demoGuard: mocks.demoGuard }));
 vi.mock("@/server/queries", () => ({
   listUsers: mocks.listUsers,
@@ -68,6 +72,15 @@ vi.mock("@/server/queries", () => ({
   getRoleById: mocks.getRoleById,
   listInstanceAdminIds: mocks.listInstanceAdminIds,
   getCapabilitiesForUser: mocks.getCapabilitiesForUser,
+  setUserSessionOverride: vi.fn(async () => undefined),
+  getSessionLimitSources: vi.fn(async () => ({
+    userIdleMinutes: null,
+    userMaxHours: null,
+    roleIdleMinutes: null,
+    roleMaxHours: null,
+    globalIdleMinutes: null,
+    globalMaxHours: null,
+  })),
 }));
 
 import {
@@ -77,10 +90,14 @@ import {
   assignAccountRoleAction,
   deleteAccountAction,
   reassignPageSlugAction,
+  setUserSessionOverrideAction,
 } from "@/server/actions/accounts";
 
 function fd(data: Record<string, string>): FormData {
   const f = new FormData();
+  // Destructive actions require password re-entry; harness verifyPassword →
+  // true so tests default to a "correct" confirmation.
+  f.set("confirmPassword", "correct-horse");
   for (const [k, v] of Object.entries(data)) f.set(k, v);
   return f;
 }
@@ -477,6 +494,51 @@ describe("reassignPageSlugAction", () => {
 
   it("requires a non-empty slug", async () => {
     const res = await reassignPageSlugAction(fd({ pageId: "30", slug: "" }));
+    expect(res.success).toBe(false);
+  });
+});
+
+// ───────────────────── re-auth + session override (#124 follow-up) ──────────
+
+describe("destructive-action re-auth", () => {
+  it("refuses deleteAccount without the password confirmation", async () => {
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    const res = await deleteAccountAction(fd({ userId: "3", confirmPassword: "" }));
+    expect(res.success).toBe(false);
+    expect((res as { error: string }).error).toMatch(/re-enter your password/i);
+    expect(mocks.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("refuses deleteAccount with a wrong password", async () => {
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    const res = await deleteAccountAction(fd({ userId: "3", confirmPassword: "wrong" }));
+    expect(res.success).toBe(false);
+    expect((res as { error: string }).error).toMatch(/password incorrect/i);
+    expect(mocks.deleteUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("setUserSessionOverrideAction", () => {
+  it("stores the override and bumps the session version", async () => {
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    const res = await setUserSessionOverrideAction(fd({ userId: "3", idleMinutes: "120", maxHours: "24" }));
+    expect(res.success).toBe(true);
+    const { setUserSessionOverride } = await import("@/server/queries");
+    expect(setUserSessionOverride).toHaveBeenCalledWith(3, 120, 24);
+    expect(mocks.updateSetting).toHaveBeenCalledWith("sessionVersion", expect.any(String));
+  });
+
+  it("accepts empty fields as inherit (nulls)", async () => {
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    const res = await setUserSessionOverrideAction(fd({ userId: "3", idleMinutes: "", maxHours: "" }));
+    expect(res.success).toBe(true);
+    const { setUserSessionOverride } = await import("@/server/queries");
+    expect(setUserSessionOverride).toHaveBeenCalledWith(3, null, null);
+  });
+
+  it("rejects nonsense values", async () => {
+    mocks.getUserById.mockResolvedValue({ id: 3, role: "owner", status: "active" });
+    const res = await setUserSessionOverrideAction(fd({ userId: "3", idleMinutes: "-5" }));
     expect(res.success).toBe(false);
   });
 });

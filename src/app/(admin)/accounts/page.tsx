@@ -51,6 +51,8 @@ export default async function AccountsPage() {
     pagesVisibility: r.pagesVisibility,
     canManageAccounts: r.canManageAccounts,
     canManageInstance: r.canManageInstance,
+    idleMinutes: r.idleMinutes,
+    maxHours: r.maxHours,
   }));
 
   return (

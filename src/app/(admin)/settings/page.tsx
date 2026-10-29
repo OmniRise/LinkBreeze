@@ -25,6 +25,7 @@ import { OgImageCard } from "./og-image-card";
 import { ChangePasswordForm } from "./change-password-form";
 import { TwoFactorCard } from "./two-factor-card";
 import { OidcCard } from "./oidc-card";
+import { SessionLimitsCard } from "./session-limits-card";
 import { DataManager } from "./data-manager";
 import { UpdateStatusCard } from "./update-status-card";
 import { BackupsCard } from "./backups-card";
@@ -83,6 +84,10 @@ export default async function SettingsPage({
   // Update status card (Data tab): installed vs latest on GitHub + website.
   const updateStatus = await getUpdateStatus();
   const oidcRaw = await getOidcSettingsRaw();
+  const [sessionIdleRaw, sessionMaxRaw] = await Promise.all([
+    getSetting("sessionIdleMinutes"),
+    getSetting("sessionMaxHours"),
+  ]);
   const roleRows = await listRoles();
   const canManageInstance = session
     ? (await getCapabilitiesForUser(session.userId)).caps.manageInstance
@@ -221,6 +226,12 @@ export default async function SettingsPage({
             <div className="flex flex-col gap-4">
               <ChangePasswordForm />
               <TwoFactorCard enabled={await getTotpEnabled()} />
+              {canManageInstance && (
+                <SessionLimitsCard
+                  globalIdleMinutes={sessionIdleRaw ?? ""}
+                  globalMaxHours={sessionMaxRaw ?? ""}
+                />
+              )}
               {canManageInstance && (
                 <OidcCard
                   issuer={oidcRaw.issuer ?? ""}

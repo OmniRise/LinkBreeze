@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 6453e9499a35 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 139fa31d2b2c ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -630,6 +630,16 @@ const it: Messages = {
   },
 
   settings: {
+    session: {
+      title: "Durata della sessione",
+      description: "Valori globali per la validità degli accessi. Inattivo = chiusa dopo inattività; max = limite assoluto. Ruoli e account possono sostituire.",
+      idleMinutes: "Timeout inattività (minuti)",
+      maxHours: "Durata assoluta (ore)",
+      placeholderDefault: "Predefinito",
+      save: "Salva",
+      saving: "Salvataggio…",
+      saved: "Salvato.",
+    },
     title: "Impostazioni",
     qrTitle: "Codice QR",
     qrCardDesc: "Personalizza e scarica il QR per /{slug}. Inquadralo per aprire la tua pagina pubblica — usalo su stampa o schermi.",
@@ -1216,6 +1226,17 @@ const it: Messages = {
     },
   },
   accounts: {
+    pagesLimitPlaceholder: "Illimitato",
+    roleSessionInherit: "Eredita",
+    sessionSave: "Salva sostituzione",
+    confirmPassword: "La tua password",
+    confirmPasswordHint: "Reinserisci la password per confermare l'eliminazione.",
+    sessionTitle: "Sostituzione sessione",
+    sessionHint: "Sostituzioni opzionali per account. Vuoto = eredita dal ruolo, poi dal globale.",
+    sessionSaved: "Sostituzione sessione salvata.",
+    roleIdleMinutes: "Timeout inattività (minuti)",
+    roleMaxHours: "Durata assoluta (ore)",
+    roleSessionHint: "Sostituzioni opzionali per le sessioni di questo ruolo. Vuoto = valore globale.",
     title: "Account",
     description: "Gestisci chi può accedere. Ogni account possiede la sua pagina pubblica; gli admin gestiscono anche questa istanza.",
     listTitle: "Tutti gli account",
