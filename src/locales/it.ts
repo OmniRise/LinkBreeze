@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: f8a97c9c053e ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: ef313c12b08b ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -1282,6 +1282,7 @@ const it: Messages = {
     createTitle: "Crea account",
     createDescription: "Gli account accedono con nome utente e password. In base alla policy delle pagine qui sotto, un nuovo account può ricevere la propria pagina pubblica.",
     createUsername: "Nome utente",
+    createUsernameHint: "3–32 caratteri: lettere, cifre, punti, trattini",
     createPassword: "Password",
     createPasswordHint: "Almeno 8 caratteri, con maiuscola, minuscola e una cifra.",
     createRole: "Ruolo",

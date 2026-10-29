@@ -242,7 +242,11 @@ export function AccountsManager({
             }}
             className="flex flex-wrap items-end gap-3"
           >
-            <FormField label={t("createUsername")} htmlFor="new-username">
+            <FormField
+              label={t("createUsername")}
+              htmlFor="new-username"
+              hint={t("createUsernameHint")}
+            >
               <Input
                 id="new-username"
                 name="username"
@@ -657,11 +661,7 @@ export function AccountsManager({
               />
             </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <FormField
-                label={t("roleIdleMinutes")}
-                htmlFor="role-idle"
-                hint={t("roleSessionHint")}
-              >
+              <FormField label={t("roleIdleMinutes")} htmlFor="role-idle">
                 <Input
                   id="role-idle"
                   name="idleMinutes"
@@ -684,6 +684,7 @@ export function AccountsManager({
                 />
               </FormField>
             </div>
+            <p className="text-xs text-muted-foreground">{t("roleSessionHint")}</p>
             <FormField label={t("visibilityLabel")} htmlFor="role-visibility">
               <select
                 id="role-visibility"

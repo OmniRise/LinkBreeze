@@ -1290,6 +1290,7 @@ const en = {
     createTitle: "Create account",
     createDescription: "Accounts sign in with a username and password. Depending on the page policy below, a new account may get its own public page.",
     createUsername: "Username",
+    createUsernameHint: "3–32 characters: letters, digits, dots, dashes",
     createPassword: "Password",
     createPasswordHint: "At least 8 characters with upper, lower and a number.",
     createRole: "Role",
