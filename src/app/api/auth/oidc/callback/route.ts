@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getSession } from "@/lib/auth";
 import { recordAudit } from "@/server/audit";
-import { getUserById, consumeOidcState, getOidcConfig, findUserIdByOidcIdentity, linkOidcIdentity } from "@/server/queries";
+import { getUserById, consumeOidcState, getOidcConfig, getOidcSettingsRaw, updateSetting, findUserIdByOidcIdentity, linkOidcIdentity } from "@/server/queries";
 import { safeRedirectTo } from "@/lib/oidc";
+import { DEFAULT_OIDC_CLAIMS, type OidcClaimNames } from "@/server/oidc-flow";
 import {
   applyGroupRoleResync,
   fetchDiscovery,
@@ -86,7 +87,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   });
   if (!tokens) return fail("token");
 
-  const userinfo = await fetchUserInfo(endpoints.userinfoEndpoint, tokens.access_token);
+  // #124 follow-up: custom claim names (default preferred_username/email/name)
+  const oidcRaw = await getOidcSettingsRaw();
+  const claims: OidcClaimNames = {
+    username: oidcRaw.claimUsername || DEFAULT_OIDC_CLAIMS.username,
+    email: oidcRaw.claimEmail || DEFAULT_OIDC_CLAIMS.email,
+    name: oidcRaw.claimName || DEFAULT_OIDC_CLAIMS.name,
+  };
+  const userinfo = await fetchUserInfo(endpoints.userinfoEndpoint, tokens.access_token, claims);
+  if (userinfo) {
+    // Status line for the OIDC card: a configured claim was missing and the
+    // default was used (or the flag clears once reads succeed).
+    await updateSetting("oidcClaimFallback", userinfo.claimFallback ? "1" : "");
+  }
   if (!userinfo) return fail("userinfo");
 
   // ── identity resolution ──────────────────────────────────────────────

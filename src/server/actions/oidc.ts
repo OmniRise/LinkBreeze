@@ -123,6 +123,20 @@ export async function saveOidcSettingsAction(formData: FormData): Promise<Action
   if (!/^[A-Za-z0-9_.-]+$/.test(groupClaim)) {
     return validationError("Group claim must be a simple claim name (letters, digits, dots, dashes, underscores)");
   }
+  // #124 follow-up: custom claim names, empty = built-in default.
+  const CLAIM_RE = /^[A-Za-z0-9_.-]+$/;
+  const claimUsername = String(formData.get("claimUsername") ?? "").trim();
+  const claimEmail = String(formData.get("claimEmail") ?? "").trim();
+  const claimName = String(formData.get("claimName") ?? "").trim();
+  for (const [label, v] of [
+    ["Username claim", claimUsername],
+    ["Email claim", claimEmail],
+    ["Display name claim", claimName],
+  ] as const) {
+    if (v && !CLAIM_RE.test(v)) {
+      return validationError(`${label} must be a simple claim name (letters, digits, dots, dashes, underscores)`);
+    }
+  }
   if (noGroupMatch !== "default_role" && noGroupMatch !== "refuse") {
     return validationError("Invalid no-match policy");
   }
@@ -156,6 +170,9 @@ export async function saveOidcSettingsAction(formData: FormData): Promise<Action
   await updateSetting("oidcClientId", clientId);
   await updateSetting("oidcJit", jit ? "on" : "off");
   await updateSetting("oidcMode", mode);
+  await updateSetting("oidcClaimUsername", claimUsername);
+  await updateSetting("oidcClaimEmail", claimEmail);
+  await updateSetting("oidcClaimName", claimName);
   await updateSetting("oidcGroupClaim", groupClaim);
   await updateSetting("oidcNoGroupMatch", noGroupMatch);
   await updateSetting("oidcGroupRoleMap", JSON.stringify(parsedMap));

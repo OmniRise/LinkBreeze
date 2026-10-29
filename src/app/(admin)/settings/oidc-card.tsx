@@ -42,6 +42,10 @@ export function OidcCard({
   groupClaim,
   noGroupMatch,
   groupRoleMap,
+  claimUsername,
+  claimEmail,
+  claimName,
+  claimFallback,
   roles,
 }: {
   issuer: string;
@@ -52,6 +56,10 @@ export function OidcCard({
   groupClaim: string;
   noGroupMatch: "default_role" | "refuse";
   groupRoleMap: string;
+  claimUsername: string;
+  claimEmail: string;
+  claimName: string;
+  claimFallback: boolean;
   roles: { id: number; name: string }[];
 }) {
   const t = useTranslations("settings.oidc");
@@ -152,6 +160,49 @@ export function OidcCard({
             <input type="checkbox" name="jit" defaultChecked={jit} className="size-4" />
             {t("jit")}
           </label>
+
+          {/* ── Claim customization ──────────────────────────────────────── */}
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium">{t("claimsTitle")}</p>
+            <p className="text-xs text-muted-foreground">{t("claimsHint")}</p>
+            {claimFallback && (
+              <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                {t("claimsFallbackFlag")}
+              </p>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <FormField label={t("claimUsername")} htmlFor="oidc-claim-username">
+                <Input
+                  id="oidc-claim-username"
+                  name="claimUsername"
+                  defaultValue={claimUsername}
+                  placeholder="preferred_username"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </FormField>
+              <FormField label={t("claimEmail")} htmlFor="oidc-claim-email">
+                <Input
+                  id="oidc-claim-email"
+                  name="claimEmail"
+                  defaultValue={claimEmail}
+                  placeholder="email"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </FormField>
+              <FormField label={t("claimName")} htmlFor="oidc-claim-name">
+                <Input
+                  id="oidc-claim-name"
+                  name="claimName"
+                  defaultValue={claimName}
+                  placeholder="name"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </FormField>
+            </div>
+          </div>
 
           {/* ── Group → role mapping ─────────────────────────────────────── */}
           <div className="flex flex-col gap-2 rounded-lg border border-border p-3">

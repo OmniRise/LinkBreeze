@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readClaim } from "@/server/oidc-flow";
 import { createHash } from "node:crypto";
 
 /**
@@ -201,5 +202,29 @@ describe("resolveRoleFromGroups (SSO group mapping)", () => {
     const r = resolveRoleFromGroups(["norelated"], rules, null, "default_role");
     expect(r.applied).toBe(true);
     expect(r.roleId).toBeNull();
+  });
+});
+// ─── #124 follow-up: custom claim names ─────────────────────────────────────
+
+describe("readClaim (custom claim names)", () => {
+
+  it("prefers the custom claim when present", () => {
+    const r = readClaim({ handle: "amy", preferred_username: "amy2" }, "handle", "preferred_username");
+    expect(r).toEqual({ value: "amy", fallbackUsed: false });
+  });
+
+  it("falls back to the standard claim when the custom one is missing", () => {
+    const r = readClaim({ preferred_username: "amy" }, "handle", "preferred_username");
+    expect(r).toEqual({ value: "amy", fallbackUsed: true });
+  });
+
+  it("no fallback flag when the custom claim IS the default and missing", () => {
+    const r = readClaim({}, "preferred_username", "preferred_username");
+    expect(r).toEqual({ value: null, fallbackUsed: false });
+  });
+
+  it("ignores empty-string claims", () => {
+    const r = readClaim({ handle: "", preferred_username: "amy" }, "handle", "preferred_username");
+    expect(r).toEqual({ value: "amy", fallbackUsed: true });
   });
 });

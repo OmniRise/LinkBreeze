@@ -242,6 +242,10 @@ export default async function SettingsPage({
                   groupClaim={oidcRaw.groupClaim ?? "groups"}
                   noGroupMatch={oidcRaw.noGroupMatch === "refuse" ? "refuse" : "default_role"}
                   groupRoleMap={oidcRaw.groupRoleMap ?? "[]"}
+                  claimUsername={oidcRaw.claimUsername ?? ""}
+                  claimEmail={oidcRaw.claimEmail ?? ""}
+                  claimName={oidcRaw.claimName ?? ""}
+                  claimFallback={oidcRaw.claimFallback === "1"}
                   roles={roleRows.map((r) => ({ id: r.id, name: r.name }))}
                 />
               )}

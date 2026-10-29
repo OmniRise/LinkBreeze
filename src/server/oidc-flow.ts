@@ -120,11 +120,42 @@ export interface OidcUserInfo {
   sub: string;
   preferredUsername: string | null;
   groups: string[];
+  email: string | null;
+  displayName: string | null;
+  /** True when a custom claim name was configured but missing → default used. */
+  claimFallback: boolean;
+}
+
+export interface OidcClaimNames {
+  username: string;
+  email: string;
+  name: string;
+}
+
+export const DEFAULT_OIDC_CLAIMS: OidcClaimNames = {
+  username: "preferred_username",
+  email: "email",
+  name: "name",
+};
+
+export function readClaim(d: Record<string, unknown>, claim: string, fallback: string): {
+  value: string | null;
+  fallbackUsed: boolean;
+} {
+  const customMissing = claim !== fallback;
+  const customRaw = d[claim];
+  const customOk = typeof customRaw === "string" && customRaw.length > 0;
+  const raw = customOk ? customRaw : customMissing ? d[fallback] : undefined;
+  const value = typeof raw === "string" && raw.length > 0 ? raw : null;
+  // Flag only when the custom claim was configured, missing, and the standard
+  // claim actually supplied the value.
+  return { value, fallbackUsed: customMissing && !customOk && value != null };
 }
 
 export async function fetchUserInfo(
   userinfoEndpoint: string,
   accessToken: string,
+  claims: OidcClaimNames = DEFAULT_OIDC_CLAIMS,
 ): Promise<OidcUserInfo | null> {
   try {
     const doc = await fetchJson(userinfoEndpoint, {
@@ -135,7 +166,9 @@ export async function fetchUserInfo(
     const d = doc as Record<string, unknown>;
     const sub = d.sub;
     if (typeof sub !== "string" || sub.length === 0) return null;
-    const preferred = d.preferred_username;
+    const username = readClaim(d, claims.username, DEFAULT_OIDC_CLAIMS.username);
+    const email = readClaim(d, claims.email, DEFAULT_OIDC_CLAIMS.email);
+    const name = readClaim(d, claims.name, DEFAULT_OIDC_CLAIMS.name);
     // #124 group mapping: IdPs send a groups array (Authentik natively;
     // Keycloak via a client mapper). Absent → empty list (mapping inert).
     const groups = Array.isArray(d.groups)
@@ -143,8 +176,11 @@ export async function fetchUserInfo(
       : [];
     return {
       sub,
-      preferredUsername: typeof preferred === "string" && preferred.length > 0 ? preferred : null,
+      preferredUsername: username.value,
       groups,
+      email: email.value,
+      displayName: name.value,
+      claimFallback: username.fallbackUsed || email.fallbackUsed || name.fallbackUsed,
     };
   } catch {
     return null;

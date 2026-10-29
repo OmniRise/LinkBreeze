@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 139fa31d2b2c ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 56a8eebddd87 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -647,6 +647,12 @@ const it: Messages = {
       "Configurazione della pagina, aspetto e sicurezza dell'account per /{slug}",
 
     oidc: {
+      claimsTitle: "Personalizzazione dei claim",
+      claimsHint: "Definisce quali claim contengono nome utente, email e nome visualizzato. Vuoto = nomi OIDC standard.",
+      claimsFallbackFlag: "Un claim configurato mancava all'ultimo accesso SSO — è stato usato il claim standard.",
+      claimUsername: "Claim nome utente",
+      claimEmail: "Claim email",
+      claimName: "Claim nome visualizzato",
       title: "Accesso unico (OIDC)",
       description: "I membri accedono tramite il tuo identity provider — funziona con qualsiasi provider OIDC standard (Authentik, Keycloak, Authelia…).",
       issuer: "URL dell'issuer",

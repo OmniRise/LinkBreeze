@@ -1069,8 +1069,12 @@ export async function getOidcSettingsRaw(): Promise<{
   groupClaim: string | null;
   noGroupMatch: string | null;
   groupRoleMap: string | null;
+  claimUsername: string | null;
+  claimEmail: string | null;
+  claimName: string | null;
+  claimFallback: string | null;
 }> {
-  const [issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap] =
+  const [issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap, claimUsername, claimEmail, claimName, claimFallback] =
     await Promise.all([
       getSetting("oidcIssuer"),
       getSetting("oidcClientId"),
@@ -1080,8 +1084,12 @@ export async function getOidcSettingsRaw(): Promise<{
       getSetting("oidcGroupClaim"),
       getSetting("oidcNoGroupMatch"),
       getSetting("oidcGroupRoleMap"),
+      getSetting("oidcClaimUsername"),
+      getSetting("oidcClaimEmail"),
+      getSetting("oidcClaimName"),
+      getSetting("oidcClaimFallback"),
     ]);
-  return { issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap };
+  return { issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap, claimUsername, claimEmail, claimName, claimFallback };
 }
 
 /** Parse the stored group→role rules JSON; garbage returns [] (mapping off). */

@@ -655,6 +655,12 @@ const en = {
       "Page configuration, appearance and account security for /{slug}",
 
     oidc: {
+      claimsTitle: "Claim customization",
+      claimsHint: "Override which claims carry the username, email, and display name. Empty = standard OIDC names.",
+      claimsFallbackFlag: "A configured claim was missing at the last SSO sign-in — the standard claim was used instead.",
+      claimUsername: "Username claim",
+      claimEmail: "Email claim",
+      claimName: "Display name claim",
       title: "Single sign-on (OIDC)",
       description: "Let members sign in through your identity provider — works with any standard OpenID Connect provider (Authentik, Keycloak, Authelia…).",
       issuer: "Issuer URL",
