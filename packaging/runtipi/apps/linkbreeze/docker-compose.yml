@@ -1,6 +1,6 @@
 services:
   linkbreeze:
-    image: docker.io/omnirise/linkbreeze:v1.5.0
+    image: docker.io/omnirise/linkbreeze:v1.5.1
     restart: unless-stopped
     volumes:
       - ${APP_DATA_DIR}/data:/app/data
