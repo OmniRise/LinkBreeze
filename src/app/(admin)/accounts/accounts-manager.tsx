@@ -298,7 +298,7 @@ export function AccountsManager({
               )}
             </Button>
           </form>
-          <div className="border-t border-border pt-3">
+          <div className="mt-5 border-t border-border pt-4">
             <Button type="button" variant="outline" size="sm" onClick={openInviteDialog}>
               <Link2 className="size-3.5" aria-hidden />
               {t("inviteOpen")}
