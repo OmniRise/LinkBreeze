@@ -166,6 +166,9 @@ export function isAdminPath(pathname: string): boolean {
     "/api/totp-qr",
   ]);
   if (adminExact.has(pathname) || adminApiExact.has(pathname)) return true;
+  // /invite/<token> is a PUBLIC auth surface (no session) — still part of the
+  // admin/auth plane for the strict-host lock, like /login.
+  if (pathname === "/invite" || pathname.startsWith("/invite/")) return true;
   return (
     adminPrefixes.some((p) => pathname === p || pathname.startsWith(p + "/")) ||
     adminApiPrefixes.some((p) => pathname === p || pathname.startsWith(p + "/"))

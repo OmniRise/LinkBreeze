@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 56a8eebddd87 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: f8a97c9c053e ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -1231,7 +1231,28 @@ const it: Messages = {
       'settings.updated': "Impostazioni modificate",
     },
   },
+  invite: {
+    title: "Unisciti a questa istanza",
+    invitedAs: "Sei stato invitato con il ruolo: {role}",
+    invitedGeneric: "Sei stato invitato a creare un account.",
+    username: "Nome utente",
+    password: "Password",
+    passwordHint: "Almeno 8 caratteri con maiuscola, minuscola e una cifra.",
+    submit: "Crea account",
+    creating: "Creazione…",
+  },
   accounts: {
+    inviteOpen: "Invita tramite link",
+    inviteTitle: "Invita un membro",
+    inviteHint: "Crea un link di registrazione monouso, valido 7 giorni. Condividilo direttamente — senza email.",
+    inviteLinkOnce: "Questo link viene mostrato una sola volta — copialo ora.",
+    inviteCopy: "Copia",
+    inviteCopied: "Copiato!",
+    inviteExpires: "Scade: {date}",
+    inviteExpiresShort: "scade il {date}",
+    invitePending: "Inviti in sospeso",
+    inviteRevoke: "Revoca",
+    inviteGenerate: "Genera link",
     pagesLimitPlaceholder: "Illimitato",
     roleSessionInherit: "Eredita",
     sessionSave: "Salva sostituzione",

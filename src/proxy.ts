@@ -59,6 +59,7 @@ const PUBLIC_EXACT = new Set([
 const ADMIN_RESERVED = new Set([
   "/login",
   "/setup",
+  "/invite",
   "/dashboard",
   "/links",
   "/profile",

@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Hourglass,
+  Link2,
   ShieldCheck,
   Trash2,
   UserCog,
@@ -26,6 +27,11 @@ import {
   setAccountPagePolicyAction,
   setAccountStatusAction,
 } from "@/server/actions/accounts";
+import {
+  createInviteAction,
+  revokeInviteAction,
+  listInvitesAction,
+} from "@/server/actions/invites";
 import {
   createRoleAction,
   deleteRoleAction,
@@ -98,6 +104,7 @@ export function AccountsManager({
   canManageInstance: boolean;
 }) {
   const t = useTranslations("accounts");
+  const tCommon = useTranslations("common");
   const tErr = useTranslations("errors");
   const savedAction = useSavedAction();
   const [pending, startTransition] = React.useTransition();
@@ -108,6 +115,12 @@ export function AccountsManager({
   const [roleDeleteTarget, setRoleDeleteTarget] = React.useState<RoleRowLite | null>(null);
   const [deletePassword, setDeletePassword] = React.useState("");
   const [sessionTarget, setSessionTarget] = React.useState<AccountSummary | null>(null);
+  const [inviteDialog, setInviteDialog] = React.useState(false);
+  const [inviteLink, setInviteLink] = React.useState<{ token: string; expiresAt: string } | null>(null);
+  const [invites, setInvites] = React.useState<
+    { id: number; roleName: string | null; expiresAt: string; used: boolean }[]
+  >([]);
+  const [copied, setCopied] = React.useState(false);
 
   const memberRole = roles.find((r) => r.name === "Member") ?? roles[0];
 
@@ -157,6 +170,42 @@ export function AccountsManager({
     setDeleteTarget(null);
     runForm(deleteAccountAction, fd);
   };
+
+  const refreshInvites = React.useCallback(() => {
+    void startTransition(async () => {
+      const res = await listInvitesAction();
+      if (res.success) setInvites(res.invites);
+    });
+  }, []);
+
+  const openInviteDialog = () => {
+    setInviteLink(null);
+    setCopied(false);
+    setInviteDialog(true);
+    refreshInvites();
+  };
+
+  const generateInvite = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      const res = await savedAction.run(
+        createInviteAction as unknown as (...args: never[]) => Promise<{ success: boolean; error?: string; token?: string; expiresAt?: string }>,
+        fd,
+      );
+      if (res.success && res.token) {
+        setInviteLink({ token: res.token, expiresAt: res.expiresAt ?? "" });
+        refreshInvites();
+      } else {
+        setError(localizeActionError(tErr, (res as { error: string }).error));
+      }
+    });
+  };
+
+  const inviteUrl = inviteLink
+    ? `${window.location.origin}/invite/${inviteLink.token}`
+    : "";
 
   const visibilityLabel = (v: string) =>
     v === "manage_all" ? t("visManageAll") : v === "view_all" ? t("visViewAll") : t("visOwn");
@@ -245,6 +294,12 @@ export function AccountsManager({
               )}
             </Button>
           </form>
+          <div className="border-t border-border pt-3">
+            <Button type="button" variant="outline" size="sm" onClick={openInviteDialog}>
+              <Link2 className="size-3.5" aria-hidden />
+              {t("inviteOpen")}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -797,6 +852,109 @@ export function AccountsManager({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Invite dialog (stage 1: links, no SMTP) ───────────────────────── */}
+      <Dialog
+        open={inviteDialog}
+        onOpenChange={(open) => {
+          if (!open) setInviteDialog(false);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="size-4" aria-hidden />
+              {t("inviteTitle")}
+            </DialogTitle>
+            <DialogDescription>{t("inviteHint")}</DialogDescription>
+          </DialogHeader>
+
+          {inviteLink ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium">{t("inviteLinkOnce")}</p>
+              <div className="flex items-center gap-2">
+                <Input readOnly value={inviteUrl} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteUrl);
+                      setCopied(true);
+                    } catch {
+                      setCopied(false);
+                    }
+                  }}
+                >
+                  {copied ? t("inviteCopied") : t("inviteCopy")}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("inviteExpires", { date: inviteLink.expiresAt })}
+              </p>
+              <div>
+                <Button type="button" variant="outline" size="sm" onClick={() => setInviteDialog(false)}>
+                  {tCommon("close")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={generateInvite} className="flex flex-col gap-4">
+              <FormField label={t("createRole")} htmlFor="invite-role">
+                <select id="invite-role" name="roleId" defaultValue={memberRole?.id ?? ""} className={SELECT_CLASSES}>
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.id} className="bg-background text-foreground">
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+
+              {invites.filter((i) => !i.used).length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">{t("invitePending")}</p>
+                  {invites
+                    .filter((i) => !i.used)
+                    .slice(0, 8)
+                    .map((i) => (
+                      <div key={i.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-1.5">
+                        <span className="text-xs">
+                          {i.roleName ?? "Member"} · {t("inviteExpiresShort", { date: i.expiresAt.slice(0, 10) })}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={pending}
+                          onClick={() =>
+                            startTransition(async () => {
+                              const res = await savedAction.run(
+                                revokeInviteAction as unknown as (...args: never[]) => Promise<{ success: boolean; error?: string }>,
+                                i.id,
+                              );
+                              if (res.success) refreshInvites();
+                            })
+                          }
+                        >
+                          {t("inviteRevoke")}
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setInviteDialog(false)}>
+                  {t("cancel")}
+                </Button>
+                <Button type="submit" disabled={pending}>
+                  {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : t("inviteGenerate")}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

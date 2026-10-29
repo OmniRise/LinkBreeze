@@ -38,7 +38,7 @@ import { requirePasswordConfirmation } from "@/server/actions/confirm";
 import { normalizeSlug, slugError, SLUG_ERRORS } from "@/lib/link-slug";
 
 /** First page slug for a new account: the username, made unique with -2/-3… */
-async function uniqueSlugForUsername(username: string): Promise<string> {
+export async function uniqueSlugForUsername(username: string): Promise<string> {
   const base = normalizeSlug(username) || "user";
   const taken = new Set((await getAllPages()).map((p) => p.slug.toLowerCase()));
   if (!taken.has(base.toLowerCase()) && !slugError(base)) return base;
@@ -52,7 +52,7 @@ async function uniqueSlugForUsername(username: string): Promise<string> {
  * #124 2B.4 — instance page policy: 'per_user' (default) auto-creates each
  * new account's own public page; 'manual' leaves new pages to the admin.
  */
-async function accountPagePolicy(): Promise<"per_user" | "manual"> {
+export async function accountPagePolicy(): Promise<"per_user" | "manual"> {
   const v = await getSetting("accountPagePolicy");
   return v === "manual" ? "manual" : "per_user";
 }

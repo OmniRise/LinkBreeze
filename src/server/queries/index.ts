@@ -15,6 +15,7 @@ import {
   roles,
   oidcIdentities,
   oidcStates,
+  invites,
 } from "@/db/schema";
 import { resolveCapabilities, type RoleCapabilities } from "@/lib/ownership";
 import { PRESETS } from "@/lib/theme-presets";
@@ -1627,4 +1628,49 @@ export async function getAllSubscribers(): Promise<SubscriberRow[]> {
 
 export async function clearSubscribers(): Promise<void> {
   db.delete(subscribers).run();
+}
+
+// ─── Invitations, stage 1 (#124 follow-up) ──────────────────────────────────
+// Single-use links; only the SHA-256 hash of the token is stored, so a leaked
+// DB cannot mint invitations. SMTP delivery is stage 2.
+
+export type InviteRow = typeof invites.$inferSelect;
+
+export async function createInvite(input: {
+  tokenHash: string;
+  roleId: number | null;
+  createdBy: number | null;
+  expiresAt: string;
+}): Promise<InviteRow> {
+  const created = await db.insert(invites).values(input).returning();
+  return created[0];
+}
+
+/** Valid = exists, unused, unexpired. Expired rows are swept lazily. */
+export async function getValidInvite(tokenHash: string): Promise<InviteRow | null> {
+  const rows = await db.select().from(invites).where(eq(invites.tokenHash, tokenHash)).limit(1);
+  const invite = rows[0];
+  if (!invite) return null;
+  if (invite.usedAt) return null;
+  if (new Date(invite.expiresAt + "Z").getTime() < Date.now()) return null;
+  return invite;
+}
+
+export async function markInviteUsed(inviteId: number, userId: number): Promise<void> {
+  await db
+    .update(invites)
+    .set({ usedAt: sql`(datetime('now'))`, usedBy: userId })
+    .where(eq(invites.id, inviteId));
+}
+
+export async function listInvites(): Promise<InviteRow[]> {
+  return db.select().from(invites).orderBy(desc(invites.id)).limit(200);
+}
+
+export async function revokeInvite(inviteId: number): Promise<void> {
+  await db.delete(invites).where(and(eq(invites.id, inviteId), sql`${invites.usedAt} IS NULL`));
+}
+
+export async function purgeExpiredInvites(): Promise<void> {
+  await db.delete(invites).where(lt(invites.expiresAt, sql`datetime('now')`));
 }
