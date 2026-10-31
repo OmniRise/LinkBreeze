@@ -67,15 +67,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const endpoints = await fetchDiscovery(config.issuer);
   if (!endpoints) return fail("discovery");
 
-  // redirect_uri must match the one used at authorize time: derive from THIS
+  // redirect_uri must match the one used at authorize time. BASE_URL wins when
+  // set (same rule as authorize + QR/vCard routes); otherwise derive from THIS
   // request's host (the IdP called us back on it).
-  const host = pickRequestHost(
-    request.headers.get("x-forwarded-host"),
-    request.headers.get("host"),
-    process.env.LINKBREEZE_TRUST_X_FORWARDED_HOST === "true",
-  );
-  const proto = request.headers.get("x-forwarded-proto") ?? "http";
-  const redirectUri = `${proto}://${host ?? "localhost:3000"}/api/auth/oidc/callback`;
+  const redirectBase = process.env.BASE_URL
+    ? process.env.BASE_URL.replace(/\/$/, "")
+    : `${request.headers.get("x-forwarded-proto") ?? "http"}://${
+        pickRequestHost(
+          request.headers.get("x-forwarded-host"),
+          request.headers.get("host"),
+          process.env.LINKBREEZE_TRUST_X_FORWARDED_HOST === "true",
+        ) ?? "localhost:3000"
+      }`;
+  const redirectUri = `${redirectBase}/api/auth/oidc/callback`;
 
   const tokens = await exchangeCode({
     tokenEndpoint: endpoints.tokenEndpoint,

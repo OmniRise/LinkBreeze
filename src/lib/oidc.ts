@@ -30,12 +30,14 @@ function httpOrigin(u: URL): string {
 }
 
 /**
- * The issuer the admin configured. Strict shape: an https URL (http only for
- * localhost in non-production) with no credentials, query, or fragment.
+ * The issuer the admin configured. Strict shape: an https URL, or http for a
+ * localhost host in non-production, or — behind the explicit
+ * LINKBREEZE_ALLOW_HTTP_ISSUER=true escape hatch (allowInsecureIssuer) — http
+ * for a trusted-LAN provider. No credentials, query, or fragment either way.
  */
 export function isValidIssuerUrl(
   raw: string,
-  { production }: { production: boolean },
+  { production, allowInsecureIssuer = false }: { production: boolean; allowInsecureIssuer?: boolean },
 ): boolean {
   let u: URL;
   try {
@@ -46,8 +48,8 @@ export function isValidIssuerUrl(
   const local = isLocalHost(u.hostname);
   if (u.protocol === "https:") {
     // ok
-  } else if (u.protocol === "http:" && local && !production) {
-    // dev providers only
+  } else if (u.protocol === "http:" && (allowInsecureIssuer || (local && !production))) {
+    // local dev providers, or an explicitly opted-in LAN provider
   } else {
     return false;
   }

@@ -60,6 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 
+- **SSO redirect ignored `BASE_URL` (#124)** — the OIDC start and callback derived `redirect_uri` purely from request headers, so behind a reverse proxy that does not forward `X-Forwarded-Host` the identity provider was sent back to the container's local address instead of the public domain. Both sites now prefer `BASE_URL` when set, the same anti-spoofing rule the QR, vCard, and OG routes already used.
+
+- **The `LINKBREEZE_ALLOW_HTTP_ISSUER` escape hatch never worked for LAN providers (#124)** — the issuer validation hard-restricted http to localhost regardless of the flag, so the documented trusted-LAN case (e.g. a LAN Keycloak on `http://192.168.x.x`) was refused with "invalid issuer URL". With the flag set, a non-local http issuer is now accepted (credentials, query, and fragment are still rejected); without it, nothing changes — production stays https-only.
+
 - **Unthrottled SSO endpoints (#124)** — the OIDC start action (10/min/IP — each call writes a state row and fetches discovery) and callback (30/min/IP) are now rate-limited like the local login; the state expiry check gained a 30s clock-drift leeway.
 
 - **SSO sign-in completed without storing the session (#124)** — the OIDC callback created the session correctly server-side but attached the cookie in a way a self-constructed redirect response drops, so the browser finished the flow signed out. The cookie is now set on the response itself. Caught by a real round-trip against a mock identity provider (`e2e/mock-oidc-idp.mjs` + `e2e/oidc-roundtrip-manual.mjs`): button → authorize (PKCE verified) → JIT provisioning → signed-in dashboard, replay and repeat-login behavior covered.

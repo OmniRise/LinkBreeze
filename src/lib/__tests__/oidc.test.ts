@@ -52,6 +52,16 @@ describe("isValidIssuerUrl", () => {
     // but http to a REAL host stays rejected even in dev
     expect(isValidIssuerUrl("http://idp.example.com", { production: false })).toBe(false);
   });
+
+  it("allowInsecureIssuer: the LINKBREEZE_ALLOW_HTTP_ISSUER escape hatch admits a trusted-LAN http IdP — in any mode", () => {
+    expect(isValidIssuerUrl("http://idp.internal:8080", { production: true, allowInsecureIssuer: true })).toBe(true);
+    expect(isValidIssuerUrl("http://192.168.1.10:9000", { production: true, allowInsecureIssuer: true })).toBe(true);
+    expect(isValidIssuerUrl("http://host.docker.internal:9999", { production: true, allowInsecureIssuer: true })).toBe(true);
+    // the hatch widens http only — every other strict-shape rule still applies
+    expect(isValidIssuerUrl("ftp://idp.internal:8080", { production: true, allowInsecureIssuer: true })).toBe(false);
+    expect(isValidIssuerUrl("http://user:pass@idp.internal", { production: true, allowInsecureIssuer: true })).toBe(false);
+    expect(isValidIssuerUrl("http://idp.internal/?x=1", { production: true, allowInsecureIssuer: true })).toBe(false);
+  });
 });
 
 // ─────────────────────────── discovery parsing (poisoning guard) ───────────────────────────

@@ -42,16 +42,17 @@ const FETCH_TIMEOUT_MS = 10_000;
 const discoveryCache = new Map<string, { endpoints: OidcEndpoints; at: number }>();
 
 export function isProduction(): boolean {
-  // Explicit operator escape hatch: allow an http issuer (e.g. a LAN Keycloak
-  // or a local test provider) even in a production-mode server. Off by
-  // default — production instances must use https issuers.
-  if (process.env.LINKBREEZE_ALLOW_HTTP_ISSUER === "true") return false;
   return process.env.NODE_ENV === "production";
+}
+
+/** Explicit operator opt-in for an http (trusted-LAN) identity provider. */
+export function insecureIssuerAllowed(): boolean {
+  return process.env.LINKBREEZE_ALLOW_HTTP_ISSUER === "true";
 }
 
 /** Fetch + validate discovery for a configured issuer. Null = unusable. */
 export async function fetchDiscovery(issuer: string): Promise<OidcEndpoints | null> {
-  if (!isValidIssuerUrl(issuer, { production: isProduction() })) return null;
+  if (!isValidIssuerUrl(issuer, { production: isProduction(), allowInsecureIssuer: insecureIssuerAllowed() })) return null;
   const cached = discoveryCache.get(issuer);
   if (cached && Date.now() - cached.at < DISCOVERY_TTL_MS) return cached.endpoints;
 

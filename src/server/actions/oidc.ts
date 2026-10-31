@@ -16,6 +16,7 @@ import { recordAudit } from "@/server/audit";
 import { pickRequestHost } from "@/lib/host-routing";
 import {
   getOidcClientSecret,
+  insecureIssuerAllowed,
   isProduction,
   randomState,
   stateExpiry,
@@ -24,6 +25,9 @@ import { createPkce } from "@/lib/oidc";
 
 /** The instance origin the IdP must see as redirect_uri (same rules as QR/vCard). */
 async function instanceOrigin(): Promise<string> {
+  // BASE_URL wins when set (same anti-spoofing rule as the QR/vCard/OG routes),
+  // so a correct .env works even when the proxy does not forward host headers.
+  if (process.env.BASE_URL) return process.env.BASE_URL.replace(/\/$/, "");
   const { headers } = await import("next/headers");
   const h = await headers();
   const host = pickRequestHost(
@@ -61,7 +65,7 @@ export async function startOidcLoginAction(
 
   const config = await getOidcConfig();
   if (!config) return notFoundError("SSO is not configured on this instance");
-  if (!isValidIssuerUrl(config.issuer, { production: isProduction() })) {
+  if (!isValidIssuerUrl(config.issuer, { production: isProduction(), allowInsecureIssuer: insecureIssuerAllowed() })) {
     return validationError("SSO is configured with an invalid issuer URL");
   }
   const clientSecret = getOidcClientSecret();
@@ -109,7 +113,7 @@ export async function saveOidcSettingsAction(formData: FormData): Promise<Action
   const groupClaim = String(formData.get("groupClaim") ?? "").trim() || "groups";
   const noGroupMatch = String(formData.get("noGroupMatch") ?? "default_role");
 
-  if (issuer && !isValidIssuerUrl(issuer, { production: isProduction() })) {
+  if (issuer && !isValidIssuerUrl(issuer, { production: isProduction(), allowInsecureIssuer: insecureIssuerAllowed() })) {
     return validationError("Issuer must be an https URL (http://localhost only outside production) without query or fragment");
   }
   if (mode !== "optional" && mode !== "replaces_local") {
