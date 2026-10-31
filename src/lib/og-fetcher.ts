@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { UPLOADS_DIR, ensureUploadsDir } from "@/lib/uploads";
 import { extractDomain } from "@/lib/favicon";
 
-const FETCH_TIMEOUT_MS = 7_000;
+const FETCH_TIMEOUT_MS = 10_000;
 const MAX_HTML_BYTES = 512 * 1024; // 512KB — enough for <head>
 
 export interface OgData {
@@ -30,10 +30,12 @@ export async function fetchOgData(url: string): Promise<OgData> {
     return { title: null, description: null, imageUrl: null, siteName: null };
   }
 
+  // The timeout stays armed until the body read finishes (cleared in the
+  // finally below): a server that sends headers promptly then stalls the
+  // body mid-stream is aborted instead of hanging the link save forever.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
     const res = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
@@ -42,7 +44,6 @@ export async function fetchOgData(url: string): Promise<OgData> {
         Accept: "text/html",
       },
     });
-    clearTimeout(timeout);
 
     if (!res.ok) {
       return { title: null, description: null, imageUrl: null, siteName: null };
@@ -84,6 +85,8 @@ export async function fetchOgData(url: string): Promise<OgData> {
     return og;
   } catch {
     return { title: null, description: null, imageUrl: null, siteName: null };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -219,15 +222,14 @@ async function cacheOgImage(
     // Not cached — fetch it.
   }
 
+  // Timeout stays armed through the body download — same rule as fetchOgData.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
     const res = await fetch(absoluteUrl, {
       signal: controller.signal,
       redirect: "follow",
     });
-    clearTimeout(timeout);
 
     if (!res.ok) return null;
 
@@ -241,5 +243,7 @@ async function cacheOgImage(
     return `/api/uploads/${filename}`;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }

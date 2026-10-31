@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stalled link saves on automatic icons** — the favicon fetcher cleared its timeout as soon as response headers arrived, so a destination that sent headers promptly but stalled the body mid-stream hung `readBodyWithCap` forever: the save server action never returned and the link was never written. The timeout now stays armed until the body read finishes (same for the OG-image download), the per-fetch timeout is bumped 6s/7s → 10s, and the whole icon phase (every strategy, candidate, and the retry) is capped at 12s so a save can never block longer than that.
+
 ## [1.5.1] - 2026-10-27
 
 ### Added
