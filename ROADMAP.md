@@ -8,7 +8,6 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 ## Now
 
-- **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance, each with their own public page, plus sign-in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID, ...) alongside local accounts.
 - **A/B testing for links** (#81) - variant split, per-variant analytics, promote-to-winner.
 
 ## Next
@@ -16,7 +15,7 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 - **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord-style and Telegram-compatible payloads.
 - **Public REST API** (#4) - programmatic link management for power users and integrations.
 - **Link guardian** - scheduled broken-link checking (off / daily / weekly, owner's choice) with a manual "check now" button and per-link health status. Bot-wall responses are reported as unknown, never as broken. _(issue to be linked)_
-- **Clickable hyperlinks in text cards** - write `[text](url)` in a text card and it renders as a clickable link, so any text can point to another page or site. _(issue to be linked)_
+- **Markdown text cards with pop-up full text** - text cards render markdown-format content (clickable `[text](url)` hyperlinks and more), and a card's full text opens in a pop-up. _(issue to be linked)_
 
 ## Later
 
@@ -27,6 +26,8 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 ## Shipped
 
 Recent highlights - the full history lives in [CHANGELOG.md](CHANGELOG.md):
+
+- **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance, each with their own public page, plus sign-in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID, ...) alongside local accounts. _merged to main, ships in v1.6.0_
 
 - **v1.5.1** - 11-language admin and READMEs, first-party CasaOS, Runtipi and Unraid app-store packaging, the Settings update status card, a Linktree import fix, and a demo-guard security fix.
 - **v1.5.0** - custom domains for pages, automatic scheduled backups, custom `/go/` redirect slugs, `@` in page slugs, Poster Hero OG cards, official `omnirise/linkbreeze` Docker image, one-shot `update.sh`.
