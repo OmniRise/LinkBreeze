@@ -5,45 +5,18 @@ All notable changes to LinkBreeze will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## [Unreleased]
 
-<<<<<<< HEAD
 ### Added
 
-- **Member invitations, stage 1 (#124 follow-up)** — admins generate single-use sign-up links (role pre-assigned, 7-day expiry, shown once and stored only as a SHA-256 hash so a leaked database cannot mint invitations). New members accept at `/invite/<token>`: pick a username and password, get their page per the instance policy, and are signed in immediately. Pending invites can be revoked; SMTP delivery arrives with the outbound email layer.
-- **OIDC claim customization (#124 follow-up)** — the username, email, and display-name claims are configurable in the OIDC settings (default: `preferred_username` / `email` / `name`). A configured claim missing at sign-in falls back to the standard one and the card flags it.
-- **Customizable session lifetime (#124 follow-up)** — three layers, most specific wins: global defaults (Settings → Security), per-role columns, and per-account overrides. Idle sessions close after inactivity (the idle clock only advances on real actions, not page loads) and tokens carry an absolute expiry from the effective limit. Destructive admin actions (delete account, delete role) now require password re-entry.
-- **Admin audit log (#124 follow-up)** — append-only trail of security-relevant events (account/role lifecycle, sign-ins, SSO logins and refusals, settings changes) at a clean `/audit` page, instance-admins only: actor, action, and period filters, cursor pagination, actor snapshots that survive account deletion, 90-day retention (configurable).
-- **Generic OIDC / OAuth2 single sign-on (#124, in progress)** — Sign in through any standard OpenID Connect identity provider (Authentik, Keycloak, Authelia, Pocket ID…) via discovery — no per-provider code. Authorization-code flow with PKCE (S256), single-use expiring server-side state, and the identity taken from the userinfo endpoint. First-time sign-ins can provision an account automatically (JIT, on by default, respecting the instance page policy and a configurable default role); an existing local account can link an SSO identity from a signed-in session, and the instance can optionally restrict sign-in to SSO only. **Group → role mapping**: an ordered list of `group → role` rules (configurable claim name, default `groups`) is evaluated on every SSO sign-in — first match wins, no match falls back to the default role or refuses sign-in, and demotions apply at next login while the last-admin invariant holds. The client secret is env-only (`OIDC_CLIENT_SECRET`) and never stored in settings, which are exported into backups. Issuers must be https in production — `LINKBREEZE_ALLOW_HTTP_ISSUER=true` is the documented escape hatch for trusted-LAN providers. Security boundaries are tested: strict issuer validation (https-only outside localhost), discovery documents rejected when the issuer mismatches or an endpoint leaves the issuer's origin, open-redirect-safe return paths, and replay/expiry protection on login states.
-- **Role-scoped admin surface (#124, in progress)** — The admin shell itself now follows the role: members see only their own pages in the page switcher and dashboard (no more ?page= peeking at anyone's stats), instance-level nav sections (theme, domains, accounts) render only for roles holding the matching capability, the Settings screen collapses to the Security tab for non-instance-admins, and the analytics CSV export — instance-wide, visitor hashes included — is instance-admin-only. Update/backup banners and the instance-wide subscriber count stay admin-only too.
-- **Customizable roles and instance-hardened authorization (#124, in progress)** — Roles are now editable rows instead of a fixed admin/member pair: each role sets how many pages its members can own (or unlimited), whether they see all pages, manage all pages, manage accounts, or manage instance settings, and ships with undeletable built-in Admin and Member roles. Every instance-level server action (settings, backups, domains, themes, data import/restore, update checks) now verifies capabilities from the role row itself instead of trusting a session hint — previously any signed-in account could invoke them directly. Sections, links, and page mutations resolve the target page and check edit capability per action. New accounts provision their own page per an instance page policy (automatic by default, manual optional).
-- **Multi-user accounts section (#124, in progress)** — The admin can now create, enable, disable, and delete accounts, and assign each an Admin or Member role. Every account owns its own public page; admins manage the instance. Deleting an account keeps its page and links, with an explicit option to release the page slug for reuse; the last active admin cannot be disabled or deleted. New `/accounts` admin section (nav, mobile tab bar, robots disallow, admin-path routing, locale keys in all 11 languages).
-=======
+- **Multi-user accounts with customizable roles (#124)** — per-account public pages; admin create/enable/disable/delete with last-admin guard; editable roles (page limits, visibility, capability checks now enforced on every instance-level action); role-scoped admin surface; single-use invitation links (SHA-256-hashed, 7-day expiry) accepted at `/invite/<token>`; append-only admin audit log at `/audit` with filters, cursor pagination and 90-day retention; per-role/per-user session lifetimes with action-based idle timeout and password re-entry for destructive admin actions.
+- **Generic OIDC / OAuth2 single sign-on (#124)** — sign in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID…) via discovery: authorization-code + PKCE (S256), single-use expiring state, JIT provisioning, account linking, optional SSO-only mode. Group → role mapping (first-match, configurable claim) with the last-admin invariant; configurable username/email/name claims; env-only client secret; https-only issuers with the `LINKBREEZE_ALLOW_HTTP_ISSUER` escape hatch for trusted-LAN providers (which now actually works).
+
 ### Fixed
 
 - **Stalled link saves on automatic icons** — the favicon fetcher cleared its timeout as soon as response headers arrived, so a destination that sent headers promptly but stalled the body mid-stream hung `readBodyWithCap` forever: the save server action never returned and the link was never written. The timeout now stays armed until the body read finishes (same for the OG-image download), the per-fetch timeout is bumped 6s/7s → 10s, and the whole icon phase (every strategy, candidate, and the retry) is capped at 12s so a save can never block longer than that.
->>>>>>> origin/main
+- **SSO redirects behind Host-rewriting proxies (#124)** — `redirect_uri`, the post-login redirect, and error bounces were derived from request headers, so behind a proxy that rewrites Host (Pangolin, some nginx setups) sign-in bounced the browser to an internal address. `BASE_URL` now wins at all three sites (same rule as QR/vCard/OG).
+- **SSO session cookie dropped by the callback redirect (#124)** — the cookie was attached in a way a self-constructed redirect response discarded, so the flow finished signed out. Caught by a live round-trip against a mock IdP (`e2e/mock-oidc-idp.mjs`).
 
 ## [1.5.1] - 2026-10-27
 
@@ -65,14 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-
-- **SSO redirect ignored `BASE_URL` (#124)** — the OIDC start and callback derived `redirect_uri` and the post-login redirect purely from request headers, so behind a reverse proxy that rewrites the Host header (e.g. to an internal address) the identity provider was sent back to the container's local address instead of the public domain — and even a successful sign-in bounced the browser to an unreachable host. All three redirect sites now prefer `BASE_URL` when set, the same anti-spoofing rule the QR, vCard, and OG routes already used.
-
-- **The `LINKBREEZE_ALLOW_HTTP_ISSUER` escape hatch never worked for LAN providers (#124)** — the issuer validation hard-restricted http to localhost regardless of the flag, so the documented trusted-LAN case (e.g. a LAN Keycloak on `http://192.168.x.x`) was refused with "invalid issuer URL". With the flag set, a non-local http issuer is now accepted (credentials, query, and fragment are still rejected); without it, nothing changes — production stays https-only.
-
 - **Unthrottled SSO endpoints (#124)** — the OIDC start action (10/min/IP — each call writes a state row and fetches discovery) and callback (30/min/IP) are now rate-limited like the local login; the state expiry check gained a 30s clock-drift leeway.
-
-- **SSO sign-in completed without storing the session (#124)** — the OIDC callback created the session correctly server-side but attached the cookie in a way a self-constructed redirect response drops, so the browser finished the flow signed out. The cookie is now set on the response itself. Caught by a real round-trip against a mock identity provider (`e2e/mock-oidc-idp.mjs` + `e2e/oidc-roundtrip-manual.mjs`): button → authorize (PKCE verified) → JIT provisioning → signed-in dashboard, replay and repeat-login behavior covered.
 
 - **Fresh API installs booted without an admin (#124)** — `/api/setup` created the first account with the default Member role, so API-installed instances had no working administrator (the setup wizard already passed the admin role). Both bootstrap paths now agree, with a regression test.
 
@@ -80,7 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The update checker's GitHub fallback still queried the pre-transfer repo** — the update-check module called `api.github.com/repos/Manak-hash/LinkBreeze/releases/latest`; the canonical-URL pass in this release covered documentation only, and this one code path kept the old name. GitHub's rename redirect kept it working, but the checker now queries `OmniRise/LinkBreeze` directly.
 
 - **Local `npm run test` failed on the TOTP lifecycle test (#128)** — the enroll → activate → verify → disable lifecycle hashes 8 recovery codes with bcryptjs at cost 12 (single-threaded JavaScript: ~7.9s measured on modest dev hardware), well past vitest's 5-second default, so every local full-suite run died on `Test timed out in 5000ms` while CI's faster runner squeaked under and kept main green. The test now carries an explicit 20s budget with a comment; the hashing strength (cost 12) is untouched. Diagnosed as budget, not regression: the clean tree failed identically and the same run passed at a 30s timeout.
-
 
 - **Importing a Linktree page pulled Linktree's own affiliate links instead of the account's** — the migration wizard's `__NEXT_DATA__` extractor recursively searched the entire Next.js payload for any `{url, title}` array and swallowed `props.pageProps.statsigInitValues`, a statsig feature-flag blob whose sponsorship list is Linktree's global affiliate catalog (an identical ~26-item array on every profile: Hulu, HelloFresh, Headspace, and more). Importing any Linktree URL returned those promo links and buried or dropped the account's real links, and client-rendered mega-accounts returned only the promo list. The extractor now reads Linktree's real link containers first (`pageProps.links` / `socialLinks` and their `account.*` mirrors), the recursive walk skips config subtrees (`statsigInitValues`, `googleAdConfig`, blog teasers), and the inline-script tier no longer re-parses `__NEXT_DATA__` (which was re-introducing the blob). Client-rendered accounts now correctly report "No links found on this page" (use the File tab) instead of the affiliate list; Bento, Hopp, and Beacons extraction is unchanged, and regression tests cover the blob, the empty-SSR case, and the non-Linktree fallback path.
 
@@ -143,7 +108,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Share & wallet exports: vCard, Google Wallet, Apple Wallet** — Every public page can now show a share block, **opt-in per page** via a new "Share block" toggle in Settings → Integration (off by default). "Save contact" is a universal vCard 4.0 download (no configuration): name, handle, page URL, bio and org fields, RFC 6350-compliant (CRLF line endings, 75-octet folding, full value escaping) and hardened against adversarial input — card-boundary injection via embedded newlines, control characters, and traversal-style filenames are all contained, covered by a dedicated security test suite. Beyond the vCard, operators can enable "Add to Google Wallet" and "Add to Apple Wallet" buttons by bringing their own credentials as environment variables (see the new `.env.example` section and the Configuration table in the README): Google needs a free issuer ID + service-account JSON, Apple needs the five `APPLE_WALLET_*` variables from a paid Developer account. Both wallets render stateless static passes — a business card carrying the page identity, a QR that always opens the live page, and a snapshot of the current links on the back ("Saved on" labeled; passes are frozen at install by design, no push infrastructure). Google passes are issued just-in-time as RS256-signed JWTs via `node:crypto` (no new JWT dependency); Apple passes are built with `passkit-generator` and served with the exact `application/vnd.apple.pkpass` MIME type iOS requires. The routes are read-only (the demo instance shows the feature), rate-limited like the QR route, and 503 when credentials are absent — the buttons themselves only render when the matching credentials exist, verified both ways in live testing. A new "Wallet & contact exports" card in the same Settings tab shows per-wallet credential status (never secret values) and warns before the Apple signing certificate expires — the silent-expiry failure mode being the classic "passes suddenly stopped working" support trap. Testing: 60 tests acros... [truncated]
 - **Public page footer rhythm rework** — The bottom of every public page (email capture, share block, footer/Privacy) is now wrapped in one flex-column container (`.lb-footer-zone`) whose `gap` owns all inter-element spacing — per-element `mt-*` margins that collapsed unpredictably and changed shape as features toggled on/off are gone, and every spacing value derives from `calc(var(--lb-spacing) * N)` so each theme's density setting scales the whole rhythm. Optical symmetry pass: "Save contact" sits with matching space above and below (the divider pairs it with Privacy at an even 42px beat), Privacy's space below now matches its space above, and the page container uses asymmetric top/bottom padding (`pt-12 pb-6`) so the footer's padding no longer doubles into a dead zone under Privacy. Measured from rendered pixels (headless-Chromium screenshots + row-brightness scan), not just class names.
-
 
 - **Admin UI in Brazilian Portuguese (#111, contributed by @WillxRv)** — Complete `pt-BR` dictionary ships with full key parity alongside en/fr/es/de/zh/ar, and Português (Brasil) joins the Settings language picker. `pt-BR` was a pre-registered T3 slot in the locale registry: the BCP-47 plumbing (the `localeTag` map, `LOCALE_NAMES` endonym, `LOCALE_HTML_LANG`, and both chart date-format switches) was already wired for exactly this entry, so the diff activates the reserved tier rather than growing the registry. The dependency-free global error boundary carries inline pt-BR copy alongside the other six locales, so the crash screen renders in-language even when the i18n layer itself caused the crash. The e2e i18n spec gains a pt-BR login case, `README.pt-BR.md` translates the full README with language-nav links added across all seven existing translations, and `docs/TRANSLATIONS.md` tracks it. ICU plural forms are used where counts appear; Latin digits per the i18n policy.
 
