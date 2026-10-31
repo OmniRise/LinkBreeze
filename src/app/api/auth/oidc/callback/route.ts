@@ -45,8 +45,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
+  // BASE_URL wins when set (same rule as the authorize redirect_uri and the
+  // QR/vCard/OG routes); otherwise the request's own URL. Without this, the
+  // post-login redirect resolves against whatever host reached the container
+  // (behind a proxy that rewrites Host: an internal address the browser
+  // cannot reach).
+  const responseBase = process.env.BASE_URL
+    ? process.env.BASE_URL.replace(/\/$/, "")
+    : request.url;
   const fail = (reason: string) =>
-    NextResponse.redirect(new URL(`/login?sso=${reason}`, request.url));
+    NextResponse.redirect(new URL(`/login?sso=${reason}`, responseBase));
 
   const config = await getOidcConfig();
   if (!config) return fail("unavailable");
@@ -176,7 +184,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     roleMapped: mapping.applied && mapping.roleId != null ? mapping.roleId : undefined,
   }, { actor: { userId, username } });
 
-  const response = NextResponse.redirect(new URL(safeRedirectTo(stored.redirectTo), request.url));
+  const response = NextResponse.redirect(new URL(safeRedirectTo(stored.redirectTo), responseBase));
   response.cookies.set(sessionCookie.name, sessionCookie.value, {
     httpOnly: sessionCookie.httpOnly,
     sameSite: sessionCookie.sameSite,

@@ -60,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 
-- **SSO redirect ignored `BASE_URL` (#124)** — the OIDC start and callback derived `redirect_uri` purely from request headers, so behind a reverse proxy that does not forward `X-Forwarded-Host` the identity provider was sent back to the container's local address instead of the public domain. Both sites now prefer `BASE_URL` when set, the same anti-spoofing rule the QR, vCard, and OG routes already used.
+- **SSO redirect ignored `BASE_URL` (#124)** — the OIDC start and callback derived `redirect_uri` and the post-login redirect purely from request headers, so behind a reverse proxy that rewrites the Host header (e.g. to an internal address) the identity provider was sent back to the container's local address instead of the public domain — and even a successful sign-in bounced the browser to an unreachable host. All three redirect sites now prefer `BASE_URL` when set, the same anti-spoofing rule the QR, vCard, and OG routes already used.
 
 - **The `LINKBREEZE_ALLOW_HTTP_ISSUER` escape hatch never worked for LAN providers (#124)** — the issuer validation hard-restricted http to localhost regardless of the flag, so the documented trusted-LAN case (e.g. a LAN Keycloak on `http://192.168.x.x`) was refused with "invalid issuer URL". With the flag set, a non-local http issuer is now accepted (credentials, query, and fragment are still rejected); without it, nothing changes — production stays https-only.
 
