@@ -16,6 +16,7 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 - **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord-style and Telegram-compatible payloads.
 - **Public REST API** (#4) - programmatic link management for power users and integrations.
 - **Link guardian** - scheduled broken-link checking (off / daily / weekly, owner's choice) with a manual "check now" button and per-link health status. Bot-wall responses are reported as unknown, never as broken. _(issue to be linked)_
+- **Clickable hyperlinks in text cards** - write `[text](url)` in a text card and it renders as a clickable link, so any text can point to another page or site. _(issue to be linked)_
 
 ## Later
 
