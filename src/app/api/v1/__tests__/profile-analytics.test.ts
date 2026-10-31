@@ -277,6 +277,34 @@ describe("security battery (#4 /2.4)", () => {
     expect(body.error.code).toBe("rate_limit");
   });
 
+  it("same-IP burst trips the per-IP pre-auth limiter with its own live budget on the 429", async () => {
+    // The IP guard fires BEFORE auth, so unauthenticated requests still
+    // count against it — 70 same-IP hits trip the 60/min bucket without
+    // touching the per-key bucket (401s, then one 429 with IP headers).
+    let saw429: Response | null = null;
+    for (let i = 0; i < 70; i++) {
+      const res = await getAnalyticsRoute(
+        req("/api/v1/analytics", {
+          auth: false, // 401s: counts against the IP bucket only, never the key bucket
+          headers: { "x-forwarded-for": "10.78.0.1" },
+        }),
+      );
+      if (res.status === 429) {
+        saw429 = res;
+        break;
+      }
+    }
+    expect(saw429).not.toBeNull();
+    expect(Number(saw429!.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
+    // Spec declares X-RateLimit-* for EVERY 429 — the IP path must carry
+    // the IP bucket's budget (limit 60), not just Retry-After.
+    expect(saw429!.headers.get("x-ratelimit-limit")).toBe("60");
+    expect(saw429!.headers.get("x-ratelimit-remaining")).toBe("0");
+    expect(saw429!.headers.get("x-ratelimit-reset")).toBeTruthy();
+    const body = await saw429!.json();
+    expect(body.error.code).toBe("rate_limit");
+  });
+
   it("logError strips secret-ish meta keys before printing", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {

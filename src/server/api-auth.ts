@@ -140,10 +140,15 @@ function rateHeaders(rl: RateLimitResult, limit: number): Record<string, string>
   };
 }
 
-function rateLimitedResponse(rl: RateLimitResult): NextResponse {
+function rateLimitedResponse(rl: RateLimitResult, limit?: number): NextResponse {
   const retryAfter = Math.max(1, Math.ceil((rl.resetAt - Date.now()) / 1000));
+  const headers: Record<string, string> = { "Retry-After": String(retryAfter) };
+  // The spec declares X-RateLimit-* alongside Retry-After for EVERY 429 —
+  // both limiter paths (per-IP pre-auth and per-key) must send the live
+  // bucket budget, or a spec-conforming client gets an undocumented shape.
+  if (limit !== undefined) Object.assign(headers, rateHeaders(rl, limit));
   return apiError(ErrorCode.RATE_LIMIT, "Too many requests.", 429, {
-    headers: { "Retry-After": String(retryAfter) },
+    headers,
   });
 }
 
@@ -177,7 +182,10 @@ export async function apiGate(
   );
   if (!ipRl.ok) {
     recordApiUsage("rateLimited");
-    return { ok: false, response: rateLimitedResponse(ipRl) };
+    return {
+      ok: false,
+      response: rateLimitedResponse(ipRl, API_IP_RATE_LIMIT.limit),
+    };
   }
 
   // 3. Bearer parse (malformed header → same 401 as unknown key).
@@ -226,9 +234,10 @@ export async function apiGate(
   const headers = rateHeaders(keyRl, API_KEY_RATE_LIMIT.limit);
   if (!keyRl.ok) {
     recordApiUsage("rateLimited");
-    const res = rateLimitedResponse(keyRl);
-    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
-    return { ok: false, response: res };
+    return {
+      ok: false,
+      response: rateLimitedResponse(keyRl, API_KEY_RATE_LIMIT.limit),
+    };
   }
 
   // Successful auth — best-effort last-used bookkeeping (throttled).
