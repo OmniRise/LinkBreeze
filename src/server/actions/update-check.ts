@@ -1,7 +1,7 @@
 "use server";
 
-import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
+import { requireInstanceAdminOrThrow } from "@/server/access";
 import { checkForUpdates, getUpdateStatus, setUpdateCheckEnabled } from "@/lib/update-check";
 
 /**
@@ -10,9 +10,7 @@ import { checkForUpdates, getUpdateStatus, setUpdateCheckEnabled } from "@/lib/u
 export async function refreshUpdateCheck() {
   const blocked = demoGuard();
   if (blocked) throw new Error(blocked.error);
-  if (!(await getSession())) {
-    throw new Error("Unauthorized");
-  }
+  await requireInstanceAdminOrThrow();
   return checkForUpdates(true);
 }
 
@@ -22,9 +20,7 @@ export async function refreshUpdateCheck() {
 export async function toggleUpdateCheck(enabled: boolean): Promise<void> {
   const blocked = demoGuard();
   if (blocked) throw new Error(blocked.error);
-  if (!(await getSession())) {
-    throw new Error("Unauthorized");
-  }
+  await requireInstanceAdminOrThrow();
   await setUpdateCheckEnabled(enabled);
 }
 
@@ -34,8 +30,6 @@ export async function toggleUpdateCheck(enabled: boolean): Promise<void> {
 export async function refreshUpdateStatus() {
   const blocked = demoGuard();
   if (blocked) throw new Error(blocked.error);
-  if (!(await getSession())) {
-    throw new Error("Unauthorized");
-  }
+  await requireInstanceAdminOrThrow();
   return getUpdateStatus(true);
 }

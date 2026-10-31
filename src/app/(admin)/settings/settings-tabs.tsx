@@ -28,8 +28,11 @@ const TABS: Tab[] = [
 
 export function SettingsTabs({
   tabs,
+  allowed,
 }: {
   tabs: Record<string, React.ReactNode>;
+  /** #124: when set (e.g. ["security"] for members), only these tabs render. */
+  allowed?: string[];
 }) {
   const t = useTranslations("settings.tabs");
 
@@ -47,6 +50,17 @@ export function SettingsTabs({
   }, []);
   const active = React.useSyncExternalStore(subscribe, getSnapshot, () => "general");
 
+  // #124 capability filter: members get only the tabs they may use (the
+  // instance-level panels stay server-gated behind this too, but hiding them
+  // stops members clicking into "forbidden" walls).
+  const visibleTabs = allowed
+    ? TABS.filter((tab) => allowed.includes(tab.id) && tabs[tab.id] != null)
+    : TABS;
+  const activeTabs = allowed
+    ? Object.fromEntries(visibleTabs.map((tab) => [tab.id, tabs[tab.id]]))
+    : tabs;
+  const effectiveActive = visibleTabs.some((tab) => tab.id === active) ? active : visibleTabs[0]?.id ?? "general";
+
   const select = (id: string) => {
     const { pathname, search } = window.location;
     // replaceState doesn't fire hashchange — announce it so the store re-reads.
@@ -58,7 +72,7 @@ export function SettingsTabs({
     <div className="flex flex-col gap-4">
       {/* Tab bar */}
       <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 backdrop-blur-xl">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -77,7 +91,7 @@ export function SettingsTabs({
       </div>
 
       {/* Active panel */}
-      <div>{tabs[active]}</div>
+      <div>{activeTabs[effectiveActive]}</div>
     </div>
   );
 }

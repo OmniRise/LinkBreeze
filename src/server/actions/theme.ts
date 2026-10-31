@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
 import { customSchema } from "@/lib/theme-schema";
 import {
@@ -16,11 +15,11 @@ import {
 import {
   type ActionResult,
   validationError,
-  unauthorizedError,
   notFoundError,
   conflictError,
   logError,
 } from "@/lib/errors";
+import { requireInstanceAdmin } from "@/server/access";
 import { parseCustomFontId } from "@/lib/custom-fonts";
 
 /** Revalidate the public paths of every page rendering this theme. */
@@ -39,7 +38,9 @@ async function revalidateThemePages(themeId: number): Promise<void> {
 export async function activateTheme(id: number): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
   if (typeof id !== "number" || Number.isNaN(id)) {
     return validationError("Invalid theme id");
   }
@@ -62,7 +63,9 @@ export async function activateTheme(id: number): Promise<ActionResult> {
 export async function customizeActiveTheme(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   // Theme to edit: explicit id (page-specific theme or customizer target),
   // falling back to the globally active theme. Editing the global theme when
@@ -173,7 +176,9 @@ export async function duplicateActiveTheme(
 ): Promise<ActionResult<{ themeId: number }>> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   // Bug 2 fix: duplicate the theme shown in the customizer (page theme or
   // explicit id), not always the globally active one.
@@ -207,7 +212,9 @@ export async function duplicateActiveTheme(
 export async function deleteCustomTheme(id: number): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
   if (typeof id !== "number" || Number.isNaN(id)) {
     return validationError("Invalid theme id");
   }

@@ -42,6 +42,26 @@ vi.mock("next/headers", () => ({
 
 vi.mock("@/server/queries", () => ({
   getSetting: async () => "0",
+  // #124: createSession now stamps the role from the users row. Provide a
+  // stub so the session mint resolves role "admin" instead of throwing on
+  // an undefined user.
+  getUserById: async () => ({
+    id: 1,
+    username: "admin",
+    role: "admin",
+    status: "active",
+  }),
+  // #124 follow-up: session lifetime sources (no overrides configured here —
+  // the built-in defaults apply).
+  getSessionLimitSources: async () => ({
+    userIdleMinutes: null,
+    userMaxHours: null,
+    roleIdleMinutes: null,
+    roleMaxHours: null,
+    globalIdleMinutes: null,
+    globalMaxHours: null,
+  }),
+  touchUserLastSeen: async () => undefined,
 }));
 
 import { createSession, getSession, destroySession } from "@/lib/auth";

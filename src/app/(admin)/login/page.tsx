@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
+import { getOidcConfig } from "@/server/queries";
+import { getOidcClientSecret } from "@/server/oidc-flow";
 import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
@@ -13,9 +15,14 @@ export default async function LoginPage() {
     redirect("/dashboard");
   }
 
+  // #124 SSO: the button renders when issuer + client id are configured and
+  // the env secret exists (a config without its secret cannot complete).
+  const oidc = await getOidcConfig();
+  const ssoAvailable = oidc !== null && getOidcClientSecret() !== null;
+
   return (
     <Suspense fallback={null}>
-      <LoginForm />
+      <LoginForm ssoAvailable={ssoAvailable} ssoReplacesLocal={oidc?.mode === "replaces_local"} />
     </Suspense>
   );
 }

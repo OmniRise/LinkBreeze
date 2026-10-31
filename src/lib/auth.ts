@@ -3,9 +3,9 @@ import { cookies, headers } from "next/headers";
 import {
   createToken,
   verifyToken,
-  SESSION_MAX_AGE,
   type SessionPayload,
 } from "@/lib/session-token";
+import { resolveSessionLimits } from "@/lib/session-limits";
 import { getSetting } from "@/server/queries";
 
 const SESSION_COOKIE = "lb_session";
@@ -55,6 +55,7 @@ export async function getSession(): Promise<SessionPayload | null> {
       username: "demo",
       exp: Date.now() + 86400000,
       pv: 0,
+      role: "admin",
     };
   }
 
@@ -75,29 +76,95 @@ export async function getSession(): Promise<SessionPayload | null> {
     return null;
   }
 
+  // #124 follow-up: idle timeout + disabled-account recheck. Idle is
+  // ACTION-based (locked design): only server-action requests refresh the
+  // idle clock — plain page loads keep checking it but never extend it.
+  try {
+    const q = await import("@/server/queries");
+    const [user, limits] = await Promise.all([
+      q.getUserById(payload.userId),
+      q.getSessionLimitSources(payload.userId),
+    ]);
+    if (!user || user.status === "disabled") return null;
+    const resolved = resolveSessionLimits(limits);
+    if (user.lastSeenAt) {
+      const lastSeen = Date.parse(user.lastSeenAt.replace(" ", "T") + "Z");
+      if (Number.isFinite(lastSeen) && Date.now() - lastSeen > resolved.idleMinutes * 60_000) {
+        return null; // idle timeout — re-authenticate
+      }
+      // Throttle: at most one write per minute per user.
+      if (Date.now() - lastSeen >= 60_000) {
+        const h = await headers();
+        if (h.get("next-action")) {
+          await q.touchUserLastSeen(payload.userId);
+        }
+      }
+    } else {
+      // First request after the feature shipped — start the clock.
+      const h = await headers();
+      if (h.get("next-action")) await q.touchUserLastSeen(payload.userId);
+    }
+  } catch {
+    // Never let lifetime bookkeeping break an otherwise valid session.
+  }
+
   return payload;
+}
+
+/**
+ * Build the signed session cookie config WITHOUT touching the cookie store —
+ * for Route Handlers that must attach it to a hand-built NextResponse
+ * (cookies().set is lost on self-constructed redirect responses there).
+ */
+export async function buildSessionCookie(
+  userId: number,
+  username: string,
+): Promise<{ name: string; value: string; httpOnly: boolean; sameSite: "lax"; secure: boolean; path: string; maxAge: number }> {
+  const pv = Number(await getSetting("sessionVersion")) || 0;
+  // #124: stamp the role claim from the DB so admin-only actions can trust it.
+  const { getUserById, getSessionLimitSources } = await import("@/server/queries");
+  const [user, limits] = await Promise.all([
+    getUserById(userId),
+    getSessionLimitSources(userId),
+  ]);
+  const role = user?.role ?? "admin";
+  const { resolveSessionLimits } = await import("@/lib/session-limits");
+  // Absolute lifetime comes from the effective per-user/role/global max, not
+  // the built-in constant (existing tokens keep their mint-time exp until
+  // they re-mint).
+  const maxSeconds = Math.max(60, Math.min(resolveSessionLimits(limits).maxHours * 3600, 60 * 60 * 24 * 365));
+  const payload: SessionPayload = {
+    userId,
+    username,
+    exp: Date.now() + maxSeconds * 1000,
+    pv,
+    role,
+  };
+  const token = createToken(payload);
+  const secure = await isHttps();
+  return {
+    name: SESSION_COOKIE,
+    value: token,
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: "/",
+    maxAge: maxSeconds,
+  };
 }
 
 /**
  * Set a signed, httpOnly session cookie.
  */
 export async function createSession(userId: number, username: string): Promise<void> {
-  const pv = Number(await getSetting("sessionVersion")) || 0;
   const store = await cookies();
-  const payload: SessionPayload = {
-    userId,
-    username,
-    exp: Date.now() + SESSION_MAX_AGE * 1000,
-    pv,
-  };
-  const token = createToken(payload);
-  const secure = await isHttps();
-  store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure,
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
+  const cookie = await buildSessionCookie(userId, username);
+  store.set(cookie.name, cookie.value, {
+    httpOnly: cookie.httpOnly,
+    sameSite: cookie.sameSite,
+    secure: cookie.secure,
+    path: cookie.path,
+    maxAge: cookie.maxAge,
   });
 }
 

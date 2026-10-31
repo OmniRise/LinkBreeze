@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ─── Users ─────────────────────────────────────────────
@@ -7,12 +7,74 @@ export const users = sqliteTable("users", {
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  // #124 multi-user: role/capability + lifecycle status. NULL role (pre-124 row)
+  // is treated as 'admin' in code so the bootstrapped admin is never demoted.
+  role: text("role").notNull().default("owner"), // admin | owner
+  status: text("status").notNull().default("active"), // active | disabled
+  lastLoginAt: text("last_login_at"), // NULL until first login
   // #5 TOTP 2FA — all nullable/opt-in so existing users are untouched.
   // totp_secret stores the AES-256-GCM ciphertext (see src/lib/two-factor.ts);
   // recovery_codes is a JSON array of bcrypt hashes of used/unused codes.
   totpSecret: text("totp_secret"),
   totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
   recoveryCodes: text("recovery_codes"),
+  // #124 2B customizable roles: the role ROW is the source of truth; the text
+  // role above stays as a legacy fast-path hint. NULL maps through the text.
+  roleId: integer("role_id").references((): AnySQLiteColumn => roles.id, { onDelete: "set null" }),
+  // #124 follow-up session lifetime: idle = minutes of inactivity before the
+  // session dies; max = absolute hours since mint. NULL = inherit role, then
+  // the global KV defaults.
+  lastSeenAt: text("last_seen_at"), // action-based idle clock (throttled 1/min)
+  idleMinutes: integer("idle_minutes"),
+  maxHours: integer("max_hours"),
+});
+
+// ─── Customizable roles (#124 2B) ──────────────────────
+// A role sets what its members may do instance-wide. pagesLimit NULL =
+// unlimited. pagesVisibility: 'own' (only their pages), 'view_all' (read any
+// page), 'manage_all' (edit any page). canManageAccounts/canManageInstance
+// gate the /accounts + settings surfaces. Admin/Member ship as builtins
+// (is_builtin) — the actions refuse to delete or strip them.
+export const roles = sqliteTable("roles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  isBuiltin: integer("is_builtin", { mode: "boolean" }).notNull().default(false),
+  pagesLimit: integer("pages_limit"), // NULL = unlimited
+  pagesVisibility: text("pages_visibility").notNull().default("own"), // own | view_all | manage_all
+  canManageAccounts: integer("can_manage_accounts", { mode: "boolean" }).notNull().default(false),
+  canManageInstance: integer("can_manage_instance", { mode: "boolean" }).notNull().default(false),
+  // Per-role session overrides (NULL = use global KV defaults).
+  idleMinutes: integer("idle_minutes"),
+  maxHours: integer("max_hours"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
+// ─── Admin audit log (#124 follow-up) ──────────────────
+// Append-only. actor_user_id survives as NULL when the user is deleted;
+// actor_username is snapshotted so entries stay readable.
+export const auditLog = sqliteTable("audit_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  actorUserId: integer("actor_user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
+  actorUsername: text("actor_username"),
+  action: text("action").notNull(),
+  target: text("target"),
+  detail: text("detail"), // JSON
+  ip: text("ip"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
+// ─── Member invitations, stage 1 (#124 follow-up) ──────
+// Single-use links; only the SHA-256 hash of the token is stored. SMTP
+// delivery is stage 2 (outbound email layer issue).
+export const invites = sqliteTable("invites", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tokenHash: text("token_hash").notNull().unique(),
+  roleId: integer("role_id").references((): AnySQLiteColumn => roles.id, { onDelete: "set null" }),
+  createdBy: integer("created_by").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  expiresAt: text("expires_at").notNull(),
+  usedAt: text("used_at"),
+  usedBy: integer("used_by").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
 });
 
 // ─── Settings (key-value, runtime config) ─────────────
@@ -49,6 +111,10 @@ export const pages = sqliteTable("pages", {
   isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
   isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  // #124 multi-user: which account owns this page. NULL = legacy page (created
+  // before multi-user) — treated as owned by the sole admin. A user owns AT MOST
+  // one page in v1 (no unique constraint yet, keeps the door open for more).
+  userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
 
   // Page-specific settings (moved from global settings table in 0008)
   seoTitle: text("seo_title").notNull().default(""),
@@ -99,6 +165,39 @@ export const pages = sqliteTable("pages", {
   // the domain IS the page (foreign slugs 404); 'hub' → the page renders at
   // root and every slug keeps resolving under the domain (path routing).
   domainScope: text("domain_scope"), // 'exclusive' | 'hub' | NULL (= exclusive)
+});
+
+// ─── OIDC identities (#124) ──────────────────────────
+// Links a local user to an external OIDC identity. Separate table (never columns
+// on users) so one user may link MULTIPLE identities later (e.g. work + personal
+// IdP). UNIQUE(issuer, subject) = one identity maps to exactly one user.
+export const oidcIdentities = sqliteTable(
+  "oidc_identities",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    issuer: text("issuer").notNull(),
+    subject: text("subject").notNull(),
+    // Snapshot of the IdP's preferred_username at link time (JIT slug source +
+    // admin display). Not authoritative — the IdP can change it.
+    preferredUsername: text("preferred_username"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (t) => [unique("oidc_identities_issuer_subject").on(t.issuer, t.subject)],
+);
+
+// ─── OIDC auth states (#124) ─────────────────────────
+// Server-side PKCE/state store for the OIDC login flow. Single-use (deleted on
+// consume), expiring. Holds the code_verifier for the token exchange and the
+// site-relative redirect target after a successful login.
+export const oidcStates = sqliteTable("oidc_states", {
+  state: text("state").primaryKey(),
+  codeVerifier: text("code_verifier").notNull(),
+  redirectTo: text("redirect_to").notNull().default("/"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  expiresAt: text("expires_at").notNull(),
 });
 
 // ─── Domains (custom domains, #85) ────────────────────
