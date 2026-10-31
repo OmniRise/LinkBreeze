@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<<<<<<< HEAD
 ### Added
 
 - **Member invitations, stage 1 (#124 follow-up)** — admins generate single-use sign-up links (role pre-assigned, 7-day expiry, shown once and stored only as a SHA-256 hash so a leaked database cannot mint invitations). New members accept at `/invite/<token>`: pick a username and password, get their page per the instance policy, and are signed in immediately. Pending invites can be revoked; SMTP delivery arrives with the outbound email layer.
@@ -38,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Role-scoped admin surface (#124, in progress)** — The admin shell itself now follows the role: members see only their own pages in the page switcher and dashboard (no more ?page= peeking at anyone's stats), instance-level nav sections (theme, domains, accounts) render only for roles holding the matching capability, the Settings screen collapses to the Security tab for non-instance-admins, and the analytics CSV export — instance-wide, visitor hashes included — is instance-admin-only. Update/backup banners and the instance-wide subscriber count stay admin-only too.
 - **Customizable roles and instance-hardened authorization (#124, in progress)** — Roles are now editable rows instead of a fixed admin/member pair: each role sets how many pages its members can own (or unlimited), whether they see all pages, manage all pages, manage accounts, or manage instance settings, and ships with undeletable built-in Admin and Member roles. Every instance-level server action (settings, backups, domains, themes, data import/restore, update checks) now verifies capabilities from the role row itself instead of trusting a session hint — previously any signed-in account could invoke them directly. Sections, links, and page mutations resolve the target page and check edit capability per action. New accounts provision their own page per an instance page policy (automatic by default, manual optional).
 - **Multi-user accounts section (#124, in progress)** — The admin can now create, enable, disable, and delete accounts, and assign each an Admin or Member role. Every account owns its own public page; admins manage the instance. Deleting an account keeps its page and links, with an explicit option to release the page slug for reuse; the last active admin cannot be disabled or deleted. New `/accounts` admin section (nav, mobile tab bar, robots disallow, admin-path routing, locale keys in all 11 languages).
+=======
+### Fixed
+
+- **Stalled link saves on automatic icons** — the favicon fetcher cleared its timeout as soon as response headers arrived, so a destination that sent headers promptly but stalled the body mid-stream hung `readBodyWithCap` forever: the save server action never returned and the link was never written. The timeout now stays armed until the body read finishes (same for the OG-image download), the per-fetch timeout is bumped 6s/7s → 10s, and the whole icon phase (every strategy, candidate, and the retry) is capped at 12s so a save can never block longer than that.
+>>>>>>> origin/main
 
 ## [1.5.1] - 2026-10-27
 
