@@ -10,6 +10,8 @@ import {
   Palette,
   Settings,
   Globe,
+  ScrollText,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { PreviewButton } from "@/components/admin/PreviewPane";
@@ -22,19 +24,38 @@ const NAV: { href: string; label: keyof Messages["nav"] & string; icon: LucideIc
   { href: "/profile", label: "profile", icon: User },
   { href: "/theme", label: "theme", icon: Palette },
   { href: "/domains", label: "domains", icon: Globe },
+  { href: "/accounts", label: "accounts", icon: Users },
+  { href: "/audit", label: "audit", icon: ScrollText },
   { href: "/settings", label: "settings", icon: Settings },
 ];
 
-/** Sidebar nav that preserves the ?page= param across admin sections. */
-export function AdminNav() {
+/** Sidebar nav that preserves the ?page= param across admin sections.
+ *  #124: instance-level sections (theme, domains, accounts) render only for
+ *  roles holding the matching capability — the pages behind them are gated
+ *  server-side too, this just stops members clicking into refusals. */
+export function AdminNav({
+  canManageAccounts,
+  canManageInstance,
+}: {
+  canManageAccounts: boolean;
+  canManageInstance: boolean;
+}) {
   const t = useTranslations("nav");
   const searchParams = useSearchParams();
   const pageParam = searchParams.get("page");
   const query = pageParam ? `?page=${pageParam}` : "";
 
+  const visible = NAV.filter(
+    (item) =>
+      (item.href !== "/accounts" || canManageAccounts) &&
+      (item.href !== "/audit" || canManageInstance) &&
+      (item.href !== "/domains" || canManageInstance) &&
+      (item.href !== "/theme" || canManageInstance),
+  );
+
   return (
     <nav className="flex flex-1 flex-col gap-1">
-      {NAV.map((item) => (
+      {visible.map((item) => (
         <Link
           key={item.href}
           href={`${item.href}${query}`}

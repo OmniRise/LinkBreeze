@@ -15,7 +15,7 @@ const VERSION_URL =
 
 // Unauthenticated GitHub API — 60 req/h per IP is plenty for a 24h-cached check.
 const GITHUB_RELEASE_URL =
-  "https://api.github.com/repos/Manak-hash/LinkBreeze/releases/latest";
+  "https://api.github.com/repos/OmniRise/LinkBreeze/releases/latest";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 

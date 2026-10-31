@@ -4,15 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { promises as dns } from "node:dns";
 
-import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
 import {
   type ActionResult,
   validationError,
-  unauthorizedError,
   notFoundError,
   conflictError,
 } from "@/lib/errors";
+import { requireInstanceAdmin } from "@/server/access";
 import { parseDomainInput } from "@/lib/host-routing";
 import { getPageById } from "@/server/queries";
 import {
@@ -29,7 +28,7 @@ import {
 
 /**
  * Admin actions for custom domains (#85). Every mutation follows the house
- * pattern: demoGuard → getSession → zod → ActionResult. The /domains page
+ * pattern: demoGuard → capability gate → zod → ActionResult. The /domains page
  * revalidates after each change so the proxy's next request reads fresh rows.
  */
 
@@ -47,7 +46,9 @@ export async function addDomainAction(
 ): Promise<ActionResult<{ domainId: number }>> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const schema = z.object({
     host: z.string().max(300),
@@ -101,7 +102,9 @@ export async function addDomainAction(
 export async function updateDomainAction(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const parsed = z
     .object({ domainId: idSchema, behavior: behaviorSchema, kind: kindSchema })
@@ -141,7 +144,9 @@ export async function updateDomainAction(formData: FormData): Promise<ActionResu
 export async function deleteDomainAction(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const parsed = idSchema.safeParse(formData.get("domainId"));
   if (!parsed.success) return validationError("Invalid domain");
@@ -154,7 +159,9 @@ export async function deleteDomainAction(formData: FormData): Promise<ActionResu
 export async function activateDomainAction(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const parsed = idSchema.safeParse(formData.get("domainId"));
   if (!parsed.success) return validationError("Invalid domain");
@@ -170,7 +177,9 @@ export async function setPageDomainScopeAction(
 ): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const parsed = z
     .object({ pageId: idSchema, scope: scopeSchema })
@@ -196,7 +205,9 @@ const policySchema = z.object({
 export async function saveDomainPolicyAction(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const parsed = policySchema.safeParse({
     primaryHost: formData.get("primaryHost") ?? "",
@@ -247,7 +258,9 @@ export async function checkDomainDnsAction(
   // visitor is not acceptable, so this follows the demoGuard pattern too.
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const normalized = parseDomainInput(host);
   if (!normalized) return validationError("Invalid domain");

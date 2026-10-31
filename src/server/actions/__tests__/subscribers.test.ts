@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/server/queries", () => ({
+  // #124 2B: capability gate (access.ts) resolves the session's role ROW.
+  getCapabilitiesForUser: vi.fn(async (): Promise<{ roleText: string; caps: { pagesLimit: number | null; visibility: string; manageAccounts: boolean; manageInstance: boolean } }> => ({
+    roleText: "admin",
+    caps: { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true },
+  })),
   addSubscriber: mocks.addSubscriber,
   getSetting: mocks.getSetting,
 }));

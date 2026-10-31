@@ -1,15 +1,14 @@
 "use server";
 
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
 import {
   type ActionResult,
   conflictError,
   validationError,
-  unauthorizedError,
   ErrorCode,
 } from "@/lib/errors";
+import { requireInstanceAdmin, requireInstanceAdminOrThrow } from "@/server/access";
 import { updateSetting } from "@/server/queries";
 import { applyBackupPayload } from "@/server/backup-restore";
 import {
@@ -52,7 +51,9 @@ export async function saveBackupSettings(
 ): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const enabled = formData.get("backupEnabled") === "on";
   const frequency = String(formData.get("backupFrequency") ?? "");
@@ -84,7 +85,9 @@ export async function saveBackupSettings(
 export async function runBackupNow(): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const res = await performBackupNow();
   if (!res.ok) {
@@ -110,7 +113,9 @@ export async function restoreScheduledBackup(
 ): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   if (!BACKUP_FILENAME_RE.test(filename)) {
     return validationError("Invalid backup filename");
@@ -146,7 +151,9 @@ export async function deleteStoredBackup(
 ): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // #124: capability gate — the role ROW decides, not the session hint.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const filename = String(formData.get("filename") ?? "");
   if (!BACKUP_FILENAME_RE.test(filename)) {
@@ -163,8 +170,6 @@ export async function deleteStoredBackup(
 export async function dismissBackupNotice(): Promise<void> {
   // Hiding a "backups are failing" signal is a settings mutation — keep it
   // session-gated even though the caller is only flipping a flag.
-  if (!(await getSession())) {
-    throw new Error("Unauthorized");
-  }
+  await requireInstanceAdminOrThrow();
   await dismissBackupFailureNotice();
 }

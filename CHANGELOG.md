@@ -5,54 +5,56 @@ All notable changes to LinkBreeze will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## [Unreleased]
 
 ### Added
 
 - **Public REST API v1 (#4)** — LinkBreeze now has a programmatic surface: generate a single API key in Settings -> Security -> API access (plaintext shown once, sha256-hashed at rest, regenerate = instant rotate, revoke supported), then manage links (list/create/update/delete/reorder), the profile, and analytics through `/api/v1/*` via the `Authorization` header (HTTP Bearer scheme). Rate limited per key (120 req/min plus a per-IP pre-auth guard), demo-mode-blocked mutations, and the same URL-scheme validation as the admin UI. Every instance serves its own OpenAPI 3.1 document at `/api/v1/openapi.json` and an auth-gated HTML reference at `/api/v1/docs`. A router-drift test keeps the spec and the routes in exact agreement. The surface also covers single-link reads (`GET /links/:id`), sections CRUD + reorder, and bulk import (`POST /links/import`, 1-100 items with per-item results — one bad entry never aborts the batch). List endpoints support cursor pagination and sparse fieldsets; read endpoints send strong ETags, so pollers replaying `If-None-Match` get empty 304s until data changes. Rotation supports an opt-in migration grace (default 1 hour, configurable up to 24 — the previous key stays valid until the window closes or you revoke), and the admin card shows today's activity counts plus a live grace countdown. Response headers are machine-documented in the spec (X-RateLimit-*, Cache-Control, ETag, WWW-Authenticate, Retry-After), and the README cookbook (11 languages) includes conditional-GET and bulk-import examples.
+- **Multi-user accounts with customizable roles (#124)** — per-account public pages; admin create/enable/disable/delete with last-admin guard; editable roles (page limits, visibility, capability checks now enforced on every instance-level action); role-scoped admin surface; single-use invitation links (SHA-256-hashed, 7-day expiry) accepted at `/invite/<token>`; append-only admin audit log at `/audit` with filters, cursor pagination and 90-day retention; per-role/per-user session lifetimes with action-based idle timeout and password re-entry for destructive admin actions.
+- **Generic OIDC / OAuth2 single sign-on (#124)** — sign in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID…) via discovery: authorization-code + PKCE (S256), single-use expiring state, JIT provisioning, account linking, optional SSO-only mode. Group → role mapping (first-match, configurable claim) with the last-admin invariant; configurable username/email/name claims; env-only client secret; https-only issuers with the `LINKBREEZE_ALLOW_HTTP_ISSUER` escape hatch for trusted-LAN providers (which now actually works).
+
+### Fixed
+
+- **Stalled link saves on automatic icons** — the favicon fetcher cleared its timeout as soon as response headers arrived, so a destination that sent headers promptly but stalled the body mid-stream hung `readBodyWithCap` forever: the save server action never returned and the link was never written. The timeout now stays armed until the body read finishes (same for the OG-image download), the per-fetch timeout is bumped 6s/7s → 10s, and the whole icon phase (every strategy, candidate, and the retry) is capped at 12s so a save can never block longer than that.
+- **SSO redirects behind Host-rewriting proxies (#124)** — `redirect_uri`, the post-login redirect, and error bounces were derived from request headers, so behind a proxy that rewrites Host (Pangolin, some nginx setups) sign-in bounced the browser to an internal address. `BASE_URL` now wins at all three sites (same rule as QR/vCard/OG).
+- **SSO session cookie dropped by the callback redirect (#124)** — the cookie was attached in a way a self-constructed redirect response discarded, so the flow finished signed out. Caught by a live round-trip against a mock IdP (`e2e/mock-oidc-idp.mjs`).
+
+## [1.5.1] - 2026-10-27
+
+### Added
 
 - **Admin UI and README in Italian, Russian, Turkish, and Japanese** — four new languages, bringing the admin to 11 and the README to 11 translations: the Settings language dropdown, /login, /setup, the 2FA step, and the global error screen all switch (Russian uses the formal register standard for Russian software; Japanese drops ICU plural forms by design, as Chinese already does). Public pages stay English by design. Translated by AI agents and verified by a terminology-review pass; as with all machine-drafted locales, a native-speaker read before relying on a locale in production is worth it (docs/TRANSLATIONS.md policy).
-
 - **Catalog packaging for CasaOS, Runtipi, and Unraid (`packaging/`)** — LinkBreeze now ships first-party app-store packaging as canonical sources under `packaging/`: a CasaOS App Store app definition (`packaging/casaos/`, pinned image, icon, screenshot, en_US metadata), a Runtipi v4 app-store repository (`packaging/runtipi/`, to be published as `OmniRise/LinkBreeze-Runtipi-Store`), and an Unraid Community Applications template repository (`packaging/unraid/`, dockerMan-format XML plus repository profile and MIT license, to be published as `OmniRise/LinkBreeze-Unraid-Templates`). All three pull the official `docker.io/omnirise/linkbreeze` image with a pinned semver tag, mount the data volume, and need no environment configuration (the setup wizard handles first run). The packaging policy is documented in CONTRIBUTING.md: these three catalogs are maintained by the project; other platforms and hosting-provider deploy buttons stay community-PR territory. Per-release maintenance is one step: bump the pinned version in the three manifests during the release fold.
-
 - **Update status card in Settings (Data tab) (#123)** — A new card shows the installed version next to the latest release from GitHub and from the website, with a status line ("You're on the latest version." or "You can update to vX.Y.Z." with release-notes link and the pull command), a Recheck button that bypasses the 24h cache, last-checked time, and a "last known value" note when a source is unreachable. The GitHub source is a new unauthenticated latest-release check (24h-cached like the website poll); the dashboard update banner is unchanged. This was announced in the v1.5.0 release notes but its merge landed just after the `v1.5.0` tag was cut — it actually ships in this release.
 
 ### Changed
+
+- **Dependency updates (#126, #127)** — Merged two Dependabot minor-and-patch groups: #126 (`lucide-react` 1.59.0→1.61.0, `shadcn` 4.22.0→4.22.1, `sql.js` 1.15.0→1.15.1) and #127 (`next` 16.4.2→16.4.3, `eslint-config-next` 16.4.2→16.4.3, a bug-fix backport). Both merged with green CI and byte-exact lockfiles. Also bumped the `fast-uri` override ^3.1.7→^3.1.9 and added a `body-parser` ^2.4.0 override, resolving Dependabot alerts #66–70 (both packages are transitive through the shadcn CLI's express/MCP SDK chain, dev-tooling only). `node-forge` (#58) stays unchanged: no patched release exists, and `passkit-generator` uses it only for pass signing, never verification.
 
 - **Locale parity gate in CI** — CI now runs the locale hash gate (`npm run i18n:check`) and a generalized `scripts/locale-audit.mjs` across all ten locales, checking key parity, ICU placeholder parity, and untranslated-string suspects. The audit previously covered only French and Spanish and ran manually, so a broken `{placeholder}` in another language could reach main; its ICU handling was also corrected (it stripped plural placeholders, which would falsely flag Japanese and Chinese — both correctly drop ICU plurals — as mismatches).
 
 - **Language lists reordered: English first, then alphabetical** — one convention everywhere languages are listed: the admin language dropdown (picker order), the README translation rows in all eleven READMEs, `docs/TRANSLATIONS.md`, and the website locale lists (routing, sitemap, hreflang alternates) now read English · العربية · 中文 · Français · Deutsch · Italiano · 日本語 · Português (Brasil) · Русский · Español · Türkçe instead of historical add-order.
 
-- **Dependency updates** — Overrides bumped for `fast-uri` ^3.1.7→^3.1.9 and a new `body-parser` ^2.4.0 override, resolving Dependabot alerts #66–70 (both packages are transitive through the shadcn CLI's express/MCP SDK chain, dev-tooling only). `node-forge` (#58) stays unchanged: no patched release exists, and `passkit-generator` uses it only for pass signing, never verification.
-
 - **Canonical repo URLs point at OmniRise/LinkBreeze** — All living documentation (README ×7, CONTRIBUTING, SECURITY, TROUBLESHOOTING) now references `github.com/OmniRise/LinkBreeze` instead of the pre-transfer `Manak-hash/LinkBreeze` URLs. The old links redirect, so nothing was broken; this makes the canonical location explicit and consistent with the Docker Hub namespace, the website, and the app-store listings.
 
 ### Fixed
 
+- **Unthrottled SSO endpoints (#124)** — the OIDC start action (10/min/IP — each call writes a state row and fetches discovery) and callback (30/min/IP) are now rate-limited like the local login; the state expiry check gained a 30s clock-drift leeway.
+
+- **Fresh API installs booted without an admin (#124)** — `/api/setup` created the first account with the default Member role, so API-installed instances had no working administrator (the setup wizard already passed the admin role). Both bootstrap paths now agree, with a regression test.
+
+- **New accounts could stay invisible in the admin list (#124)** — creating an account right after another save (e.g. a role) hit Next's client router cache and the list kept its stale payload even though the account existed; the create flow now reloads the page after the save settles.
+- **The update checker's GitHub fallback still queried the pre-transfer repo** — the update-check module called `api.github.com/repos/Manak-hash/LinkBreeze/releases/latest`; the canonical-URL pass in this release covered documentation only, and this one code path kept the old name. GitHub's rename redirect kept it working, but the checker now queries `OmniRise/LinkBreeze` directly.
+
+- **Local `npm run test` failed on the TOTP lifecycle test (#128)** — the enroll → activate → verify → disable lifecycle hashes 8 recovery codes with bcryptjs at cost 12 (single-threaded JavaScript: ~7.9s measured on modest dev hardware), well past vitest's 5-second default, so every local full-suite run died on `Test timed out in 5000ms` while CI's faster runner squeaked under and kept main green. The test now carries an explicit 20s budget with a comment; the hashing strength (cost 12) is untouched. Diagnosed as budget, not regression: the clean tree failed identically and the same run passed at a 30s timeout.
+
 - **Importing a Linktree page pulled Linktree's own affiliate links instead of the account's** — the migration wizard's `__NEXT_DATA__` extractor recursively searched the entire Next.js payload for any `{url, title}` array and swallowed `props.pageProps.statsigInitValues`, a statsig feature-flag blob whose sponsorship list is Linktree's global affiliate catalog (an identical ~26-item array on every profile: Hulu, HelloFresh, Headspace, and more). Importing any Linktree URL returned those promo links and buried or dropped the account's real links, and client-rendered mega-accounts returned only the promo list. The extractor now reads Linktree's real link containers first (`pageProps.links` / `socialLinks` and their `account.*` mirrors), the recursive walk skips config subtrees (`statsigInitValues`, `googleAdConfig`, blog teasers), and the inline-script tier no longer re-parses `__NEXT_DATA__` (which was re-introducing the blob). Client-rendered accounts now correctly report "No links found on this page" (use the File tab) instead of the affiliate list; Bento, Hopp, and Beacons extraction is unchanged, and regression tests cover the blob, the empty-SSR case, and the non-Linktree fallback path.
 
 - **Migration wizard's import button and social chip were hardcoded English** — the confirm button (Import N items) and the fallback label for an unrecognized social profile (Social) rendered in English regardless of locale; both now come from the locale dictionaries across all ten non-English languages, with correct per-language ICU plurals (Russian four-form, Arabic six-form, Japanese and Chinese plural-less by design).
+
+### Security
+
+- **Update-check server actions skipped the demo guard (#128)** — the three update-check actions (the settings Recheck, the update-notification toggle, and the dashboard banner's refresh) checked the session but never called `demoGuard()`, unlike every other mutating action. On a public `DEMO_MODE` instance — where `DEMO_AUTO_LOGIN` hands every visitor a session — any visitor could flip update checks for all demo users and bypass the 24-hour cache on demand, driving uncached outbound fetches to the GitHub and website endpoints from the host server. All three now guard first and throw the standard read-only-demo message before touching the session or the network, covered by a new action test.
 
 ## [1.5.0] - 2026-10-24
 
@@ -107,7 +109,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Share & wallet exports: vCard, Google Wallet, Apple Wallet** — Every public page can now show a share block, **opt-in per page** via a new "Share block" toggle in Settings → Integration (off by default). "Save contact" is a universal vCard 4.0 download (no configuration): name, handle, page URL, bio and org fields, RFC 6350-compliant (CRLF line endings, 75-octet folding, full value escaping) and hardened against adversarial input — card-boundary injection via embedded newlines, control characters, and traversal-style filenames are all contained, covered by a dedicated security test suite. Beyond the vCard, operators can enable "Add to Google Wallet" and "Add to Apple Wallet" buttons by bringing their own credentials as environment variables (see the new `.env.example` section and the Configuration table in the README): Google needs a free issuer ID + service-account JSON, Apple needs the five `APPLE_WALLET_*` variables from a paid Developer account. Both wallets render stateless static passes — a business card carrying the page identity, a QR that always opens the live page, and a snapshot of the current links on the back ("Saved on" labeled; passes are frozen at install by design, no push infrastructure). Google passes are issued just-in-time as RS256-signed JWTs via `node:crypto` (no new JWT dependency); Apple passes are built with `passkit-generator` and served with the exact `application/vnd.apple.pkpass` MIME type iOS requires. The routes are read-only (the demo instance shows the feature), rate-limited like the QR route, and 503 when credentials are absent — the buttons themselves only render when the matching credentials exist, verified both ways in live testing. A new "Wallet & contact exports" card in the same Settings tab shows per-wallet credential status (never secret values) and warns before the Apple signing certificate expires — the silent-expiry failure mode being the classic "passes suddenly stopped working" support trap. Testing: 60 tests acros... [truncated]
 - **Public page footer rhythm rework** — The bottom of every public page (email capture, share block, footer/Privacy) is now wrapped in one flex-column container (`.lb-footer-zone`) whose `gap` owns all inter-element spacing — per-element `mt-*` margins that collapsed unpredictably and changed shape as features toggled on/off are gone, and every spacing value derives from `calc(var(--lb-spacing) * N)` so each theme's density setting scales the whole rhythm. Optical symmetry pass: "Save contact" sits with matching space above and below (the divider pairs it with Privacy at an even 42px beat), Privacy's space below now matches its space above, and the page container uses asymmetric top/bottom padding (`pt-12 pb-6`) so the footer's padding no longer doubles into a dead zone under Privacy. Measured from rendered pixels (headless-Chromium screenshots + row-brightness scan), not just class names.
-
 
 - **Admin UI in Brazilian Portuguese (#111, contributed by @WillxRv)** — Complete `pt-BR` dictionary ships with full key parity alongside en/fr/es/de/zh/ar, and Português (Brasil) joins the Settings language picker. `pt-BR` was a pre-registered T3 slot in the locale registry: the BCP-47 plumbing (the `localeTag` map, `LOCALE_NAMES` endonym, `LOCALE_HTML_LANG`, and both chart date-format switches) was already wired for exactly this entry, so the diff activates the reserved tier rather than growing the registry. The dependency-free global error boundary carries inline pt-BR copy alongside the other six locales, so the crash screen renders in-language even when the i18n layer itself caused the crash. The e2e i18n spec gains a pt-BR login case, `README.pt-BR.md` translates the full README with language-nav links added across all seven existing translations, and `docs/TRANSLATIONS.md` tracks it. ICU plural forms are used where counts appear; Latin digits per the i18n policy.
 

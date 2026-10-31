@@ -8,10 +8,14 @@ import {
   type ActionResult,
   validationError,
   unauthorizedError,
+  forbiddenError,
+  notFoundError,
   conflictError,
   ErrorCode,
   logError,
 } from "@/lib/errors";
+import { canEditPage } from "@/lib/ownership";
+import { getCapabilitiesForUser, countPagesByOwner } from "@/server/queries";
 import {
   createPage as createPageQuery,
   updatePage as updatePageQuery,
@@ -20,6 +24,29 @@ import {
   getAllPages,
   getPageById,
 } from "@/server/queries";
+
+/**
+ * Load a page and assert the current session may EDIT it (#124). The actor's
+ * capabilities come from the role ROW (getCapabilitiesForUser); admins and
+ * manage_all roles pass for any page, owners only for their own. Returns the
+ * page on success, or an error ActionResult (not-found / forbidden) the
+ * caller returns as-is.
+ */
+async function assertPageAccess(
+  pageId: number,
+): Promise<{ page: Awaited<ReturnType<typeof getPageById>>; error: null } | { page: null; error: ActionResult }> {
+  const session = await getSession();
+  if (!session) return { page: null, error: unauthorizedError() };
+  const page = await getPageById(pageId);
+  // Return not-found (not forbidden) for a missing page so we don't leak which
+  // ids exist; canEditPage also rejects null.
+  if (!page) return { page: null, error: notFoundError("Page not found") };
+  const { caps } = await getCapabilitiesForUser(session.userId);
+  if (!canEditPage(caps, session, page)) {
+    return { page: null, error: forbiddenError("You do not have access to this page") };
+  }
+  return { page, error: null };
+}
 
 
 const slugSchema = z
@@ -55,7 +82,9 @@ const createPageSchema = z.object({
 export async function createPageAction(formData: FormData): Promise<ActionResult<{ pageId: number }>> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const { caps } = await getCapabilitiesForUser(session.userId);
 
   const parsed = createPageSchema.safeParse({
     slug: (formData.get("slug") as string)?.trim().toLowerCase(),
@@ -72,10 +101,27 @@ export async function createPageAction(formData: FormData): Promise<ActionResult
     return conflictError("A page with this slug already exists");
   }
 
+  // #124: an owner's new page is owned by them; an admin creating a page leaves
+  // it unowned (legacy/admin-managed) unless they pass an explicit owner later.
+  const ownerUserId = session.role !== "admin" ? session.userId : null;
+
+  // 2B: a role's pagesLimit caps how many pages a member may OWN. Unlimited
+  // (NULL) or full-admin capabilities skip the count; import paths are
+  // instance-admin-gated so this is the only member-reachable creator.
+  if (ownerUserId != null && caps.pagesLimit != null) {
+    const owned = await countPagesByOwner(ownerUserId);
+    if (owned >= caps.pagesLimit) {
+      return forbiddenError(
+        `Your plan allows ${caps.pagesLimit} page${caps.pagesLimit === 1 ? "" : "s"}. Ask your administrator for more.`,
+      );
+    }
+  }
+
   const page = await createPageQuery({
     slug: parsed.data.slug,
     title: parsed.data.title,
     bio: parsed.data.bio,
+    userId: ownerUserId,
   });
 
   revalidatePath("/links");
@@ -256,6 +302,10 @@ export async function updatePageAction(formData: FormData): Promise<ActionResult
 
   const { pageId, ...updateData } = parsed.data;
 
+  // #124: page ownership gate — an owner may only edit their own page.
+  const access = await assertPageAccess(pageId);
+  if (access.error) return access.error;
+
   // Check slug uniqueness if slug is being changed.
   if (updateData.slug) {
     const all = await getAllPages();
@@ -295,6 +345,10 @@ export async function setPageThemeAction(pageId: number, themeId: number): Promi
   if (blocked) return blocked;
   if (!(await getSession())) return unauthorizedError();
 
+  // #124: page ownership gate.
+  const access = await assertPageAccess(pageId);
+  if (access.error) return access.error;
+
   await updatePageQuery(pageId, { themeId });
 
   revalidatePath("/theme");
@@ -316,6 +370,10 @@ export async function deletePageAction(formData: FormData): Promise<ActionResult
   if (mode !== "keep" && mode !== "wipe") {
     return validationError("Invalid delete mode");
   }
+
+  // #124: page ownership gate — an owner may only delete their own page.
+  const access = await assertPageAccess(pageId);
+  if (access.error) return access.error;
 
   // The default page is the fallback target for links on deleted pages,
   // so it can never be deleted itself.

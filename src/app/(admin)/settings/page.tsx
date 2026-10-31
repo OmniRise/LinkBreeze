@@ -9,6 +9,9 @@ import {
   getSetting,
   getAllSubscribers,
   getActiveLinks,
+  getOidcSettingsRaw,
+  getCapabilitiesForUser,
+  listRoles,
 } from "@/server/queries";
 import { isUpdateCheckEnabled, getUpdateStatus } from "@/lib/update-check";
 import { maybeRunScheduledBackup, getBackupOverview } from "@/server/backup-scheduler";
@@ -24,6 +27,8 @@ import { GeneralTab, IntegrationTab, AppearanceTab, CustomCssCard } from "./sett
 import { OgImageCard } from "./og-image-card";
 import { ChangePasswordForm } from "./change-password-form";
 import { TwoFactorCard } from "./two-factor-card";
+import { OidcCard } from "./oidc-card";
+import { SessionLimitsCard } from "./session-limits-card";
 import { DataManager } from "./data-manager";
 import { UpdateStatusCard } from "./update-status-card";
 import { BackupsCard } from "./backups-card";
@@ -81,6 +86,15 @@ export default async function SettingsPage({
 
   // Update status card (Data tab): installed vs latest on GitHub + website.
   const updateStatus = await getUpdateStatus();
+  const oidcRaw = await getOidcSettingsRaw();
+  const [sessionIdleRaw, sessionMaxRaw] = await Promise.all([
+    getSetting("sessionIdleMinutes"),
+    getSetting("sessionMaxHours"),
+  ]);
+  const roleRows = await listRoles();
+  const canManageInstance = session
+    ? (await getCapabilitiesForUser(session.userId)).caps.manageInstance
+    : false;
 
   // API key card (Security tab): NEVER ship the hash to the client — only
   // display metadata (prefix, timestamps, rotation-grace window). Grace
@@ -148,6 +162,7 @@ export default async function SettingsPage({
       </div>
 
       <SettingsTabs
+        allowed={canManageInstance ? undefined : ["security"]}
         tabs={{
           general: (
             <GeneralTab
@@ -230,6 +245,29 @@ export default async function SettingsPage({
               <ChangePasswordForm />
               <TwoFactorCard enabled={await getTotpEnabled()} />
               <ApiKeyCard record={apiKeyRecord} usage={getApiUsage()} />
+              {canManageInstance && (
+                <SessionLimitsCard
+                  globalIdleMinutes={sessionIdleRaw ?? ""}
+                  globalMaxHours={sessionMaxRaw ?? ""}
+                />
+              )}
+              {canManageInstance && (
+                <OidcCard
+                  issuer={oidcRaw.issuer ?? ""}
+                  clientId={oidcRaw.clientId ?? ""}
+                  jit={oidcRaw.jit !== "off"}
+                  mode={oidcRaw.mode === "replaces_local" ? "replaces_local" : "optional"}
+                  secretSet={Boolean(process.env.OIDC_CLIENT_SECRET)}
+                  groupClaim={oidcRaw.groupClaim ?? "groups"}
+                  noGroupMatch={oidcRaw.noGroupMatch === "refuse" ? "refuse" : "default_role"}
+                  groupRoleMap={oidcRaw.groupRoleMap ?? "[]"}
+                  claimUsername={oidcRaw.claimUsername ?? ""}
+                  claimEmail={oidcRaw.claimEmail ?? ""}
+                  claimName={oidcRaw.claimName ?? ""}
+                  claimFallback={oidcRaw.claimFallback === "1"}
+                  roles={roleRows.map((r) => ({ id: r.id, name: r.name }))}
+                />
+              )}
             </div>
           ),
           data: (
