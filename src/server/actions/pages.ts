@@ -158,6 +158,13 @@ const updatePageSchema = z.object({
   // media columns — the CodeQL XSS-through-dom boundary); "" → null.
   ogImageMode: z.enum(["auto", "custom"]).optional(),
   ogImageUrl: safeMediaUrl.max(500).optional().nullable(),
+  // vCard contact overrides (native Save Contact). Nullable: "" → null =
+  // auto-fill from page data; absent = leave unchanged.
+  vcardOrganization: z.string().max(120).optional().nullable(),
+  vcardJobTitle: z.string().max(120).optional().nullable(),
+  vcardEmail: z.string().max(200).optional().nullable(),
+  vcardPhone: z.string().max(60).optional().nullable(),
+  vcardAddress: z.string().max(300).optional().nullable(),
   // Per-upload image adjustments (Spec: Image-Positioning). Numbers arrive
   // as FormData strings; empty string = clear (reset to default rendering).
   avatarFit: z.enum(["cover", "contain"]).optional(),
@@ -240,6 +247,23 @@ export async function updatePageAction(formData: FormData): Promise<ActionResult
       : undefined,
     ogImageUrl: formData.has("ogImageUrl")
       ? String(formData.get("ogImageUrl") ?? "") || null
+      : undefined,
+    // vCard overrides — same tri-state as badge/urls: present = write
+    // (empty string → NULL = auto-fill from page data); absent = unchanged.
+    vcardOrganization: formData.has("vcardOrganization")
+      ? String(formData.get("vcardOrganization") ?? "") || null
+      : undefined,
+    vcardJobTitle: formData.has("vcardJobTitle")
+      ? String(formData.get("vcardJobTitle") ?? "") || null
+      : undefined,
+    vcardEmail: formData.has("vcardEmail")
+      ? String(formData.get("vcardEmail") ?? "") || null
+      : undefined,
+    vcardPhone: formData.has("vcardPhone")
+      ? String(formData.get("vcardPhone") ?? "") || null
+      : undefined,
+    vcardAddress: formData.has("vcardAddress")
+      ? String(formData.get("vcardAddress") ?? "") || null
       : undefined,
     // Checkbox tri-state, same contract as emailCapture: present = explicit
     // on/off from a form that contains it; absent = leave unchanged.

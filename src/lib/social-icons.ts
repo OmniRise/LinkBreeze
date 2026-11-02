@@ -19,14 +19,14 @@ export type SocialPlatform =
   | "steam" | "etsy" | "goodreads" | "wattpad" | "unsplash"
   | "deviantart" | "cashapp" | "venmo" | "line" | "wechat"
   | "vk" | "quora" | "gitlab" | "stackoverflow" | "producthunt"
-  | "linktree" | "bento";
+  | "linktree" | "bento" | "website";
 
 export const SUPPORTED_PLATFORMS: SocialPlatform[] = [
   // `twitter` is intentionally NOT listed: it's a recognized alias (old saved
   // links keep rendering) but "X (Twitter)" and "X" both drew the same X logo,
   // so the picker offered the same icon twice. Detection now maps every
   // twitter.com/x.com URL to the single `x` entry below.
-  "instagram", "tiktok", "youtube", "x", "github",
+  "website", "instagram", "tiktok", "youtube", "x", "github",
   "discord", "twitch", "spotify", "linkedin", "telegram",
   "whatsapp", "email", "threads", "bluesky", "mastodon",
   "reddit", "facebook", "pinterest", "snapchat", "patreon",
@@ -41,7 +41,7 @@ export const SUPPORTED_PLATFORMS: SocialPlatform[] = [
 ];
 
 const PLATFORM_LABELS: Record<SocialPlatform, string> = {
-  instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube",
+  website: "Website", instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube",
   twitter: "X (Twitter)", x: "X", github: "GitHub", discord: "Discord",
   twitch: "Twitch", spotify: "Spotify", linkedin: "LinkedIn",
   telegram: "Telegram", whatsapp: "WhatsApp", email: "Email",
@@ -165,6 +165,9 @@ function svgFill(d: string): string {
 
 export function getSocialIconSvg(platform: SocialPlatform): string {
   switch (platform) {
+    case "website":
+      // Globe — feather-style stroke icon, same family as instagram/email/rss.
+      return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
     case "instagram":
       return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`;
     case "tiktok":

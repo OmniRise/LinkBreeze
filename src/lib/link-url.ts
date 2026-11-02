@@ -126,6 +126,10 @@ export function isAllowedLinkUrl(type: string, value: string): boolean {
   // Text popups may omit the URL entirely (no CTA button).
   if (type === "text" && trimmed === "") return true;
 
+  // vCard links always point at the page's own /api/vcard/<slug> route —
+  // the URL column stays empty and the href is resolved at render time.
+  if (type === "vcard") return trimmed === "";
+
   // #87 divider elements carry no URL at all — an empty string is the only
   // valid value (the "divider" allowlist is empty by design).
   if (type === "divider") return trimmed === "";

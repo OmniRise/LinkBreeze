@@ -112,11 +112,21 @@ function esc(s: string): string {
  * For other link types (mailto, tel, etc.): keep the direct href and fire
  * sendBeacon for best-effort tracking.
  */
-function resolveLinkUrl(link: LinkRow): {
+function resolveLinkUrl(link: LinkRow, pageSlug?: string | null): {
   href: string;
   targetAttr: string;
   onclickAttr: string;
 } {
+  // Native vCard links always point at the page's own /api/vcard/<slug>
+  // route (Content-Disposition: attachment downloads without navigating).
+  if (link.type === "vcard" && pageSlug) {
+    return {
+      href: `/api/vcard/${esc(pageSlug)}`,
+      targetAttr: "",
+      onclickAttr: "",
+    };
+  }
+
   const rawUrl = link.url;
   const isExternal =
     rawUrl.startsWith("http://") || rawUrl.startsWith("https://");
@@ -188,8 +198,10 @@ export function buildLinkCardHtml(options: {
   staggerMs?: number;
   /** Extra delay added to index*staggerMs (e.g. section header position). */
   baseDelayMs?: number;
+  /** Page slug — resolves native vCard links to /api/vcard/<slug>. */
+  pageSlug?: string | null;
 }): string {
-  const { link, theme, index, staggerMs = 60, baseDelayMs = 0 } = options;
+  const { link, theme, index, staggerMs = 60, baseDelayMs = 0, pageSlug } = options;
 
   const linkStyle = theme.linkStyle || "glass";
   const hoverEffect = theme.hoverEffect || theme.animationType || "lift";
@@ -225,7 +237,7 @@ export function buildLinkCardHtml(options: {
       ? ""
       : revealAnimation(theme.animationType, baseDelayMs + index * staggerMs);
 
-  const { href, targetAttr, onclickAttr } = resolveLinkUrl(link);
+  const { href, targetAttr, onclickAttr } = resolveLinkUrl(link, pageSlug);
 
   // CSS-based hover effects (class + data attributes) — replaces inline
   // onmouseover/onmouseout so prefers-reduced-motion can gate them.

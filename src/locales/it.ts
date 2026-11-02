@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: a8eaa8fd640e ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 0807f53d30af ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -723,6 +723,21 @@ const it: Messages = {
       save: "Salva impostazioni generali",
     },
 
+    vcard: {
+      title: 'Scheda contatto',
+      description: 'La tua scheda «Salva contatto» viene generata automaticamente dalla pagina. Compila un campo per personalizzarla.',
+      organization: 'Organizzazione (facoltativo)',
+      organizationPlaceholder: 'Automatico dalla tua pagina',
+      jobTitle: 'Ruolo (facoltativo)',
+      jobTitlePlaceholder: 'Automatico dalla tua pagina',
+      email: 'Email (facoltativo)',
+      emailPlaceholder: 'Automatico dalla tua pagina',
+      phone: 'Telefono (facoltativo)',
+      phonePlaceholder: 'Automatico dalla tua pagina',
+      address: 'Indirizzo (facoltativo)',
+      addressPlaceholder: 'Automatico dalla tua pagina',
+      save: 'Salva scheda contatto',
+    },
     ogImage: {
       title: "Immagine di anteprima social (OG)",
       description: "L'immagine mostrata quando la tua pagina viene condivisa sui social media e nelle app di messaggistica.",
@@ -1234,21 +1249,11 @@ const it: Messages = {
     showing: "{count, plural, one {# voce} other {# voci}}",
     older: "Precedenti",
     action: {
-      'account.created': "Account creato",
-      'account.updated': "Account aggiornato",
-      'account.disabled': "Account disattivato",
-      'account.enabled': "Account riattivato",
-      'account.deleted': "Account eliminato",
-      'role.assigned': "Ruolo assegnato",
-      'role.created': "Ruolo creato",
-      'role.updated': "Ruolo aggiornato",
-      'role.deleted': "Ruolo eliminato",
-      'login.success': "Accesso riuscito",
-      'login.failed': "Accesso non riuscito",
-      'sso.linked': "Identità SSO collegata",
-      'sso.login': "Accesso SSO",
-      'sso.refused': "Accesso SSO rifiutato",
-      'settings.updated': "Impostazioni modificate",
+      account: { created: 'Account creato', updated: "Account aggiornato", disabled: "Account disattivato", enabled: "Account riattivato", deleted: "Account eliminato" },
+      role: { assigned: "Ruolo assegnato", created: "Ruolo creato", updated: "Ruolo aggiornato", deleted: "Ruolo eliminato" },
+      login: { success: "Accesso riuscito", failed: "Accesso non riuscito" },
+      sso: { linked: "Identità SSO collegata", login: "Accesso SSO", refused: "Accesso SSO rifiutato" },
+      settings: { updated: "Impostazioni modificate" },
     },
   },
   invite: {

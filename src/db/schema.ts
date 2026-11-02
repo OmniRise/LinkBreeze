@@ -165,6 +165,15 @@ export const pages = sqliteTable("pages", {
   // the domain IS the page (foreign slugs 404); 'hub' → the page renders at
   // root and every slug keeps resolving under the domain (path routing).
   domainScope: text("domain_scope"), // 'exclusive' | 'hub' | NULL (= exclusive)
+
+  // ─── vCard contact overrides (native Save Contact) ───
+  // NULL = the /api/vcard builder auto-fills from existing page data
+  // (title, bio, avatar, social links). Set = override the auto value.
+  vcardOrganization: text("vcard_organization"),
+  vcardJobTitle: text("vcard_job_title"),
+  vcardEmail: text("vcard_email"),
+  vcardPhone: text("vcard_phone"),
+  vcardAddress: text("vcard_address"),
 });
 
 // ─── OIDC identities (#124) ──────────────────────────

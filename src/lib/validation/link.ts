@@ -62,7 +62,9 @@ export const linkSchema = z
   // empty classic URL reports "URL is required", not a scheme error.
   // #87 dividers carry no URL at all — the title doubles as an accessible
   // name only when the operator provides one.
-  .refine((link) => link.type === "text" || link.type === "divider" || !!link.url.trim(), {
+  // Native vCard links point at the page's own /api/vcard/<slug> route —
+  // no URL input, the href is resolved at render time.
+  .refine((link) => link.type === "text" || link.type === "divider" || link.type === "vcard" || !!link.url.trim(), {
     path: ["url"],
     message: "URL is required",
   })

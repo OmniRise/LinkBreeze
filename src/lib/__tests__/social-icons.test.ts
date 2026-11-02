@@ -9,13 +9,14 @@ import {
 } from "@/lib/social-icons";
 
 describe("SUPPORTED_PLATFORMS", () => {
-  it("contains all 54 platforms", () => {
-    expect(SUPPORTED_PLATFORMS).toHaveLength(54);
+  it("contains all 55 platforms", () => {
+    expect(SUPPORTED_PLATFORMS).toHaveLength(55);
   });
 
   it("does not list `twitter` separately (alias of `x` — same X logo)", () => {
     expect(SUPPORTED_PLATFORMS).not.toContain("twitter");
     expect(SUPPORTED_PLATFORMS).toContain("x");
+    expect(SUPPORTED_PLATFORMS).toContain("website");
   });
 });
 

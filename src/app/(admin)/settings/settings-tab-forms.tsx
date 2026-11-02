@@ -102,6 +102,13 @@ interface GeneralTabProps {
   footerText: string;
   privacyPolicy: string;
   searchEngineHidden: boolean;
+  vcard: {
+    organization: string;
+    jobTitle: string;
+    email: string;
+    phone: string;
+    address: string;
+  };
 }
 
 export function GeneralTab({
@@ -112,6 +119,7 @@ export function GeneralTab({
   footerText,
   privacyPolicy,
   searchEngineHidden,
+  vcard,
 }: GeneralTabProps) {
   const t = useTranslations("settings.general");
   const startTransition = (fn: () => Promise<void>) => void fn();
@@ -240,6 +248,7 @@ export function GeneralTab({
         </CardContent>
       </form>
     </Card>
+    {pageId ? <ContactCardCard pageId={pageId} values={vcard} /> : null}
     <SearchVisibilityCard initialHidden={searchEngineHidden} slug={slug} />
     <LanguageCard />
     </div>
@@ -802,6 +811,84 @@ export function CustomCssCard({ pageId, slug, customCss }: {
             />
           </FormField>
         </CardContent>
+      </form>
+    </Card>
+  );
+}
+// ── Contact card (native vCard overrides) ────────────────────────────────
+// The public Save Contact card (/api/vcard/<slug>) is auto-generated from
+// the page (title, bio, avatar, social links). Every field here is an
+// OPTIONAL override: empty = keep the auto value, filled = win.
+
+function ContactCardCard({
+  pageId,
+  values,
+}: {
+  pageId: number;
+  values: {
+    organization: string;
+    jobTitle: string;
+    email: string;
+    phone: string;
+    address: string;
+  };
+}) {
+  const t = useTranslations("settings.vcard");
+  const startTransition = (fn: () => Promise<void>) => void fn();
+  const savedAction = useSavedAction();
+  const router = useRouter();
+
+  const handleSubmit = (formData: FormData) => {
+    formData.set("pageId", String(pageId));
+    startTransition(async () => {
+      await savedAction.run(updatePageAction, formData);
+      router.refresh();
+    });
+  };
+
+  const { formRef, schedule } = useAutosavedForm((formData) => {
+    formData.set("pageId", String(pageId));
+    return savedAction.run(updatePageAction, formData);
+  });
+
+  const fields = [
+    { name: "vcardOrganization" as const, valueKey: "organization" as const, label: t("organization"), placeholder: t("organizationPlaceholder"), max: 120 },
+    { name: "vcardJobTitle" as const, valueKey: "jobTitle" as const, label: t("jobTitle"), placeholder: t("jobTitlePlaceholder"), max: 120 },
+    { name: "vcardEmail" as const, valueKey: "email" as const, label: t("email"), placeholder: t("emailPlaceholder"), max: 200 },
+    { name: "vcardPhone" as const, valueKey: "phone" as const, label: t("phone"), placeholder: t("phonePlaceholder"), max: 60 },
+    { name: "vcardAddress" as const, valueKey: "address" as const, label: t("address"), placeholder: t("addressPlaceholder"), max: 300 },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("title")}</CardTitle>
+        <CardDescription>{t("description")}</CardDescription>
+      </CardHeader>
+      <form ref={formRef} action={handleSubmit} onBlurCapture={() => schedule()}>
+        <CardContent className="flex flex-col gap-4">
+          {fields.map((field) => (
+            <FormField key={field.name} label={field.label} htmlFor={field.name}>
+              <Input
+                id={field.name}
+                name={field.name}
+                type={field.name === "vcardEmail" ? "email" : "text"}
+                defaultValue={values[field.valueKey]}
+                maxLength={field.max}
+                placeholder={field.placeholder}
+                onChange={() => schedule()}
+              />
+            </FormField>
+          ))}
+        </CardContent>
+        <CardFooter className="mt-4">
+          <button
+            type="submit"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            {t("save")}
+          </button>
+        </CardFooter>
       </form>
     </Card>
   );

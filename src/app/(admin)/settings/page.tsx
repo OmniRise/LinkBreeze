@@ -173,6 +173,13 @@ export default async function SettingsPage({
               footerText={activePage?.footerText || ""}
               privacyPolicy={activePage?.privacyPolicy || ""}
               searchEngineHidden={searchEngineHidden === "true"}
+              vcard={{
+                organization: activePage?.vcardOrganization || "",
+                jobTitle: activePage?.vcardJobTitle || "",
+                email: activePage?.vcardEmail || "",
+                phone: activePage?.vcardPhone || "",
+                address: activePage?.vcardAddress || "",
+              }}
             />
           ),
           integration: (
