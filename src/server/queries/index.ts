@@ -1089,11 +1089,20 @@ export async function linkOidcIdentity(input: {
   });
 }
 
-/** Drop an identity link (un-linking from the profile surface). */
+/** Drop an identity link (profile surface → "Single sign-on" card). */
 export async function unlinkOidcIdentity(issuer: string, subject: string): Promise<void> {
   await db
     .delete(oidcIdentities)
     .where(and(eq(oidcIdentities.issuer, issuer), eq(oidcIdentities.subject, subject)));
+}
+
+/** Linked OIDC identities for a user (profile surface → "Single sign-on" card). */
+export async function getOidcIdentitiesForUser(userId: number): Promise<OidcIdentityRow[]> {
+  return db
+    .select()
+    .from(oidcIdentities)
+    .where(eq(oidcIdentities.userId, userId))
+    .orderBy(oidcIdentities.createdAt);
 }
 
 // ─── OIDC instance configuration (settings KV; secret stays env-only) ─────────

@@ -40,15 +40,14 @@ async function instanceOrigin(): Promise<string> {
 }
 
 /**
- * #124 Phase 3 — start an OIDC login: build the authorize redirect with
- * state + PKCE, persist the state server-side (single-use, expiring), and
- * hand the authorize URL back to the client for navigation.
+ * #124 Phase 3 — shared authorize-redirect builder: rate limit, config +
+ * discovery validation, PKCE + single-use state, and the authorize URL.
+ * Used by both the login action and the profile "Connect SSO" link action
+ * (the callback binds the identity to the current session when one exists).
  */
-export async function startOidcLoginAction(
+async function startOidcFlow(
   redirectTo?: string,
 ): Promise<ActionResult<{ authorizeUrl: string }>> {
-  if (demoGuard()) return unauthorizedError();
-
   // Rate limit: 10 starts/min/IP — each start writes a state row and triggers
   // a discovery fetch, so unbounded calls are a cheap DoS vector.
   const { headers } = await import("next/headers");
@@ -98,6 +97,57 @@ export async function startOidcLoginAction(
   url.searchParams.set("code_challenge_method", "S256");
 
   return { success: true, authorizeUrl: url.toString() };
+}
+
+/**
+ * #124 Phase 3 — start an OIDC login: build the authorize redirect with
+ * state + PKCE, persist the state server-side (single-use, expiring), and
+ * hand the authorize URL back to the client for navigation.
+ */
+export async function startOidcLoginAction(
+  redirectTo?: string,
+): Promise<ActionResult<{ authorizeUrl: string }>> {
+  if (demoGuard()) return unauthorizedError();
+  return startOidcFlow(redirectTo);
+}
+
+/**
+ * Profile "Connect SSO" (#124 3.4): same authorize redirect as login, but
+ * session-gated — the callback sees the live session and binds the incoming
+ * identity to the signed-in account instead of logging in.
+ */
+export async function startOidcLinkAction(): Promise<ActionResult<{ authorizeUrl: string }>> {
+  if (demoGuard()) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  return startOidcFlow();
+}
+
+/**
+ * Profile "Single sign-on" card (#124 3.4): drop one linked OIDC identity.
+ * Self-service only — a user can only unlink identities bound to their own
+ * account. Every unlink is audited.
+ */
+export async function unlinkOidcIdentityAction(
+  issuer: string,
+  subject: string,
+): Promise<ActionResult> {
+  if (demoGuard()) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  if (!issuer || !subject) return validationError("Missing identity");
+  if (issuer.length > 2048 || subject.length > 2048) return validationError("Invalid identity");
+
+  const { getOidcIdentitiesForUser } = await import("@/server/queries");
+  const identities = await getOidcIdentitiesForUser(session.userId);
+  if (!identities.some((i) => i.issuer === issuer && i.subject === subject)) {
+    return notFoundError("Identity not linked to this account");
+  }
+
+  const { unlinkOidcIdentity } = await import("@/server/queries");
+  await unlinkOidcIdentity(issuer, subject);
+  await recordAudit("sso.unlinked", session.username, { issuer });
+  return { success: true };
 }
 
 /** Settings card save (#124 3.6): non-secret fields only, instance-admin gated. */

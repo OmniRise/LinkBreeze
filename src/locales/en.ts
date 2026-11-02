@@ -323,6 +323,17 @@ const en = {
   },
 
   profile: {
+    sso: {
+      title: "Single sign-on",
+      description: "OIDC identities linked to your account. Signing in with SSO links the identity automatically.",
+      empty: "No SSO identity linked yet.",
+      connect: "Connect SSO",
+      connecting: "Redirecting…",
+      unlink: "Unlink",
+      unlinkConfirm: "Unlink {issuer}? You will need your username and password to sign in.",
+      cancel: "Cancel",
+    },
+
 
     uploadImage: "Upload image",
 
@@ -1259,7 +1270,7 @@ const en = {
       account: { created: 'Account created', updated: "Account updated", disabled: "Account disabled", enabled: "Account enabled", deleted: "Account deleted" },
       role: { assigned: "Role assigned", created: "Role created", updated: "Role updated", deleted: "Role deleted" },
       login: { success: "Sign-in succeeded", failed: "Sign-in failed" },
-      sso: { linked: "SSO identity linked", login: "SSO sign-in", refused: "SSO sign-in refused" },
+      sso: { linked: "SSO identity linked", login: "SSO sign-in", refused: "SSO sign-in refused", unlinked: "SSO identity unlinked" },
       settings: { updated: "Settings changed" },
     },
   },

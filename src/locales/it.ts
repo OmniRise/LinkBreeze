@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 0807f53d30af ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 5c392c873ab0 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -315,6 +315,17 @@ const it: Messages = {
   },
 
   profile: {
+    sso: {
+      title: "Accesso unico",
+      description: "Identità OIDC collegate al tuo account. L'accesso tramite SSO collega automaticamente l'identità.",
+      empty: "Nessuna identità SSO collegata.",
+      connect: "Collega SSO",
+      connecting: "Reindirizzamento…",
+      unlink: "Scollega",
+      unlinkConfirm: "Scollegare {issuer}? Ti serviranno nome utente e password per accedere.",
+      cancel: "Annulla",
+    },
+
 
     uploadImage: "Carica immagine",
 
@@ -1252,7 +1263,7 @@ const it: Messages = {
       account: { created: 'Account creato', updated: "Account aggiornato", disabled: "Account disattivato", enabled: "Account riattivato", deleted: "Account eliminato" },
       role: { assigned: "Ruolo assegnato", created: "Ruolo creato", updated: "Ruolo aggiornato", deleted: "Ruolo eliminato" },
       login: { success: "Accesso riuscito", failed: "Accesso non riuscito" },
-      sso: { linked: "Identità SSO collegata", login: "Accesso SSO", refused: "Accesso SSO rifiutato" },
+      sso: { linked: "Identità SSO collegata", login: "Accesso SSO", refused: "Accesso SSO rifiutato", unlinked: "Identità SSO scollegata" },
       settings: { updated: "Impostazioni modificate" },
     },
   },

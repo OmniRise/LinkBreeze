@@ -1,5 +1,8 @@
-import { getAllPages, getDefaultPage, type SocialLink } from "@/server/queries";
+import { getAllPages, getDefaultPage, getOidcIdentitiesForUser, type SocialLink } from "@/server/queries";
+import { getSession } from "@/lib/auth";
+import { oidcAccountLinkingSupported } from "@/server/actions/oidc";
 import { ProfileForm } from "./profile-form";
+import { SsoIdentitiesCard } from "./sso-identities-card";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +33,17 @@ export default async function ProfilePage({
     socialLinks = [];
   }
 
+  const session = await getSession();
+  const [identities, linkingSupported] = session
+    ? await Promise.all([
+        getOidcIdentitiesForUser(session.userId),
+        oidcAccountLinkingSupported(),
+      ])
+    : [[], false];
+
   return (
-    <ProfileForm
+    <>
+      <ProfileForm
       pageId={activePage?.id}
       profile={
         activePage
@@ -53,6 +65,8 @@ export default async function ProfilePage({
             }
           : null
       }
-    />
+      />
+      <SsoIdentitiesCard identities={identities} linkingSupported={linkingSupported} />
+    </>
   );
 }
