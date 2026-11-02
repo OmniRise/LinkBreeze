@@ -20,8 +20,6 @@ import {
 } from "@/components/ui/card";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
-
 export default function NewPageForm() {
   const t = useTranslations("pages");
   const tErr = useTranslations("errors");
