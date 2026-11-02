@@ -46,9 +46,10 @@ jobs:
             }
           done
 
-      # Seeding is privatized (scripts/ is local-only, gitignored) — in CI the
-      # fresh DB has no profile, so Lighthouse audits the /setup page, not a
-      # public profile page.
+      # Seeding is privatized (scripts/ is local-only, gitignored). Instead the
+      # fresh DB gets its bootstrap admin through the app's own first-run API
+      # (POST /api/setup), so the homepage serves the default public page
+      # (migration 0007 creates it at slug "u") instead of redirecting to /setup.
 
       - name: Start server
         run: |
@@ -60,7 +61,19 @@ jobs:
           cp -r public "$STANDALONE_DIR/public"
           cd "$STANDALONE_DIR"
           node server.js &
-          npx wait-on http://localhost:3000/test --timeout 60000
+          cd "$GITHUB_WORKSPACE"
+          # Fresh DB: no users yet, so /setup is the first-run page (200).
+          # Reaching it also proves boot migrations have finished.
+          npx wait-on http://localhost:3000/setup --timeout 60000
+          # Give the default page real content so Lighthouse audits a
+          # realistic public page, not an empty one.
+          node -e "const Database=require('better-sqlite3');new Database(process.env.DATABASE_PATH).prepare('UPDATE pages SET title=?, bio=?').run('Lighthouse Test','Test page for Lighthouse CI');console.log('[lighthouse] page content seeded')"
+          # Create the bootstrap admin through the app's own first-run API;
+          # afterwards / serves the default public page (307 -> /u).
+          curl -sf -X POST http://localhost:3000/api/setup \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"test","password":"LighthouseCI123"}'
+          npx wait-on http://localhost:3000/u --timeout 60000
         env:
           SECRET_KEY: "ci-lighthouse-secret-key-not-for-production"
           DATABASE_PATH: "/tmp/lighthouse-linkbreeze.db"
