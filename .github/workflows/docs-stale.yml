@@ -24,4 +24,5 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/docs-check.mjs
+      # privatized: scripts/ is local-only (gitignored) — step removed
+      # - run: node scripts/docs-check.mjs
