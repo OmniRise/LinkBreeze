@@ -14,7 +14,6 @@
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test",
     "db:migrate": "drizzle-kit migrate",
-    "seed": "tsx src/scripts/seed-demo.ts",
     "i18n:check": "node scripts/i18n-check.mjs",
     "i18n:audit": "node scripts/locale-audit.mjs",
     "docs:check": "node scripts/docs-check.mjs",
@@ -79,7 +78,7 @@
     },
     "nanoid": "^3.3.17",
     "js-yaml": "^4.3.1",
-    "joi": "^17.13.6",
+    "joi": "^17.13.9",
     "body-parser": "^2.4.0"
   }
 }
