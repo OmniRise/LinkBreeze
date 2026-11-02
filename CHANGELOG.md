@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Dependency updates (#131, #132, #133)** — merged three Dependabot PRs: `systeminformation` 5.33.15 → 5.33.19 (fixes Dependabot alert #73, high), `@hono/node-server` 2.0.12 → 2.1.5 (fixes alert #72, medium), and `actions/checkout` v6 → v7 across the workflows. All CI build jobs green.
+- **Dependency updates (#131, #132, #133, #135)** — merged four Dependabot PRs: `systeminformation` 5.33.15 → 5.33.19 (fixes Dependabot alert #73, high), `@hono/node-server` 2.0.12 → 2.1.5 (fixes alert #72, medium), `actions/checkout` v6 → v7 across the workflows, and the #135 minor-and-patch group (`lucide-react` 1.61.0 → 1.65.0, `shadcn` 4.22.1 → 4.23.0, `@types/node` 26.6.5 → 26.6.6, `sql.js` 1.15.1 → 1.15.2). All CI build jobs green.
 - **joi override raised to ^17.13.9 (fixes Dependabot alert #75, high)** — the existing override range already allowed the patched release; the lockfile just predated it. Refreshed to 17.13.9 (transitive via `passkit-generator`, no API changes). The remaining two alerts need no action today: minimatch (#74, medium) is a dev-only eslint/ts-morph chain where v11 is a major upstream hasn't adopted, and deepmerge (#71, low) has no patched release yet.
 
 ### Fixed
