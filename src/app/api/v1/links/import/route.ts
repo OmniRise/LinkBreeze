@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Hard cap: one request imports at most this many items (decision #14). */
-export const IMPORT_MAX_ITEMS = 100;
+const IMPORT_MAX_ITEMS = 100;
 
 type ImportResult =
   | { index: number; status: "created"; id: number }
