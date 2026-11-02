@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-user accounts with customizable roles (#124)** — per-account public pages; admin create/enable/disable/delete with last-admin guard; editable roles (page limits, visibility, capability checks now enforced on every instance-level action); role-scoped admin surface; single-use invitation links (SHA-256-hashed, 7-day expiry) accepted at `/invite/<token>`; append-only admin audit log at `/audit` with filters, cursor pagination and 90-day retention; per-role/per-user session lifetimes with action-based idle timeout and password re-entry for destructive admin actions.
 - **Generic OIDC / OAuth2 single sign-on (#124)** — sign in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID…) via discovery: authorization-code + PKCE (S256), single-use expiring state, JIT provisioning, account linking, optional SSO-only mode. Group → role mapping (first-match, configurable claim) with the last-admin invariant; configurable username/email/name claims; env-only client secret; https-only issuers with the `LINKBREEZE_ALLOW_HTTP_ISSUER` escape hatch for trusted-LAN providers (which now actually works).
 
+### Changed
+
+- **Dependency updates (#131, #132, #133)** — merged three Dependabot PRs: `systeminformation` 5.33.15 → 5.33.19 (fixes Dependabot alert #73, high), `@hono/node-server` 2.0.12 → 2.1.5 (fixes alert #72, medium), and `actions/checkout` v6 → v7 across the workflows. All CI build jobs green.
+
 ### Fixed
 
 - **Audit log action labels now resolve through i18n** — the audit table's action dictionary used flat keys containing dots (`account.created`, `role.assigned`, …), which next-intl rejects as invalid, spamming the browser console with `INVALID_KEY` errors and silently falling back to raw keys. The dictionary is now properly nested across all 11 locales (translations preserved), so `action.account.created` and friends resolve to their translated labels.
