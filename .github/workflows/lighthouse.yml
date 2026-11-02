@@ -46,15 +46,9 @@ jobs:
             }
           done
 
-      # Seed a minimal DB so the app has a profile + public page.
-      # Without this, the homepage redirects to /setup and Lighthouse audits a
-      # redirect instead of the actual public page.
-      - name: Seed database
-        env:
-          DATABASE_PATH: "/tmp/lighthouse-linkbreeze.db"
-          SECRET_KEY: "ci-lighthouse-secret-key-not-for-production"
-        # privatized: scripts/ is local-only (gitignored) — step removed
-        # run: npx tsx scripts/seed-lighthouse.ts
+      # Seeding is privatized (scripts/ is local-only, gitignored) — in CI the
+      # fresh DB has no profile, so Lighthouse audits the /setup page, not a
+      # public profile page.
 
       - name: Start server
         run: |
