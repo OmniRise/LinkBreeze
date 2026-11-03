@@ -992,3 +992,66 @@ describe("stats detail surface contract (#81 E.125)", () => {
     expect(card).toContain('config.status === "archived" ? (');
   });
 });
+
+describe("doc/src separation: serving is stateless, the scanner is not (#81 E.140)", () => {
+  const guide = readFileSync(resolve(process.cwd(), "docs/ab-testing.md"), "utf8");
+  const pureSrc = readFileSync(resolve(process.cwd(), "src/lib/ab-test.ts"), "utf8");
+  const scannerSrc = readFileSync(
+    resolve(process.cwd(), "src/server/ab-auto-promote.ts"),
+    "utf8",
+  );
+  const routeSrc = readFileSync(
+    resolve(process.cwd(), "src/app/go/[id]/route.ts"),
+    "utf8",
+  );
+
+  // Section slice: the auto-promotion walkthrough (## 5 up to ## Where else).
+  const autoPromoteSection = guide.slice(
+    guide.indexOf("## 5. Optional: auto-promotion"),
+    guide.indexOf("## Where else variants show up"),
+  );
+
+  it("the guide never claims the AUTO-PROMOTER is stateless (it reads analytics tables)", () => {
+    // The serving split derives everything from (visitorHash, linkId) — the
+    // doc's cookieless/stateless claims are true THERE. The scanner is a
+    // different beast: it queries analytics_clicks and settings KV. If a doc
+    // edit ever drags the serving claims into the auto-promotion section,
+    // this fails before the guide lies.
+    expect(autoPromoteSection).not.toMatch(/cookieless|stateless|nothing is stored|no server-side state/i);
+  });
+
+  it("the serving claims stay pinned where they ARE true (intro + split explanation + FAQ)", () => {
+    // Teeth: the stateless story must not simply be deleted — it is the
+    // guide's headline privacy property, scoped to the SERVING path only.
+    expect(guide).toContain("no JavaScript on the public page, no cookie,");
+    expect(guide).toContain("cookieless visitor fingerprint");
+    expect(guide).toContain("there is no cookie or client storage to edit");
+  });
+
+  it("the pure module imports no DB and no server modules", () => {
+    // src/lib/ab-test.ts is the serving math: assignment, windows, lift,
+    // confidence. It must stay importable from any surface (client editor
+    // included) without dragging the DB in.
+    for (const line of pureSrc.split("\n")) {
+      if (!line.startsWith("import ") && !line.includes('from "@/')) continue;
+      expect(line).not.toMatch(/from "@\/(db|server)/);
+    }
+  });
+
+  it("the scanner reads the analytics tables — it is admin-side cron, not serving math", () => {
+    // Guards the OPPOSITE drift: nobody refactors the scanner into the pure
+    // module (or cites the guide's stateless language about it). It reads
+    // analytics_clicks + settings KV by design.
+    expect(scannerSrc).toContain('from "@/db"');
+    expect(scannerSrc).toContain("analyticsClicks");
+  });
+
+  it("the /go route takes variant math only from the pure module and runs the scanner fire-and-forget", () => {
+    // Serving separation, statically: assignment comes from @/lib/ab-test
+    // (pure); the scan is invoked void-style after the click is recorded —
+    // never awaited into the redirect path, never on the assignment path.
+    expect(routeSrc).toContain('from "@/lib/ab-test"');
+    expect(routeSrc).toMatch(/^\s*maybeAutoPromoteAbTests\(\);$/m);
+    expect(routeSrc).not.toMatch(/await maybeAutoPromoteAbTests/);
+  });
+});

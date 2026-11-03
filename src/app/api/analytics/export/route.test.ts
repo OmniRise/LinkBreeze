@@ -16,6 +16,14 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth", () => ({ getSession: mocks.getSession }));
+// #124 moved the export route's gate to the instance-admin capability check.
+// This suite's subject is the CSV pipeline, not auth — mirror the gate's
+// contract against the mocked session (no session -> Unauthorized throw).
+vi.mock("@/server/access", () => ({
+  requireInstanceAdminOrThrow: async () => {
+    if (!(await mocks.getSession())) throw new Error("Unauthorized");
+  },
+}));
 vi.mock("@/db", () => ({
   db: {
     select: (...args: unknown[]) => {

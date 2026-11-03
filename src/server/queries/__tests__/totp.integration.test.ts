@@ -99,10 +99,10 @@ describe("TOTP integration", () => {
     // …but login() gates on totpEnabled && totpSecret, so it can never be used.
     expect(disabled!.totpEnabled && disabled!.totpSecret).toBeFalsy();
     // Argon2 re-hashes + bcryptjs cost-12 recovery codes make this lifecycle
-    // heavy on single-threaded JS (~8s measured) — well past vitest's 5s default;
-    // on a CPU-contended box it flaked at 5000ms (5.18s even in isolation).
-    // 15s still fails a genuine hang.
-  }, 15000);
+    // heavy on single-threaded JS — well past vitest's 5s default, and it
+    // flaked at 5000ms on a CPU-contended box (5.18s even in isolation).
+    // 30s still fails a genuine hang.
+  });
 
   it("secret encrypted at rest is never the plaintext in the DB", async () => {
     const secret = generateSecret();
