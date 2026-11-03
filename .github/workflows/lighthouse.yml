@@ -46,16 +46,6 @@ jobs:
             }
           done
 
-      # Seed a minimal DB so the app has a profile + public page.
-      # Without this, the homepage redirects to /setup and Lighthouse audits a
-      # redirect instead of the actual public page.
-      - name: Seed database
-        env:
-          DATABASE_PATH: "/tmp/lighthouse-linkbreeze.db"
-          SECRET_KEY: "ci-lighthouse-secret-key-not-for-production"
-        # privatized: scripts/ is local-only (gitignored) — step removed
-        # run: npx tsx scripts/seed-lighthouse.ts
-
       - name: Start server
         run: |
           # output: standalone needs static assets copied next to server.js.
@@ -71,6 +61,18 @@ jobs:
           SECRET_KEY: "ci-lighthouse-secret-key-not-for-production"
           DATABASE_PATH: "/tmp/lighthouse-linkbreeze.db"
           PORT: "3000"
+
+      # Seed via the setup API (the seed script is local-only, gitignored).
+      # Without a user, the homepage redirects to /setup and Lighthouse audits
+      # a redirect instead of the actual public page. POST /api/setup creates
+      # the bootstrap admin; the first "/" hit then lazy-creates the default
+      # public page (ensureDefaultPage) and warms the audited route.
+      - name: Seed database via setup API
+        run: |
+          curl -sf -X POST http://localhost:3000/api/setup \
+            -H "Content-Type: application/json" \
+            -d '{"username":"lighthouse","password":"Lh2026!Warm"}'
+          curl -sfL http://localhost:3000/ -o /dev/null
 
       - name: Run Lighthouse CI
         env:
