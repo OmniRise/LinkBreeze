@@ -51,8 +51,20 @@ export interface VCardInput {
   origin: string;
   /** Optional bio — maps to NOTE. */
   bio?: string | null;
-  /** Optional org name — maps to ORG. */
+  /** Optional org name — maps to ORG (omitted when unset). */
   organization?: string | null;
+  /** Optional job title — maps to TITLE. */
+  jobTitle?: string | null;
+  /** Optional email — maps to EMAIL. */
+  email?: string | null;
+  /** Optional phone — maps to TEL. */
+  phone?: string | null;
+  /** Optional address (single free-text line) — maps to ADR. */
+  address?: string | null;
+  /** Optional avatar URL (absolute) — maps to PHOTO;VALUE=URI. */
+  photoUrl?: string | null;
+  /** Optional social profiles — map to X-SOCIALPROFILE entries. */
+  socials?: Array<{ platform: string; url: string }> | null;
 }
 
 export function buildVCard(input: VCardInput): string {
@@ -69,8 +81,33 @@ export function buildVCard(input: VCardInput): string {
     `FN:${escapeVcardValue(fn)}`,
     `NICKNAME:${escapeVcardValue(input.slug)}`,
     `URL:${url}`,
-    `ORG:${escapeVcardValue(input.organization || "LinkBreeze")}`,
   ];
+
+  if (input.organization && input.organization.trim()) {
+    lines.push(`ORG:${escapeVcardValue(input.organization.trim())}`);
+  }
+  if (input.jobTitle && input.jobTitle.trim()) {
+    lines.push(`TITLE:${escapeVcardValue(input.jobTitle.trim())}`);
+  }
+  if (input.email && input.email.trim()) {
+    lines.push(`EMAIL;TYPE=INTERNET:${escapeVcardValue(input.email.trim())}`);
+  }
+  if (input.phone && input.phone.trim()) {
+    lines.push(`TEL;TYPE=CELL:${escapeVcardValue(input.phone.trim())}`);
+  }
+  if (input.address && input.address.trim()) {
+    // Single-field address → all ADR components empty except the ext part.
+    lines.push(`ADR;TYPE=WORK:;;${escapeVcardValue(input.address.trim())}`);
+  }
+  if (input.photoUrl && input.photoUrl.trim()) {
+    lines.push(`PHOTO;VALUE=URI:${escapeVcardValue(input.photoUrl.trim())}`);
+  }
+  for (const social of input.socials ?? []) {
+    if (!social.url) continue;
+    lines.push(
+      `X-SOCIALPROFILE;TYPE=${escapeVcardValue(social.platform)}:${escapeVcardValue(social.url)}`,
+    );
+  }
 
   if (input.bio && input.bio.trim()) {
     lines.push(`NOTE:${escapeVcardValue(input.bio.trim())}`);
@@ -87,13 +124,54 @@ export function vcardFilename(slug: string): string {
   return `${safe}.vcf`;
 }
 
-/** Type guard so route handlers only pass real page rows into the builder. */
+/**
+ * Build the builder input from a page row. Auto-fills everything the page
+ * already knows (title, bio, avatar, social links) and layers the per-page
+ * vCard overrides (Settings → Contact card) on top — a set override wins,
+ * an unset one falls back to the auto value.
+ */
 export function pageToVCardInput(page: PageRow, origin: string): VCardInput {
+  const socials: Array<{ platform: string; url: string }> = [];
+  try {
+    const parsed: unknown = JSON.parse(page.socialLinks || "[]");
+    if (Array.isArray(parsed)) {
+      for (const entry of parsed) {
+        if (
+          entry &&
+          typeof entry === "object" &&
+          typeof (entry as { platform?: unknown }).platform === "string" &&
+          typeof (entry as { url?: unknown }).url === "string"
+        ) {
+          socials.push({
+            platform: (entry as { platform: string }).platform,
+            url: (entry as { url: string }).url,
+          });
+        }
+      }
+    }
+  } catch {
+    // Malformed social_links JSON → no social entries, card still builds.
+  }
+
+  // Avatar may be site-relative (/api/uploads/...) — PHOTO URI wants absolute.
+  const rawAvatar = page.avatarUrl?.trim();
+  const photoUrl = rawAvatar
+    ? rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://")
+      ? rawAvatar
+      : `${origin}${rawAvatar.startsWith("/") ? "" : "/"}${rawAvatar}`
+    : null;
+
   return {
     title: page.title || "",
     slug: page.slug,
     origin,
     bio: page.bio,
-    organization: null,
+    organization: page.vcardOrganization ?? null,
+    jobTitle: page.vcardJobTitle ?? null,
+    email: page.vcardEmail ?? null,
+    phone: page.vcardPhone ?? null,
+    address: page.vcardAddress ?? null,
+    photoUrl,
+    socials,
   };
 }

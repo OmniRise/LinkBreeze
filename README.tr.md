@@ -375,6 +375,8 @@ Tüm yapılandırma ortam değişkenleri üzerinden yapılır. **[`.env.example`
 | `EXTRA_SCRIPT_SRC` | _(boş)_ | CSP için boşlukla ayrılmış analitik alan adları (örn. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(boş)_ | Yönetim panelinin barındığı birincil host; özel alan adı yönetici kilidi diğer tüm hostlara 404 döndürür (ortam değişkeni, panodaki ayarı geçersiz kılar) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Alan adı yönlendirmesi için `X-Forwarded-Host` başlığına güven - yalnızca bu başlığı ÜZERİNE YAZAN bir proxy arkasında etkinleştir (nginx, Caddy); varsayılan `Host` başlığı sahteciliğe açık değildir |
+| `OIDC_CLIENT_SECRET` | _(boş)_ | OIDC tek oturum açma için istemci sırrı (#124 çok kullanıcılı). Issuer, istemci kimliği, JIT sağlama ve giriş modu Ayarlar → Güvenlik bölümünde yapılandırılır. Sırlar yalnızca ortam değişkeninde kalır - ayarlar yedeklere olduğu gibi aktarılır |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Test istisnası: güvenilen bir LAN'da http OIDC issuer'a izin ver (üretim https ister) |
 
 <details>
 <summary>💳 &nbsp;Cüzdan kartı değişkenleri (Google Wallet / Apple Wallet)</summary>
@@ -403,6 +405,90 @@ Her herkese açık sayfa, "Kişiyi kaydet" düğmeli bir paylaşım bloğu oluş
 Kendi alan adlarını sayfalara yönlendir - tek kurulum, çok kimlik. Ziyaretçiler `https://jane.com/` adresine gelir ve doğrudan Jane'in sayfasını görür; üstelik otomatik canonical yönlendirmeler, SEO'ya hazır site haritaları ve sıkı bir yönetici host kilidiyle. Bağlamalar ilk gerçek ziyarette etkinleşir (kendi kendini doğrulayan DNS) ve sayfa başına kapsam, alan adının sayfanın KENDİSİ mi (münhasır) yoksa tüm slug'lar için bir hub mı olduğunu belirler.
 
 Eksiksiz kurulum - DNS, wildcard TLS ve Caddy, nginx ve Traefik için kopyala-yapıştır reverse proxy yapılandırmaları - **[docs/custom-domains.md](docs/custom-domains.md)** içinde.
+
+## 🔌 REST API
+
+Bağlantıları, profili ve analitiği betiklerden, CI boru hatlarından veya üçüncü taraf araçlardan yönetin. **Settings → Security → API access** bölümünde bir API anahtarı oluşturun (tam anahtar yalnızca bir kez gösterilir - güvenli bir yerde saklayın) ve HTTP Bearer şemasıyla `Authorization` başlığında gönderin. Dönüşüm varsayılan olarak anlıktır; yönetici isteğe bağlı bir saatlik geçiş süresini etkinleştirdiyse eski anahtar, pencere kapanana veya yönetici iptal edene kadar çalışmaya devam edebilir. Sınır: anahtar başına dakikada 120 istek, ayrıca IP başına bir koruma. Yazma uç noktaları demo modunda engellenir. Her kendi örneği `/api/v1/docs` ve `/api/v1/openapi.json` adreslerinde kendi OpenAPI 3.1 referansını sunar.
+
+<details>
+<summary>🔗 &nbsp;Uç noktalar</summary>
+
+| Yöntem | Yol | Açıklama |
+|--------|-----|----------|
+| GET | `/api/v1/links` | Bağlantıları listele (`?limit`/`?cursor` sayfalar, `?fields=` azaltılmış alanlar) |
+| GET | `/api/v1/links/:id` | Id ile bir bağlantı getir |
+| POST | `/api/v1/links` | Bağlantı oluştur |
+| PUT | `/api/v1/links/:id` | Bağlantıyı güncelle (kısmi - yalnızca gönderilen alanlar değişir) |
+| DELETE | `/api/v1/links/:id` | Bağlantıyı sil |
+| PUT | `/api/v1/links/reorder` | Bağlantıları yeniden sırala (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Toplu bağlantı oluşturma (1-100 öğe, öğe başına sonuç) |
+| GET | `/api/v1/sections` | Bölümleri listele (`?pageId=N` filtreler) |
+| POST | `/api/v1/sections` | Bölüm oluştur |
+| PUT | `/api/v1/sections/:id` | Bölümü güncelle (kısmi) |
+| DELETE | `/api/v1/sections/:id` | Bölümü sil (bağlantıları kategorisiz kalır) |
+| PUT | `/api/v1/sections/reorder` | Bölümleri yeniden sırala (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Profili al |
+| PUT | `/api/v1/profile` | Profili güncelle (kısmi) |
+| GET | `/api/v1/analytics` | Görüntülenmeler, tıklamalar ve üst bağlantılar (`?range=7d\|30d\|90d`) |
+
+Başarılı yanıtlar yükü `data` içinde paketler; hatalar `{ "error": { "code", "message" } }` biçimindedir ve eşleş HTTP durumlarıyla gelir (401 anahtar eksik veya geçersiz, 400 doğrulama, 403 demo modu, 429 sınır). Bağlantı yazımları, yönetim arayüzüyle aynı doğrulamadan geçer - URL şeması izin listesi dahil. Okuma uçları da bir `ETag` döner; değişene kadar boş `304` almak için onu `If-None-Match` olarak geri gönderin. Her yanıt başlık sözleşmesini de taşır: `X-RateLimit-Limit`, `X-RateLimit-Remaining` ve `X-RateLimit-Reset` dakikalık bütçeyi gösterir (`429` ayrıca `Retry-After` gönderir), `Cache-Control: no-store` kimlik doğrulamalı yanıtları önbellekte tutmaz ve `401` `WWW-Authenticate` ile yanıt verir.
+
+</details>
+
+<details>
+<summary>📦 &nbsp;API örnekleri (curl)</summary>
+
+```bash
+# Tek seferlik kurulum
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# Bağlantıları listele: tam liste veya azaltılmış alanlı sayfalı sayfa
+# (--oauth2-bearer Bearer başlığını sizin gönderir)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Bağlantı oluştur (201, oluşturulan satırı ve id'yi döner)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Kısmi güncelleme: yalnızca gönderilen alanlar değişir (null temizler)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Bağlantıları yeniden sırala, sonra bir metriği oku
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# Bir bölüm oluştur, sonra toplu bağlantı içe aktarma (öğe başına sonuç)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# Koşullu okuma: ETag'i tekrar gönder → değişene kadar boş 304
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+Tüm sayfaları dolaşmak için `meta.nextCursor` değerini (`?cursor=` olarak) geri gönderin. Makineyle okunabilir tam sözleşme `$BASE/openapi.json` adresinde.
+
+</details>
 
 ## 🎨 Tema Sistemi
 

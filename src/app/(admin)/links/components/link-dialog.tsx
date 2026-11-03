@@ -223,6 +223,9 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
   // #87 dividers: decorative separator — no URL, description, thumbnail,
   // or icon. Style lives in the theme customizer, not per-link.
   const isDivider = type === "divider";
+  // Native vCard: no URL field — the card always points at the page's own
+  // /api/vcard/<slug> route and inherits the Contact card settings.
+  const isVcard = type === "vcard";
   const storedUrl = editing?.url ?? "";
   const hadUTM = isUrlType && hasUTM(storedUrl);
   const [showUTM, setShowUTM] = React.useState(hadUTM);
@@ -393,7 +396,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
             <p className="rounded-lg border border-dashed border-border/70 px-3 py-2.5 text-xs text-muted-foreground">
               {t("dividerHint")}
             </p>
-          ) : (
+          ) : isVcard ? null : (
           <FormField label={urlLabel} htmlFor="url" required={!isTextPopup}>
             <Input
               id="url"

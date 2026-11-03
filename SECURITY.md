@@ -197,6 +197,24 @@ GDPR Article 33 (72 hours to the supervisory authority).
    `docker-compose.with-backup.yml` sidecar and follow the 3-2-1 rule.
 5. **Restrict network access** — Do not expose the SQLite port. Only expose the
    LinkBreeze HTTP port through a reverse proxy.
+6. **Treat the REST API key like a password** — generate it in Settings ->
+   Security -> API access; the full key is shown exactly once and only its
+   sha256 hash is stored, so it cannot be recovered, only regenerated.
+   Send it in the `Authorization` header over HTTPS only. Rotating
+   (Regenerate) invalidates the old key immediately - do that if a key ever
+   lands in a log, shell history, or a public repo. If the optional one-hour
+   rotation grace is enabled (off by default), the PREVIOUS key keeps
+   working until the window closes - Regenerating without grace or Revoking
+   ends it early, and the admin card shows a live countdown plus a
+   revoke-previous control. Requests are rate limited
+   per key (120/min) and mutations are blocked in demo mode; the API surface
+   runs the same URL-scheme validation as the admin UI.
+   **Scope**: the key is admin-equivalent for *public-site content* of this
+   one instance — links, sections, profile, analytics reads. It can never
+   reach user accounts, sessions, other settings (including its own hash),
+   backups, the filesystem, or any other instance; `/api/v1` responses are
+   structurally unable to contain user/session fields (enforced by a
+   surface-hygiene test in CI).
 
 ## Accessibility
 

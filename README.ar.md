@@ -375,6 +375,8 @@ cloudflared tunnel --url http://localhost:3000
 | `EXTRA_SCRIPT_SRC` | _(فارغ)_ | نطاقات الإحصائيات مفصولة بمسافات من أجل CSP (مثل `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(فارغ)_ | المستضيف الأساسي الذي تعمل عليه لوحة الإدارة؛ قفل النطاقات المخصص يُرجع 404 لكل مستضيف آخر (متغير البيئة يتجاوز إعداد الإدارة) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | الثقة بترويسة `X-Forwarded-Host` لتوجيه النطاقات - فعّلها فقط خلف وكيل يعيد كتابة الترويسة (nginx و Caddy)؛ ترويسة `Host` الافتراضية لا يمكن تزويرها |
+| `OIDC_CLIENT_SECRET` | _（فارغ）_ | سر العميل لتسجيل الدخول الموحد OIDC (#124 متعدد المستخدمين). الـ Issuer ومعرّف العميل وتوفير JIT ووضع الدخول تُضبط من الإعدادات → الأمان. الأسرار تبقى في متغيرات البيئة فقط - تُصدَّر الإعدادات كما هي في النسخ الاحتياطية |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | استثناء اختباري: السماح بـ issuer لـ OIDC عبر http في شبكة موثوقة (الإنتاج يتطلب https) |
 
 <details>
 <summary>💳 &nbsp;متغيرات تذاكر المحفظة (Google Wallet / Apple Wallet)</summary>
@@ -403,6 +405,90 @@ cloudflared tunnel --url http://localhost:3000
 وجّه نطاقاتك الخاصة إلى الصفحات - نسخة واحدة، هويات متعددة. يصل الزوار إلى `https://jane.com/` فيرون صفحة Jane مباشرة، مع تحويلات canonical تلقائية وخرائط مواقع صديقة لمحركات البحث وقفل إدارة صارم حسب المستضيف. تتفعّل الروابط عند أول زيارة حقيقية (DNS ذاتي التحقق)، ويحدد نطاق كل صفحة ما إن كان النطاق هو الصفحة نفسها (حصري) أم مركزًا لجميع المعرّفات.
 
 الإعداد الكامل - DNS وTLS wildcard وتكوينات وكيل عكسي جاهزة للنسخ لـ Caddy وnginx وTraefik - في **[docs/custom-domains.md](docs/custom-domains.md)**.
+
+## 🔌 واجهة REST
+
+أدر الروابط والملف الشخصي والإحصائيات من السكربتات وأنابيب CI أو الأدوات الخارجية. أنشئ مفتاح API من **Settings → Security → API access** (يُعرض المفتاح الكامل مرة واحدة فقط - احفظه في مكان آمن) وأرسله في ترويسة `Authorization` بمخطط HTTP Bearer. التدوير فوري افتراضياً؛ وفي حال تمكين نافذة الساعة الاختيارية من قِبل المسؤول، قد يظل المفتاح السابق عاملًا حتى انتهاء النافذة أو إلغاؤه. الحد: 120 طلباً في الدقيقة لكل مفتاح، مع حماية إضافية بعنوان IP. نقاط النهاية الكتابية محجوبة في وضع العرض التجريبي. يقدّم كل نسخة استضافة مرجع OpenAPI 3.1 خاصاً بها على `/api/v1/docs` و`/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;نقاط النهاية</summary>
+
+| الطريقة | المسار | الوصف |
+|---------|--------|-------|
+| GET | `/api/v1/links` | سرد الروابط (`?limit`/`?cursor` صفحات، `?fields=` حقول مختصرة) |
+| GET | `/api/v1/links/:id` | جلب رابط بالمعرّف |
+| POST | `/api/v1/links` | إنشاء رابط |
+| PUT | `/api/v1/links/:id` | تحديث رابط (جزئي - تُغيَّر الحقول المرسلة فقط) |
+| DELETE | `/api/v1/links/:id` | حذف رابط |
+| PUT | `/api/v1/links/reorder` | إعادة ترتيب الروابط (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | إنشاء روابط بالجملة (1-100 عنصر، نتائج لكل عنصر) |
+| GET | `/api/v1/sections` | سرد الأقسام (`?pageId=N` يفلتر) |
+| POST | `/api/v1/sections` | إنشاء قسم |
+| PUT | `/api/v1/sections/:id` | تحديث قسم (جزئي) |
+| DELETE | `/api/v1/sections/:id` | حذف قسم (روابطه تعود غير مصنّفة) |
+| PUT | `/api/v1/sections/reorder` | إعادة ترتيب الأقسام (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | جلب الملف الشخصي |
+| PUT | `/api/v1/profile` | تحديث الملف الشخصي (جزئي) |
+| GET | `/api/v1/analytics` | المشاهدات والنقرات والروابط الأكثر زيارة (`?range=7d\|30d\|90d`) |
+
+تغلّف الاستجابات الناجحة البيانات في `data`؛ وأخطاء الصيغة `{ "error": { "code", "message" } }` مع رموز HTTP المطابقة (401 مفتاح مفقود أو غير صالح، 400 تحقق، 403 وضع العرض التجريبي، 429 تجاوز الحد). تمر كتابة الروابط بنفس التحقق المستخدم في لوحة الإدارة - بما في ذلك قائمة مخططات URL المسموح بها. نقاط القراءة تعيد أيضاً `ETag`؛ أعده كـ `If-None-Match` للحصول على `304` فارغ ما لم يتغير شيء. كل استجابة تحمل أيضاً عقد الترويسات: ‏`X-RateLimit-Limit` و`X-RateLimit-Remaining` و`X-RateLimit-Reset` تُظهر الميزانية الدقيقة (و`429` يرسل أيضاً ‏`Retry-After`)، و`Cache-Control: no-store` يمنع تخزين الاستجابات المُصادَق عليها، و`401` يرد بـ ‏`WWW-Authenticate`.
+
+</details>
+
+<details>
+<summary>📦 &nbsp;أمثلة واجهة REST (curl)</summary>
+
+```bash
+# إعداد مرة واحدة
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# سرد الروابط: القائمة الكاملة أو صفحة مُرقّمة بحقول مختصرة
+# (--oauth2-bearer يرسل ترويسة Bearer نيابة عنك)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# إنشاء رابط (201 يعيد الصف المنشأ مع المعرّف)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# تحديث جزئي: تُغيَّر فقط الحقول المرسلة (null تمسح)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# إعادة ترتيب الروابط ثم قراءة مقياس
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# أنشئ قسماً ثم استورد روابط بالجملة (نتائج لكل عنصر)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# قراءة مشروطة: أعد إرسال ETag → 304 فارغ ما لم يتغير شيء
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+اتبع `meta.nextCursor` (أعده كـ `?cursor=`) لاجتياز كل الصفحات. العقد الكامل القابل للقراءة الآلية على `$BASE/openapi.json`.
+
+</details>
 
 ## 🎨 نظام الثيمات
 

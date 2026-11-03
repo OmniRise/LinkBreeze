@@ -12,7 +12,12 @@ import {
   analyticsPageviews,
   analyticsClicks,
   subscribers,
+  roles,
+  oidcIdentities,
+  oidcStates,
+  invites,
 } from "@/db/schema";
+import { resolveCapabilities, type RoleCapabilities } from "@/lib/ownership";
 import { PRESETS } from "@/lib/theme-presets";
 import {
   eq,
@@ -153,6 +158,8 @@ export interface CreatePageInput {
   slug: string;
   title?: string;
   bio?: string;
+  /** #124: owning account. Absent/null = legacy unowned page (admin-managed). */
+  userId?: number | null;
 }
 
 export async function createPage(data: CreatePageInput): Promise<PageRow> {
@@ -169,6 +176,7 @@ export async function createPage(data: CreatePageInput): Promise<PageRow> {
       orderIndex: nextOrder,
       isDefault: false,
       isPublished: true,
+      userId: data.userId ?? null,
     })
     .returning();
   return inserted[0];
@@ -294,6 +302,37 @@ export async function getAllLinks(pageId?: number): Promise<LinkRow[]> {
     .orderBy(asc(links.orderIndex), asc(links.id));
 }
 
+/**
+ * E.3 keyset pagination for GET /api/v1/links — walks the SAME total order
+ * as getAllLinks ((orderIndex, id)) with a portable keyset predicate (no
+ * row-value syntax, works on sql.js + better-sqlite3 alike). Fetches
+ * `limit` rows strictly AFTER the cursor tuple.
+ */
+export async function listLinksKeyset(opts: {
+  limit: number;
+  after?: { orderIndex: number; id: number };
+}): Promise<LinkRow[]> {
+  const { limit, after } = opts;
+  if (after) {
+    return db
+      .select()
+      .from(links)
+      .where(
+        or(
+          gt(links.orderIndex, after.orderIndex),
+          and(eq(links.orderIndex, after.orderIndex), gt(links.id, after.id)),
+        ),
+      )
+      .orderBy(asc(links.orderIndex), asc(links.id))
+      .limit(limit);
+  }
+  return db
+    .select()
+    .from(links)
+    .orderBy(asc(links.orderIndex), asc(links.id))
+    .limit(limit);
+}
+
 export async function createLink(
   data: Pick<LinkRow, "title" | "url"> &
     Partial<
@@ -408,12 +447,47 @@ export async function reorderLinks(orderedIds: number[]): Promise<void> {
 
 export type LinkSectionRow = typeof linkSections.$inferSelect;
 
+/** The page a section belongs to (null when the section doesn't exist). */
+export async function getSectionPageId(sectionId: number): Promise<number | null> {
+  const rows = await db
+    .select({ pageId: linkSections.pageId })
+    .from(linkSections)
+    .where(eq(linkSections.id, sectionId))
+    .limit(1);
+  return rows[0]?.pageId ?? null;
+}
+
 export async function getSectionsByPage(pageId: number): Promise<LinkSectionRow[]> {
   return db
     .select()
     .from(linkSections)
     .where(eq(linkSections.pageId, pageId))
     .orderBy(asc(linkSections.orderIndex), asc(linkSections.id));
+}
+
+/**
+ * #4 E.7 — every section across pages, in stable display order
+ * (pageId, orderIndex, id) so the API list and admin view agree.
+ */
+export async function getAllSections(): Promise<LinkSectionRow[]> {
+  return db
+    .select()
+    .from(linkSections)
+    .orderBy(
+      asc(linkSections.pageId),
+      asc(linkSections.orderIndex),
+      asc(linkSections.id),
+    );
+}
+
+/** #4 E.7 — single-section lookup for API 404s. */
+export async function getSectionById(id: number): Promise<LinkSectionRow | null> {
+  const rows = await db
+    .select()
+    .from(linkSections)
+    .where(eq(linkSections.id, id))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function createSection(
@@ -742,6 +816,12 @@ export async function updateSetting(key: string, value: string): Promise<void> {
   }
 }
 
+/** Remove a settings KV row entirely (e.g. revoking an API key — a stale
+ *  empty-string row would keep dead keys visible to getSettings dumps). */
+export async function deleteSetting(key: string): Promise<void> {
+  await db.delete(settings).where(eq(settings.key, key));
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getUserCount(): Promise<number> {
@@ -757,8 +837,18 @@ export async function getUserByUsername(username: string): Promise<UserRow | nul
 export async function createUser(
   username: string,
   passwordHash: string,
+  opts: { role?: "admin" | "owner"; roleId?: number } = {},
 ): Promise<UserRow> {
-  const created = await db.insert(users).values({ username, passwordHash }).returning();
+  const created = await db
+    .insert(users)
+    .values({
+      username,
+      passwordHash,
+      role: opts.role ?? "owner",
+      // Role ROW reference (#124 2B); NULL maps through the legacy text role.
+      roleId: opts.roleId ?? null,
+    })
+    .returning();
   return created[0];
 }
 
@@ -776,7 +866,11 @@ export function createFirstUser(
   return db.transaction((tx) => {
     const rows = tx.select({ c: sql<number>`count(*)` }).from(users).all();
     if ((rows[0]?.c ?? 0) > 0) return null;
-    return tx.insert(users).values({ username, passwordHash }).returning().all()[0];
+    // #124: the bootstrap user is the instance's first ADMIN. The wizard's
+    // register action passes role:'admin' explicitly; this API-setup path
+    // must agree, or API-installed instances boot an 'owner' that cannot
+    // administer anything (caught by live E2E).
+    return tx.insert(users).values({ username, passwordHash, role: "admin" }).returning().all()[0];
   });
 }
 
@@ -800,6 +894,375 @@ export async function setUserTotp(
   fields: { totpSecret: string | null; totpEnabled: boolean; recoveryCodes: string | null },
 ): Promise<void> {
   await db.update(users).set(fields).where(eq(users.id, userId));
+}
+
+// ─── Accounts (#124 multi-user) ──────────────────────────────────────────────
+/** All accounts, oldest first (bootstrap admin is id 1 and stays first). */
+export async function listUsers(): Promise<UserRow[]> {
+  return db.select().from(users).orderBy(asc(users.id));
+}
+
+/**
+ * Accounts joined with the page each one owns, for the /accounts admin list.
+ * One LEFT JOIN, so it stays a single query regardless of account count (no
+ * N+1). `pageSlug` is null when the account owns no page yet.
+ *
+ * Deliberately narrow: this row type never carries `passwordHash`,
+ * `totpSecret` or `recoveryCodes`, so those can't leak to the client by
+ * accident (defense in depth on top of `publicAccount`).
+ */
+export type AccountSummaryRow = Pick<
+  UserRow,
+  "id" | "username" | "role" | "status" | "createdAt" | "lastLoginAt"
+> & { roleId: number | null; roleName: string | null; pageSlug: string | null };
+
+export async function listAccountSummaries(): Promise<AccountSummaryRow[]> {
+  return db
+    .select({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+      roleId: users.roleId,
+      roleName: roles.name,
+      status: users.status,
+      createdAt: users.createdAt,
+      lastLoginAt: users.lastLoginAt,
+      pageSlug: pages.slug,
+    })
+    .from(users)
+    .leftJoin(pages, eq(pages.userId, users.id))
+    .leftJoin(roles, eq(users.roleId, roles.id))
+    .orderBy(asc(users.id));
+}
+
+export async function updateUserStatus(userId: number, status: "active" | "disabled"): Promise<void> {
+  await db.update(users).set({ status }).where(eq(users.id, userId));
+}
+
+// ─── Customizable roles (#124 2B) ─────────────────────────────────────────────
+
+export type RoleRow = typeof roles.$inferSelect;
+
+export async function listRoles(): Promise<RoleRow[]> {
+  return db.select().from(roles).orderBy(desc(roles.isBuiltin), asc(roles.id));
+}
+
+export async function getRoleById(roleId: number): Promise<RoleRow | null> {
+  const rows = await db.select().from(roles).where(eq(roles.id, roleId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getRoleByName(name: string): Promise<RoleRow | null> {
+  const rows = await db.select().from(roles).where(eq(roles.name, name)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createRole(input: {
+  name: string;
+  pagesLimit: number | null;
+  pagesVisibility: string;
+  canManageAccounts: boolean;
+  canManageInstance: boolean;
+  idleMinutes?: number | null;
+  maxHours?: number | null;
+}): Promise<RoleRow> {
+  const created = await db.insert(roles).values(input).returning();
+  return created[0];
+}
+
+export async function updateRole(
+  roleId: number,
+  patch: Partial<{ name: string; pagesLimit: number | null; pagesVisibility: string; canManageAccounts: boolean; canManageInstance: boolean; idleMinutes: number | null; maxHours: number | null }>,
+): Promise<void> {
+  await db.update(roles).set(patch).where(eq(roles.id, roleId));
+}
+
+export async function deleteRole(roleId: number): Promise<void> {
+  await db.delete(roles).where(eq(roles.id, roleId));
+}
+
+export async function countUsersWithRole(roleId: number): Promise<number> {
+  const rows = await db.select({ c: sql<number>`count(*)` }).from(users).where(eq(users.roleId, roleId));
+  return rows[0]?.c ?? 0;
+}
+
+/** Move every user of one role to another (role-delete reassignment). */
+export async function moveUsersToRole(fromRoleId: number, toRoleId: number): Promise<void> {
+  await db.update(users).set({ roleId: toRoleId }).where(eq(users.roleId, fromRoleId));
+}
+
+/**
+ * Resolve a user's capabilities from the role ROW (source of truth), mapping
+ * a NULL/missing row through the legacy text role. One query; the collapse
+ * rules live in the pure resolver (ownership.ts).
+ */
+export async function getCapabilitiesForUser(
+  userId: number,
+): Promise<{ roleText: string | null; caps: RoleCapabilities }> {
+  const rows = await db
+    .select({ roleText: users.role, roleRow: roles })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+  const row = rows[0];
+  return {
+    roleText: row?.roleText ?? null,
+    caps: resolveCapabilities(row?.roleText ?? null, row?.roleRow ?? null),
+  };
+}
+
+/**
+ * Every account that holds BOTH manageAccounts AND manageInstance — the
+ * instance-admin set the last-admin invariant counts. Legacy text admins
+ * (role_id NULL) count too, so pre-2B bootstrapped admins are never lost.
+ */
+export async function listInstanceAdminIds(): Promise<number[]> {
+  const rows = await db
+    .select({ id: users.id, roleText: users.role, roleRow: roles })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id));
+  return rows
+    .filter((r) => {
+      const caps = resolveCapabilities(r.roleText, r.roleRow);
+      return caps.manageAccounts && caps.manageInstance;
+    })
+    .map((r) => r.id);
+}
+
+/** How many pages a user currently owns (pagesLimit enforcement). */
+export async function countPagesByOwner(userId: number): Promise<number> {
+  const rows = await db.select({ c: sql<number>`count(*)` }).from(pages).where(eq(pages.userId, userId));
+  return rows[0]?.c ?? 0;
+}
+
+// ─── OIDC SSO (#124 Phase 3) ──────────────────────────────────────────────────
+
+export type OidcStateRow = typeof oidcStates.$inferSelect;
+export type OidcIdentityRow = typeof oidcIdentities.$inferSelect;
+
+/** Persist one in-flight login attempt. Consumed exactly once, or expires.
+ *  Lazily clears expired rows so the table cannot grow unbounded. */
+export async function createOidcState(input: {
+  state: string;
+  codeVerifier: string;
+  redirectTo: string;
+  expiresAt: string;
+}): Promise<void> {
+  await db.delete(oidcStates).where(lt(oidcStates.expiresAt, new Date().toISOString()));
+  await db.insert(oidcStates).values(input);
+}
+
+/**
+ * Single-use consume: the row is deleted in the same statement that returns
+ * it, so a replayed state finds nothing. Returns null when the state is
+ * unknown. Expiry is checked by the caller against expires_at.
+ */
+export async function consumeOidcState(state: string): Promise<OidcStateRow | null> {
+  const rows = await db.delete(oidcStates).where(eq(oidcStates.state, state)).returning();
+  return rows[0] ?? null;
+}
+
+/** The local user an (issuer, subject) identity maps to, or null. */
+export async function findUserIdByOidcIdentity(
+  issuer: string,
+  subject: string,
+): Promise<OidcIdentityRow | null> {
+  const rows = await db
+    .select()
+    .from(oidcIdentities)
+    .where(and(eq(oidcIdentities.issuer, issuer), eq(oidcIdentities.subject, subject)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Link an OIDC identity to a local account (login binding or account linking). */
+export async function linkOidcIdentity(input: {
+  userId: number;
+  issuer: string;
+  subject: string;
+  preferredUsername: string | null;
+}): Promise<void> {
+  await db.insert(oidcIdentities).values({
+    userId: input.userId,
+    issuer: input.issuer,
+    subject: input.subject,
+    preferredUsername: input.preferredUsername,
+  });
+}
+
+/** Drop an identity link (un-linking from the profile surface). */
+export async function unlinkOidcIdentity(issuer: string, subject: string): Promise<void> {
+  await db
+    .delete(oidcIdentities)
+    .where(and(eq(oidcIdentities.issuer, issuer), eq(oidcIdentities.subject, subject)));
+}
+
+// ─── OIDC instance configuration (settings KV; secret stays env-only) ─────────
+
+export interface OidcInstanceConfig {
+  /** Configured AND structurally valid → SSO button renders. */
+  issuer: string;
+  clientId: string;
+  jit: boolean;
+  /** 'optional' (default) keeps the password form; 'replaces_local' hides it. */
+  mode: "optional" | "replaces_local";
+}
+
+export async function getOidcConfig(): Promise<OidcInstanceConfig | null> {
+  const [issuer, clientId, jit, mode] = await Promise.all([
+    getSetting("oidcIssuer"),
+    getSetting("oidcClientId"),
+    getSetting("oidcJit"),
+    getSetting("oidcMode"),
+  ]);
+  if (!issuer || !clientId) return null;
+  return {
+    issuer,
+    clientId,
+    jit: jit !== "off", // default on per the issue
+    mode: mode === "replaces_local" ? "replaces_local" : "optional",
+  };
+}
+
+export async function getOidcSettingsRaw(): Promise<{
+  issuer: string | null;
+  clientId: string | null;
+  jit: string | null;
+  mode: string | null;
+  defaultRoleId: string | null;
+  groupClaim: string | null;
+  noGroupMatch: string | null;
+  groupRoleMap: string | null;
+  claimUsername: string | null;
+  claimEmail: string | null;
+  claimName: string | null;
+  claimFallback: string | null;
+}> {
+  const [issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap, claimUsername, claimEmail, claimName, claimFallback] =
+    await Promise.all([
+      getSetting("oidcIssuer"),
+      getSetting("oidcClientId"),
+      getSetting("oidcJit"),
+      getSetting("oidcMode"),
+      getSetting("oidcDefaultRoleId"),
+      getSetting("oidcGroupClaim"),
+      getSetting("oidcNoGroupMatch"),
+      getSetting("oidcGroupRoleMap"),
+      getSetting("oidcClaimUsername"),
+      getSetting("oidcClaimEmail"),
+      getSetting("oidcClaimName"),
+      getSetting("oidcClaimFallback"),
+    ]);
+  return { issuer, clientId, jit, mode, defaultRoleId, groupClaim, noGroupMatch, groupRoleMap, claimUsername, claimEmail, claimName, claimFallback };
+}
+
+/** Parse the stored group→role rules JSON; garbage returns [] (mapping off). */
+export function parseGroupRoleMap(raw: string | null): { group: string; roleId: number }[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const out: { group: string; roleId: number }[] = [];
+    for (const entry of parsed) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const group = (entry as Record<string, unknown>).group;
+      const roleId = (entry as Record<string, unknown>).roleId;
+      if (typeof group !== "string" || group.trim() === "") continue;
+      if (typeof roleId !== "number" || !Number.isInteger(roleId) || roleId <= 0) continue;
+      out.push({ group: group.trim(), roleId });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export async function updateUserRole(userId: number, role: "admin" | "owner"): Promise<void> {
+  await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+/** #124 2B: assign a role ROW to a user (the capability source of truth). */
+export async function updateUserRoleById(userId: number, roleId: number | null): Promise<void> {
+  await db.update(users).set({ roleId }).where(eq(users.id, userId));
+}
+
+/** Stamp last_login_at on a successful sign-in (local or OIDC). */
+export async function touchLastLogin(userId: number): Promise<void> {
+  await db.update(users).set({ lastLoginAt: sql`(datetime('now'))` }).where(eq(users.id, userId));
+}
+
+/**
+ * Session lifetime sources for one user (#124 follow-up): the raw three
+ * layers (user override → role → global KV) for resolveSessionLimits().
+ * One query for the user+role, two for the KV pair.
+ */
+export async function getSessionLimitSources(userId: number): Promise<{
+  userIdleMinutes: number | null;
+  userMaxHours: number | null;
+  roleIdleMinutes: number | null;
+  roleMaxHours: number | null;
+  globalIdleMinutes: number | null;
+  globalMaxHours: number | null;
+}> {
+  const [user] = await db
+    .select({
+      idleMinutes: users.idleMinutes,
+      maxHours: users.maxHours,
+      roleIdle: roles.idleMinutes,
+      roleMax: roles.maxHours,
+    })
+    .from(users)
+    .leftJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+  const [globalIdle, globalMax] = await Promise.all([
+    getSetting("sessionIdleMinutes"),
+    getSetting("sessionMaxHours"),
+  ]);
+  return {
+    userIdleMinutes: user?.idleMinutes ?? null,
+    userMaxHours: user?.maxHours ?? null,
+    roleIdleMinutes: user?.roleIdle ?? null,
+    roleMaxHours: user?.roleMax ?? null,
+    globalIdleMinutes: globalIdle != null ? Number(globalIdle) : null,
+    globalMaxHours: globalMax != null ? Number(globalMax) : null,
+  };
+}
+
+/** Action-based idle clock: refreshed (throttled by the caller) on admin ACTIONS. */
+export async function touchUserLastSeen(userId: number): Promise<void> {
+  await db.update(users).set({ lastSeenAt: sql`(datetime('now'))` }).where(eq(users.id, userId));
+}
+
+/** Per-user session override (null = inherit role/global). */
+export async function setUserSessionOverride(
+  userId: number,
+  idleMinutes: number | null,
+  maxHours: number | null,
+): Promise<void> {
+  await db.update(users).set({ idleMinutes, maxHours }).where(eq(users.id, userId));
+}
+
+/**
+ * Delete an account. The account's page is NOT deleted (content is preserved);
+ * the caller decides whether to release the slug (set to a tombstone) or leave
+ * it owned by nobody (userId NULL). Returns the number of rows deleted.
+ */
+export async function deleteUser(userId: number): Promise<number> {
+  const res = await db.delete(users).where(eq(users.id, userId)).returning({ id: users.id });
+  return res.length;
+}
+
+/** Reassign a page's owner (used when creating an account's page / relinking). */
+export async function setPageOwner(pageId: number, userId: number | null): Promise<void> {
+  await db.update(pages).set({ userId }).where(eq(pages.id, pageId));
+}
+
+/** The page owned by a given user, if any. */
+export async function getPageByOwner(userId: number): Promise<PageRow | null> {
+  const rows = await db.select().from(pages).where(eq(pages.userId, userId)).limit(1);
+  return rows[0] ?? null;
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
@@ -1248,4 +1711,49 @@ export async function getAllSubscribers(): Promise<SubscriberRow[]> {
 
 export async function clearSubscribers(): Promise<void> {
   db.delete(subscribers).run();
+}
+
+// ─── Invitations, stage 1 (#124 follow-up) ──────────────────────────────────
+// Single-use links; only the SHA-256 hash of the token is stored, so a leaked
+// DB cannot mint invitations. SMTP delivery is stage 2.
+
+export type InviteRow = typeof invites.$inferSelect;
+
+export async function createInvite(input: {
+  tokenHash: string;
+  roleId: number | null;
+  createdBy: number | null;
+  expiresAt: string;
+}): Promise<InviteRow> {
+  const created = await db.insert(invites).values(input).returning();
+  return created[0];
+}
+
+/** Valid = exists, unused, unexpired. Expired rows are swept lazily. */
+export async function getValidInvite(tokenHash: string): Promise<InviteRow | null> {
+  const rows = await db.select().from(invites).where(eq(invites.tokenHash, tokenHash)).limit(1);
+  const invite = rows[0];
+  if (!invite) return null;
+  if (invite.usedAt) return null;
+  if (new Date(invite.expiresAt + "Z").getTime() < Date.now()) return null;
+  return invite;
+}
+
+export async function markInviteUsed(inviteId: number, userId: number): Promise<void> {
+  await db
+    .update(invites)
+    .set({ usedAt: sql`(datetime('now'))`, usedBy: userId })
+    .where(eq(invites.id, inviteId));
+}
+
+export async function listInvites(): Promise<InviteRow[]> {
+  return db.select().from(invites).orderBy(desc(invites.id)).limit(200);
+}
+
+export async function revokeInvite(inviteId: number): Promise<void> {
+  await db.delete(invites).where(and(eq(invites.id, inviteId), sql`${invites.usedAt} IS NULL`));
+}
+
+export async function purgeExpiredInvites(): Promise<void> {
+  await db.delete(invites).where(lt(invites.expiresAt, sql`datetime('now')`));
 }

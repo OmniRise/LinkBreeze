@@ -24,7 +24,16 @@ import { UPLOADS_DIR, ensureUploadsDir } from "@/lib/uploads";
  * time, and the cached file is served from /api/uploads/.
  */
 
-const FETCH_TIMEOUT_MS = 6_000;
+const FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * Hard cap on the ENTIRE icon phase — headers, body reads, every strategy,
+ * href attempt, and the #95 retry combined. Each fetch's own timeout covers
+ * headers AND body (the timeout stays armed until the body finishes), and
+ * this deadline bounds the chain as a whole so a link save can never block
+ * indefinitely on icon fetching.
+ */
+const PHASE_CAP_MS = 12_000;
 
 /**
  * Backoff before the single retry of the favicon chain (#95). Transient
@@ -85,18 +94,20 @@ export async function fetchAndCacheFavicon(url: string): Promise<string | null> 
 
   // One attempt, then a single retry after a short backoff (#95): a
   // transient timeout or rate limit no longer permanently degrades the
-  // link to the letter icon until someone re-saves it.
+  // link to the letter icon until someone re-saves it. The retry is
+  // skipped when the phase deadline is already spent.
+  const deadline = Date.now() + PHASE_CAP_MS;
   let result =
-    (await tryHtmlHeadLinks(url)) ??
-    (await tryCommonPaths(domain)) ??
-    (await tryDuckDuckGo(domain));
+    (await tryHtmlHeadLinks(url, deadline)) ??
+    (await tryCommonPaths(domain, deadline)) ??
+    (await tryDuckDuckGo(domain, deadline));
 
-  if (!result) {
+  if (!result && Date.now() < deadline) {
     await sleep(FAVICON_RETRY_DELAY_MS);
     result =
-      (await tryHtmlHeadLinks(url)) ??
-      (await tryCommonPaths(domain)) ??
-      (await tryDuckDuckGo(domain));
+      (await tryHtmlHeadLinks(url, deadline)) ??
+      (await tryCommonPaths(domain, deadline)) ??
+      (await tryDuckDuckGo(domain, deadline));
   }
 
   if (!result) return null;
@@ -173,11 +184,23 @@ async function readBodyWithCap(res: Response, cap: number): Promise<Buffer | nul
   return Buffer.concat(chunks);
 }
 
-async function tryHtmlHeadLinks(url: string): Promise<CandidateResult | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+/**
+ * Arm the per-fetch abort so it covers headers AND the full body read.
+ * The delay is capped by the icon-phase `deadline`, so a stalled chain
+ * cannot outlive the phase cap. Clear the returned timer in a `finally`.
+ */
+function armFetchTimeout(controller: AbortController, deadline: number): ReturnType<typeof setTimeout> {
+  const remaining = deadline - Date.now();
+  return setTimeout(() => controller.abort(), Math.min(FETCH_TIMEOUT_MS, Math.max(0, remaining)));
+}
 
+async function tryHtmlHeadLinks(url: string, deadline: number): Promise<CandidateResult | null> {
+  const controller = new AbortController();
+  // The timeout stays armed until the body read finishes (cleared in the
+  // finally below): a server that sends headers promptly then stalls the
+  // body mid-stream is aborted instead of hanging the link save forever.
+  const timeout = armFetchTimeout(controller, deadline);
+  try {
     const res = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
@@ -186,7 +209,6 @@ async function tryHtmlHeadLinks(url: string): Promise<CandidateResult | null> {
         Accept: "text/html",
       },
     });
-    clearTimeout(timeout);
 
     if (!res.ok) return null;
     const contentType = res.headers.get("content-type") || "";
@@ -203,11 +225,14 @@ async function tryHtmlHeadLinks(url: string): Promise<CandidateResult | null> {
 
     // Try each href until one returns a valid image.
     for (const href of hrefs) {
-      const img = await fetchImage(href);
+      if (Date.now() >= deadline) return null;
+      const img = await fetchImage(href, deadline);
       if (img && img.buffer.length >= 100) return img;
     }
   } catch {
     // Network error, timeout — fall through to next strategy.
+  } finally {
+    clearTimeout(timeout);
   }
   return null;
 }
@@ -252,11 +277,12 @@ function extractIconHrefs(html: string, baseUrl: string): string[] {
 
 // ─── Strategy 2: Try common favicon paths ──────────────────────────────
 
-async function tryCommonPaths(domain: string): Promise<CandidateResult | null> {
+async function tryCommonPaths(domain: string, deadline: number): Promise<CandidateResult | null> {
   const paths = ["/favicon.ico", "/favicon.png", "/favicon.svg", "/favicon-32x32.png", "/favicon-96x96.png"];
   for (const p of paths) {
+    if (Date.now() >= deadline) return null;
     const fullUrl = `https://${domain}${p}`;
-    const img = await fetchImage(fullUrl);
+    const img = await fetchImage(fullUrl, deadline);
     if (img && img.buffer.length >= 100) return img;
   }
   return null;
@@ -264,23 +290,22 @@ async function tryCommonPaths(domain: string): Promise<CandidateResult | null> {
 
 // ─── Strategy 3: DuckDuckGo fallback ────────────────────────────────────
 
-async function tryDuckDuckGo(domain: string): Promise<CandidateResult | null> {
+async function tryDuckDuckGo(domain: string, deadline: number): Promise<CandidateResult | null> {
   const ddgUrl = `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`;
-  return fetchImage(ddgUrl);
+  return fetchImage(ddgUrl, deadline);
 }
 
 // ─── Shared: fetch + validate an image URL ──────────────────────────────
 
-async function fetchImage(imageUrl: string): Promise<CandidateResult | null> {
+async function fetchImage(imageUrl: string, deadline: number): Promise<CandidateResult | null> {
+  const controller = new AbortController();
+  // Timeout stays armed through the body read — see tryHtmlHeadLinks.
+  const timeout = armFetchTimeout(controller, deadline);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
     const res = await fetch(imageUrl, {
       signal: controller.signal,
       redirect: "follow",
     });
-    clearTimeout(timeout);
 
     if (!res.ok) return null;
 
@@ -295,6 +320,8 @@ async function fetchImage(imageUrl: string): Promise<CandidateResult | null> {
     return { buffer, ext };
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

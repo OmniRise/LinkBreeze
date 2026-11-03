@@ -10,22 +10,30 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 - **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance, each with their own public page, plus sign-in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID, ...) alongside local accounts.
 - **A/B testing for links** (#81) - variant split, per-variant analytics, promote-to-winner.
+- **Markdown text cards with pop-up full text** - text cards render markdown-format content (clickable `[text](url)` hyperlinks and more), and a card's full text opens in a pop-up.
 
 ## Next
 
 - **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord-style and Telegram-compatible payloads.
-- **Intake forms on public pages** (#125) - fully customizable forms built in the dashboard (text, email, phone, dropdowns, checkboxes, file upload with type and size limits), rendered on the public page, with submissions, CSV export, and email or webhook notifications built on #13.
-- **Link guardian** - scheduled broken-link checking (off / daily / weekly, owner's choice) with a manual "check now" button and per-link health status. Bot-wall responses are reported as unknown, never as broken. _(issue to be linked)_
+
+- **Link guardian** - scheduled broken-link checking (off / daily / weekly, owner's choice) with a manual "check now" button and per-link health status. Bot-wall responses are reported as unknown, never as broken. 
 
 ## Later
 
 - **Export a page as static HTML** (#80).
-- **Public REST API** (#4) - programmatic link management for power users and integrations.
+
+- **Intake forms on public pages** (#125) - fully customizable forms built in the dashboard (text, email, phone, dropdowns, checkboxes, file upload with type and size limits), rendered on the public page, with submissions, CSV export, and email or webhook notifications built on #13.
+
 - **Guided visitor flows** - optional multi-step "choose your path" screens on a public page, fully server-rendered, no JavaScript required.
 
 ## Shipped
 
 Recent highlights - the full history lives in [CHANGELOG.md](CHANGELOG.md):
 
-- **v1.5.0** - custom domains for pages, automatic scheduled backups, custom `/go/` redirect slugs, `@` in page slugs, Poster Hero OG cards, official `omnirise/linkbreeze` Docker image, one-shot `update.sh`.
-- **v1.4.1** - previous stable release.
+- **Public REST API** (#4) - programmatic link management for power users and integrations.
+
+- **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance + sign-in through any standard identity provider alongside local accounts.
+
+- **v1.5.1** - 11-language, CasaOS + Runtipi + Unraid app-store packaging, Update status card, a Linktree import fix and a demo-guard security fix.
+
+- **v1.5.0** - custom domains, automatic scheduled backups, custom `/go/` redirect slugs, `@` in page slugs, Poster Hero OG cards, official `omnirise/linkbreeze` Docker image, one-shot `update.sh`.

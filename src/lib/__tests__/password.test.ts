@@ -46,14 +46,16 @@ describe("hashPassword (Argon2id)", () => {
 });
 
 describe("verifyPassword prefix dispatch", () => {
-  it("verifies a legacy bcrypt hash", async () => {
+  // bcrypt(12) in-test: 5s default can trip under full-suite parallel load
+  // (this test failed once in a contended run; assertions are deterministic).
+  it("verifies a legacy bcrypt hash", { timeout: 30_000 }, async () => {
     const legacy = await bcrypt.hash("old-bcrypt-pass", 12);
     expect(legacy.startsWith("$2a$") || legacy.startsWith("$2b$")).toBe(true);
     expect(await verifyPassword("old-bcrypt-pass", legacy)).toBe(true);
     expect(await verifyPassword("not-the-password", legacy)).toBe(false);
   });
 
-  it("verifies a $2b$-prefixed hash", async () => {
+  it("verifies a $2b$-prefixed hash", { timeout: 30_000 }, async () => {
     const legacy = (await bcrypt.hash("old-bcrypt-pass", 12)).replace(
       "$2a$",
       "$2b$",

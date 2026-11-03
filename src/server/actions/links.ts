@@ -2,12 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
-import { isAllowedLinkUrl, buildMapsUrl, isMapsShortLink } from "@/lib/link-url";
+import { buildMapsUrl, isMapsShortLink } from "@/lib/link-url";
+import { linkSchema } from "@/lib/validation/link";
 import { LOCALE_COOKIE } from "@/i18n/config";
-import { truthy } from "@/lib/utils";
 import { fetchAndCacheFavicon, extractDomain } from "@/lib/favicon";
 import { saveIconUpload, isLucideName, type IconMode } from "@/lib/link-icons";
 import { fetchOgData } from "@/lib/og-fetcher";
@@ -16,11 +15,14 @@ import {
   updateLink as updateLinkQuery,
   deleteLink as deleteLinkQuery,
   getAllLinks,
+  getPageById,
+  getLink,
   reorderLinks as reorderLinksQuery,
   isSlugTaken,
-  getLink,
+  getCapabilitiesForUser,
   updateSetting,
 } from "@/server/queries";
+import { canEditPage } from "@/lib/ownership";
 import {
   abConfigSchema,
   parseAbConfig,
@@ -34,12 +36,12 @@ import {
   slugError,
   SLUG_ERRORS,
 } from "@/lib/link-slug";
-import { safeMediaUrl } from "@/lib/theme-schema";
 import {
   type ActionResult,
   validationError,
   unauthorizedError,
   notFoundError,
+  forbiddenError,
   ErrorCode,
   logError,
 } from "@/lib/errors";
@@ -47,6 +49,39 @@ import {
 async function requireAuth(): Promise<boolean> {
   const session = await getSession();
   return !!session;
+}
+
+/**
+ * #124 page-ownership gate for link mutations. Resolves the target page
+ * (explicit pageId, else the link's own page via getLink) and asserts the
+ * session may EDIT it — capabilities from the role ROW. Admins and manage_all
+ * roles pass for any page; owners only for their own. Pass linkId when the
+ * mutation targets an existing link so the page is derived from that link
+ * rather than a client-supplied pageId.
+ */
+async function assertLinkPageAccess(
+  session: { userId: number; role?: string },
+  opts: { pageId?: number; linkId?: number },
+): Promise<ActionResult | null> {
+  let pageId = opts.pageId;
+  if (pageId == null && opts.linkId != null) {
+    const link = await getLink(opts.linkId);
+    if (!link) return notFoundError("Link not found");
+    pageId = link.pageId;
+  }
+  if (pageId == null) {
+    // No page specified — fall back to the default page (matches query-layer
+    // defaulting for createLink with no pageId).
+    const { getDefaultPage } = await import("@/server/queries");
+    pageId = (await getDefaultPage()).id;
+  }
+  const page = await getPageById(pageId);
+  if (!page) return notFoundError("Page not found");
+  const { caps } = await getCapabilitiesForUser(session.userId);
+  if (!canEditPage(caps, session, page)) {
+    return forbiddenError("You do not have access to this page");
+  }
+  return null;
 }
 
 /**
@@ -192,80 +227,6 @@ const DEFAULT_MAPS_CTA_LABELS: Record<string, string> = {
   es: "Abrir en Google Maps",
 };
 
-const linkSchema = z
-  .object({
-    id: z.string().optional(),
-    pageId: z.coerce.number().optional(),
-    title: z.string().min(1, "Title is required").max(120),
-    // Empty allowed for text popups with no CTA (refine below enforces the rest).
-    url: z.string().max(2048),
-    description: z.string().max(300).optional().nullable(),
-    // safeMediaUrl: scheme allowlist (http(s)/site-relative) — the thumbnail
-    // URL is rendered in <img src> on the public page (write-boundary defense,
-    // same choke point as pages/theme media URLs).
-    imageUrl: safeMediaUrl.optional().nullable(),
-    type: z.enum(["url", "email", "phone", "whatsapp", "sms", "vcard", "file", "embed", "text", "location", "divider"]).default("url"),
-    // #93 popup cards: long body + optional CTA label (target = url column).
-    popupText: z.string().max(5000).optional().nullable(),
-    ctaLabel: z.string().max(80).optional().nullable(),
-    isHighlighted: z
-      .union([z.string(), z.boolean()])
-      .transform(truthy)
-      .default(false),
-    isActive: z
-      .union([z.string(), z.boolean()])
-      .transform(truthy)
-      .default(true),
-    scheduleStart: z.string().optional().nullable(),
-    scheduleEnd: z.string().optional().nullable(),
-    autoIcon: z
-      .union([z.string(), z.boolean()])
-      .transform(truthy)
-      .default(true),
-    // Icon system (#91): auto = favicon fetch, lucide = picked icon name,
-    // custom = uploaded image (file arrives as "iconFile" in FormData).
-    iconMode: z.enum(["auto", "lucide", "custom"]).default("auto"),
-    icon: z.string().max(64).optional().nullable(),
-    cardStyle: z.enum(["compact", "rich"]).default("compact"),
-    // Form data sends an empty string when "No section" is selected; coerce
-    // that to null before numeric parsing, otherwise Number("") === 0 and the
-    // insert fails on the section_id foreign key (issue #86).
-    sectionId: z.preprocess(
-      (v) => (v === "" || v === null || v === undefined ? null : v),
-      z.coerce.number().nullable().optional()
-    ),
-    // #96 custom /go/ slug — raw input here; normalization + validation +
-    // availability run in resolveRedirectSlug after parse (the update path
-    // needs the link id to exclude itself from the uniqueness check).
-    redirectSlug: z.string().max(200).optional(),
-  })
-  // #93 popup cards: every non-text type needs a URL (text may leave it
-  // empty when there is no CTA button). Runs before the scheme check so an
-  // empty classic URL reports "URL is required", not a scheme error.
-  // #87 dividers carry no URL at all — the title doubles as an accessible
-  // name only when the operator provides one.
-  .refine((link) => link.type === "text" || link.type === "divider" || !!link.url.trim(), {
-    path: ["url"],
-    message: "URL is required",
-  })
-  .refine((link) => isAllowedLinkUrl(link.type, link.type === "location" ? buildMapsUrl(link.url) : link.url), {
-    path: ["url"],
-    message: "URL scheme is not allowed for this link type",
-  })
-  .refine((link) => link.type !== "divider" || isAllowedLinkUrl("divider", link.url), {
-    path: ["url"],
-    message: "URL scheme is not allowed for this link type",
-  })
-  .refine((link) => link.type !== "text" || !!(link.popupText ?? "").trim(), {
-    path: ["popupText"],
-    message: "Popup text is required",
-  })
-  // A CTA label without a target URL would render a dead button.
-  .refine((link) => !link.ctaLabel?.trim() || link.type !== "text" || !!link.url.trim(), {
-    path: ["url"],
-    message: "CTA URL is required when a CTA label is set",
-  });
-
 /**
  * #96 — normalize + validate a submitted slug and check availability.
  * Empty input resolves to null (no slug — the column is optional).
@@ -312,6 +273,12 @@ export async function createLink(formData: FormData): Promise<ActionResult> {
   if (!parsed.success) {
     return validationError(parsed.error.issues[0]?.message ?? "Invalid input");
   }
+
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only add links to their own page.
+  const access = await assertLinkPageAccess(session, { pageId: parsed.data.pageId });
+  if (access) return access;
 
   const d = parsed.data;
 
@@ -408,6 +375,12 @@ export async function updateLink(formData: FormData): Promise<ActionResult> {
     return validationError("Missing link id");
   }
 
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only edit links on their own page.
+  const access = await assertLinkPageAccess(session, { linkId: Number(parsed.data.id) });
+  if (access) return access;
+
   const d = parsed.data;
 
   // #96 custom /go/ slug: validate + availability (excluding this link's own
@@ -484,6 +457,11 @@ export async function deleteLink(formData: FormData): Promise<ActionResult> {
   const id = Number(idStr);
   if (Number.isNaN(id)) return validationError("Invalid link id");
 
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const access = await assertLinkPageAccess(session, { linkId: id });
+  if (access) return access;
+
   try {
     await deleteLinkQuery(id);
     revalidatePath("/links");
@@ -508,6 +486,11 @@ export async function toggleLink(id: number): Promise<ActionResult> {
   const link = all.find((l) => l.id === id);
   if (!link) return notFoundError("Link not found");
 
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const access = await assertLinkPageAccess(session, { pageId: link.pageId });
+  if (access) return access;
+
   try {
     await updateLinkQuery(id, { isActive: !link.isActive });
     revalidatePath("/links");
@@ -530,6 +513,15 @@ export async function reorderLinks(orderedIds: number[]): Promise<ActionResult> 
 
   if (!Array.isArray(orderedIds) || orderedIds.some((n) => typeof n !== "number")) {
     return validationError("Invalid order payload");
+  }
+
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  if (orderedIds.length > 0) {
+    // #124: reorder is a bulk write — gate on the first id's page. All ids in a
+    // single reorder gesture belong to one page's list in the UI.
+    const access = await assertLinkPageAccess(session, { linkId: orderedIds[0] });
+    if (access) return access;
   }
 
   try {
@@ -556,6 +548,11 @@ export async function createDivider(pageId?: number): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
   if (!(await requireAuth())) return unauthorizedError();
+
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const access = await assertLinkPageAccess(session, { pageId });
+  if (access) return access;
 
   try {
     await createLinkQuery({

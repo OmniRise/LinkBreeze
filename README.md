@@ -375,6 +375,8 @@ All configuration is via environment variables. **[`.env.example`](.env.example)
 | `EXTRA_SCRIPT_SRC` | _(empty)_ | Space-separated analytics domains for CSP (e.g. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(empty)_ | Primary host your admin lives on; the custom-domains admin lock 404s every other host (env beats the admin setting) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Trust `X-Forwarded-Host` for domain routing - only enable behind a proxy that OVERWRITES it (nginx, Caddy); the default `Host` header cannot be spoofed |
+| `OIDC_CLIENT_SECRET` | _(empty)_ | Client secret for OIDC single sign-on (#124 multi-user). Issuer, client ID, JIT provisioning, and the sign-in mode are configured in Settings → Security. Secrets stay env-only - settings are exported verbatim into backups |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Testing escape hatch: allow an http OIDC issuer on a trusted LAN (production requires https) |
 
 <details>
 <summary>💳 &nbsp;Wallet pass variables (Google Wallet / Apple Wallet)</summary>
@@ -403,6 +405,90 @@ Runtime settings (page slug, title, SEO, theme) are managed via the admin dashbo
 Point your own domains at pages — one instance, many identities. Visitors land on `https://jane.com/` and see Jane's page directly, with automatic canonical redirects, SEO-ready sitemaps and a strict admin host lock. Bindings activate on their first real visit (self-verifying DNS), and per-page scope decides whether a domain IS the page (exclusive) or a hub for all slugs.
 
 Full setup — DNS, wildcard TLS and copy-paste reverse-proxy configs for Caddy, nginx and Traefik — in **[docs/custom-domains.md](docs/custom-domains.md)**.
+
+## 🔌 REST API
+
+Manage links, your profile and analytics from scripts, CI pipelines or third-party tools. Generate an API key in **Settings → Security → API access** (the full key is shown once - store it securely), then send it in the `Authorization` header using the HTTP Bearer scheme. Rotation is instant by default; if the admin enabled the optional one-hour grace, the previous key may keep working until the window closes or the admin revokes it. Rate limit: 120 requests/minute per key, plus a per-IP guard. Mutating endpoints are blocked in demo mode. Every instance serves its own OpenAPI 3.1 reference at `/api/v1/docs` and `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Endpoints</summary>
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/links` | List links (`?limit`/`?cursor` pages, `?fields=` sparse rows) |
+| GET | `/api/v1/links/:id` | Get one link by id |
+| POST | `/api/v1/links` | Create a link |
+| PUT | `/api/v1/links/:id` | Update a link (partial - only fields you send change) |
+| DELETE | `/api/v1/links/:id` | Delete a link |
+| PUT | `/api/v1/links/reorder` | Reorder links (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Bulk-create links (1-100 items, per-item results) |
+| GET | `/api/v1/sections` | List sections (`?pageId=N` filters) |
+| POST | `/api/v1/sections` | Create a section |
+| PUT | `/api/v1/sections/:id` | Update a section (partial) |
+| DELETE | `/api/v1/sections/:id` | Delete a section (its links fall back to uncategorized) |
+| PUT | `/api/v1/sections/reorder` | Reorder sections (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Get the profile |
+| PUT | `/api/v1/profile` | Update the profile (partial) |
+| GET | `/api/v1/analytics` | Views, clicks and top links (`?range=7d\|30d\|90d`) |
+
+Success responses wrap the payload in `data`; errors are `{ "error": { "code", "message" } }` with matching HTTP statuses (401 missing or invalid key, 400 validation, 403 demo mode, 429 rate limited). Link writes run the same validation as the admin UI - URL scheme allowlist included. Read endpoints also send an `ETag`; send it back as `If-None-Match` to receive an empty `304` until something changes. Every response also carries the header contract: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` show the per-minute budget (a `429` also sends `Retry-After`), `Cache-Control: no-store` keeps authenticated responses out of caches, and `401` answers with `WWW-Authenticate`.
+
+</details>
+
+<details>
+<summary>📦 &nbsp;API cookbook (curl)</summary>
+
+```bash
+# One-time setup
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# List links: full list, or a paginated page with sparse fields
+# (--oauth2-bearer sends the Bearer auth header for you)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Create a link (201 returns the created row, including its id)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Partial update: only the fields you send change (null clears)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Reorder links, then read a metric
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# Create a section, then bulk-import links (per-item results)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# Conditional read: replay the ETag → empty 304 while nothing changed
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+Follow `meta.nextCursor` (pass it back as `?cursor=`) to walk every page. The full machine-readable contract is at `$BASE/openapi.json`.
+
+</details>
 
 ## 🎨 Theme System
 

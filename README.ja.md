@@ -375,6 +375,8 @@ cloudflared tunnel --url http://localhost:3000
 | `EXTRA_SCRIPT_SRC` | _(空)_ | CSP用のアナリティクスドメイン(空白区切り、例:`plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(空)_ | 管理画面をホストするプライマリホスト。カスタムドメインの管理ロックが他のすべてのホストに404を返します(環境変数は管理画面の設定より優先) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | ドメインルーティングで`X-Forwarded-Host`を信頼 - このヘッダーを上書きするプロキシ(nginx、Caddy)の背後でのみ有効化してください。デフォルトの`Host`ヘッダーは偽装できません |
+| `OIDC_CLIENT_SECRET` | _(空)_ | OIDC シングルサインオン用のクライアントシークレット（#124 マルチユーザー）。Issuer、クライアント ID、JIT プロビジョニング、サインイン方式は設定 → セキュリティで構成します。シークレットは環境変数のみ - 設定はバックアップにそのまま出力されます |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | テスト用例外：信頼した LAN 内の http OIDC issuer を許可（本番は https 必須） |
 
 <details>
 <summary>💳 &nbsp;ウォレットパス変数(Google Wallet / Apple Wallet)</summary>
@@ -403,6 +405,90 @@ cloudflared tunnel --url http://localhost:3000
 自分のドメインをページに紐付けましょう - 1つのインスタンスで複数のアイデンティティを持てます。訪問者は`https://jane.com/`にアクセスするだけでJaneのページを直接見られ、正規リダイレクトの自動化、SEO対応のサイトマップ、厳格な管理ホストロックを備えています。バインディングは最初の実アクセスで有効化され(セルフ検証DNS)、ページごとのスコープで、そのドメインがページそのものになるか(排他)、全スラッグのハブになるかを決めます。
 
 DNS、ワイルドカードTLS、Caddy・nginx・Traefik向けのコピペリバースプロキシ設定まで、セットアップの詳細は**[docs/custom-domains.md](docs/custom-domains.md)**をご覧ください。
+
+## 🔌 REST API
+
+スクリプト、CI パイプライン、サードパーティのツールからリンク、プロフィール、分析を管理できます。**Settings → Security → API access** で API キーを作成します（完全なキーは一度だけ表示されます - 安全な場所に保管してください）。`Authorization` ヘッダーで HTTP Bearer スキームとして送信します。回転はデフォルトで即座に適用されます。管理者が任意の1時間の猶予を有効にしている場合、旧キーはウィンドウ終了または取り消しまで引き続き使える可能性があります。レート制限: キーあたり毎分 120 リクエスト（加えて IP 単位のガードあり）。書き込み系エンドポイントはデモモードではブロックされます。各インスタンスは `/api/v1/docs` と `/api/v1/openapi.json` に独自の OpenAPI 3.1 リファレンスを提供します。
+
+<details>
+<summary>🔗 &nbsp;エンドポイント</summary>
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/api/v1/links` | リンク一覧（`?limit`/`?cursor` でページ、`?fields=` で絞り込み） |
+| GET | `/api/v1/links/:id` | ID でリンクを取得 |
+| POST | `/api/v1/links` | リンクを作成 |
+| PUT | `/api/v1/links/:id` | リンクを更新（部分的 - 送信したフィールドのみ変更） |
+| DELETE | `/api/v1/links/:id` | リンクを削除 |
+| PUT | `/api/v1/links/reorder` | リンクを並べ替え（`{ "ids": [3, 1, 2] }`） |
+| POST | `/api/v1/links/import` | リンク一括作成（1-100 件、項目ごとの結果） |
+| GET | `/api/v1/sections` | セクション一覧（`?pageId=N` で絞り込み） |
+| POST | `/api/v1/sections` | セクションを作成 |
+| PUT | `/api/v1/sections/:id` | セクションを更新（部分的） |
+| DELETE | `/api/v1/sections/:id` | セクションを削除（そのリンクは未分類に戻る） |
+| PUT | `/api/v1/sections/reorder` | セクションを並べ替え（`{ "ids": [3, 1, 2] }`） |
+| GET | `/api/v1/profile` | プロフィールを取得 |
+| PUT | `/api/v1/profile` | プロフィールを更新（部分的） |
+| GET | `/api/v1/analytics` | ビュー、クリック、トップリンク（`?range=7d\|30d\|90d`） |
+
+成功レスポンスはペイロードを `data` でラップします。エラーは `{ "error": { "code", "message" } }` で、対応する HTTP ステータス（401 キーなし・無効、400 検証、403 デモモード、429 レート制限）が返ります。リンクの書き込みは管理画面と同じ検証（URL スキームの許可リストを含む）を通ります。読み取り系は `ETag` も返します。変わらない間は `If-None-Match` として返すと空の `304` が返ります。全レスポンスにはヘッダー契約も付きます: `X-RateLimit-Limit`、`X-RateLimit-Remaining`、`X-RateLimit-Reset` が毎分の予算を示し(`429` は `Retry-After` も送信)、`Cache-Control: no-store` が認証済みレスポンスのキャッシュを防ぎ、`401` は `WWW-Authenticate` で応答します。
+
+</details>
+
+<details>
+<summary>📦 &nbsp;API 実例集 (curl)</summary>
+
+```bash
+# 初回セットアップ
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# リンク一覧：全件、またはフィールドを絞った分ページ
+# （--oauth2-bearer が Bearer 認証ヘッダーを送信します）
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# リンク作成（201 は作成された行と id を返します）
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# 部分更新：送信したフィールドのみが変更されます（null でクリア）
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# 並べ替え後、メトリクスを取得
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# セクションを作成し、リンクを一括インポート（項目ごとの結果）
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# 条件付き読み取り: ETag を再送 → 変わらなければ空の 304
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+`meta.nextCursor`（`?cursor=` で渡す）を辿れば全ページを取得できます。機械可読の完全な契約は `$BASE/openapi.json` にあります。
+
+</details>
 
 ## 🎨 テーマシステム
 

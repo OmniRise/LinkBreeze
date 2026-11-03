@@ -375,6 +375,8 @@ cloudflared tunnel --url http://localhost:3000
 | `EXTRA_SCRIPT_SRC` | _(пусто)_ | Разделённые пробелом домены аналитики для CSP (например, `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(пусто)_ | Основной хост, на котором работает админка; блокировка кастомных доменов возвращает 404 на всех остальных хостах (переменная окружения имеет приоритет над настройкой в админке) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Доверять заголовку `X-Forwarded-Host` при маршрутизации доменов - включайте только за прокси, который ПЕРЕЗАПИСЫВАЕТ его (nginx, Caddy); стандартный заголовок `Host` подделать нельзя |
+| `OIDC_CLIENT_SECRET` | _(пусто)_ | Секрет клиента для единого входа OIDC (#124 мультипользователь). Эмитент, ID клиента, JIT-подготовку и режим входа настройте в Настройки → Безопасность. Секреты — только в переменных окружения - настройки экспортируются в резервные копии как есть |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Тестовое исключение: разрешить http-эмитента OIDC в доверенной LAN (в продакшене требуется https) |
 
 <details>
 <summary>💳 &nbsp;Переменные кошельков (Google Wallet / Apple Wallet)</summary>
@@ -403,6 +405,90 @@ cloudflared tunnel --url http://localhost:3000
 Направьте свои домены на страницы - один инстанс, множество идентичностей. Посетители попадают на `https://jane.com/` и сразу видят страницу Джейн, с автоматическими каноническими перенаправлениями, SEO-готовыми sitemap и строгой блокировкой хоста админки. Привязки активируются при первом реальном визите (DNS проверяется автоматически), а режим на уровне страницы определяет, является ли домен САМОЙ страницей (эксклюзивный) или хабом для всех slug.
 
 Полная настройка - DNS, wildcard TLS и готовые конфигурации обратного прокси для Caddy, nginx и Traefik - в **[docs/custom-domains.md](docs/custom-domains.md)**.
+
+## 🔌 REST API
+
+Управляйте ссылками, профилем и аналитикой из скриптов, CI-пайплайнов и сторонних инструментов. Создайте API-ключ в **Settings → Security → API access** (полный ключ показывается только один раз - сохраните его в надёжном месте) и отправляйте его в заголовке `Authorization` по схеме HTTP Bearer. Ротация по умолчанию мгновенная; если администратор включил опциональный час допуска, старый ключ может работать до конца окна или отзыва. Лимит: 120 запросов в минуту на ключ, плюс защита по IP. Записывающие эндпоинты заблокированы в демо-режиме. Каждый экземпляр предоставляет собственную справку OpenAPI 3.1 на `/api/v1/docs` и `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Эндпоинты</summary>
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/api/v1/links` | Список ссылок (`?limit`/`?cursor` страницы, `?fields=` сокращённые поля) |
+| GET | `/api/v1/links/:id` | Получить ссылку по id |
+| POST | `/api/v1/links` | Создать ссылку |
+| PUT | `/api/v1/links/:id` | Обновить ссылку (частично - меняются только переданные поля) |
+| DELETE | `/api/v1/links/:id` | Удалить ссылку |
+| PUT | `/api/v1/links/reorder` | Изменить порядок ссылок (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Массовое создание ссылок (1-100 элементов, результат по каждому) |
+| GET | `/api/v1/sections` | Список секций (`?pageId=N` фильтр) |
+| POST | `/api/v1/sections` | Создать секцию |
+| PUT | `/api/v1/sections/:id` | Обновить секцию (частично) |
+| DELETE | `/api/v1/sections/:id` | Удалить секцию (её ссылки становятся некатегоризированными) |
+| PUT | `/api/v1/sections/reorder` | Изменить порядок секций (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Получить профиль |
+| PUT | `/api/v1/profile` | Обновить профиль (частично) |
+| GET | `/api/v1/analytics` | Просмотры, клики и топ-ссылки (`?range=7d\|30d\|90d`) |
+
+Успешные ответы оборачивают данные в `data`; ошибки имеют вид `{ "error": { "code", "message" } }` с соответствующими HTTP-статусами (401 ключ отсутствует или недействителен, 400 валидация, 403 демо-режим, 429 лимит). Запись ссылок проходит ту же валидацию, что и в админ-панели - включая список разрешённых URL-схем. Чтение также возвращает `ETag`; отправьте его как `If-None-Match`, чтобы получать пустой `304`, пока ничего не меняется. Каждый ответ несёт и контракт заголовков: `X-RateLimit-Limit`, `X-RateLimit-Remaining` и `X-RateLimit-Reset` показывают бюджет в минуту (на `429` добавляется `Retry-After`), `Cache-Control: no-store` не даёт кэшировать авторизованные ответы, а `401` отвечает `WWW-Authenticate`.
+
+</details>
+
+<details>
+<summary>📦 &nbsp;Кулинарная книга API (curl)</summary>
+
+```bash
+# Однократная настройка
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# Список ссылок: полный или страница с сокращёнными полями
+# (--oauth2-bearer сам отправляет Bearer-заголовок)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Создать ссылку (201 возвращает созданную строку с id)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Частичное обновление: меняются только переданные поля (null очищает)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Изменить порядок ссылок, затем прочитать метрику
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# Создать секцию и массово импортировать ссылки (результат по каждому элементу)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# Условное чтение: отправьте ETag повторно → пустой 304, пока ничего не меняется
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+Следуйте `meta.nextCursor` (передавайте обратно как `?cursor=`), чтобы пройти все страницы. Полная машиночитаемая спецификация — `$BASE/openapi.json`.
+
+</details>
 
 ## 🎨 Система тем
 

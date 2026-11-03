@@ -40,7 +40,10 @@ describe("TOTP integration", () => {
     expect(user!.recoveryCodes).toBeNull();
   });
 
-  it("full lifecycle: enroll → activate → verify code → disable", async () => {
+  // bcrypt(12) × 10 recovery codes ≈ 3-4s on modest hardware — the default
+  // 5s budget flakes whenever parallel workers load the box (flaky-test
+  // hunt, BURN-BACKLOG-4 E.5). 30s keeps real hangs detectable.
+  it("full lifecycle: enroll → activate → verify code → disable", { timeout: 30_000 }, async () => {
     // 1. startTotpSetup equivalent: store an encrypted, INACTIVE secret
     const secret = generateSecret();
     await setUserTotp(userId, {
@@ -95,9 +98,10 @@ describe("TOTP integration", () => {
     expect(verifyTrustToken(tok, userId, secret, ua)).toBe(true); // token math still matches stale secret…
     // …but login() gates on totpEnabled && totpSecret, so it can never be used.
     expect(disabled!.totpEnabled && disabled!.totpSecret).toBeFalsy();
-    // Argon2 re-hashes make this lifecycle ~4s alone; on this box (sibling
-    // agents contending CPU) it flaked at the default 5000ms — measured
-    // 5.18s TOTAL even in isolation. 15s still fails a genuine hang.
+    // Argon2 re-hashes + bcryptjs cost-12 recovery codes make this lifecycle
+    // heavy on single-threaded JS (~8s measured) — well past vitest's 5s default;
+    // on a CPU-contended box it flaked at 5000ms (5.18s even in isolation).
+    // 15s still fails a genuine hang.
   }, 15000);
 
   it("secret encrypted at rest is never the plaintext in the DB", async () => {

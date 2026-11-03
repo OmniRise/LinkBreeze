@@ -375,6 +375,8 @@ Die gesamte Konfiguration erfolgt über Umgebungsvariablen. **[`.env.example`](.
 | `EXTRA_SCRIPT_SRC` | _(leer)_ | Durch Leerzeichen getrennte Analyse-Domains für die CSP (z. B. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(leer)_ | Primärer Host der Verwaltung; die Admin-Host-Sperre eigener Domains liefert 404 auf allen anderen Hosts (Umgebungsvariable schlägt die Admin-Einstellung) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | `X-Forwarded-Host` für das Domain-Routing vertrauen - nur aktivieren, wenn ein Proxy die Kopfzeile ÜBERSCHREIBT (nginx, Caddy); der Standard-`Host`-Header lässt sich nicht fälschen |
+| `OIDC_CLIENT_SECRET` | _(leer)_ | Client-Secret für OIDC Single Sign-on (#124 Multi-User). Issuer, Client-ID, JIT-Bereitstellung und der Anmeldemodus werden unter Einstellungen → Sicherheit konfiguriert. Secrets bleiben env-only - Einstellungen werden 1:1 in Backups exportiert |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Test-Ausnahmeklausel: http-OIDC-Issuer in einem vertrauenswürdigen LAN erlauben (Produktion verlangt https) |
 
 <details>
 <summary>💳 &nbsp;Wallet-Pass-Variablen (Google Wallet / Apple Wallet)</summary>
@@ -403,6 +405,90 @@ Laufzeiteinstellungen (Seiten-Slug, Titel, SEO, Theme) werden über das Admin-Da
 Leite eigene Domains auf Seiten weiter - eine Instanz, viele Identitäten. Besucher landen auf `https://jane.com/` und sehen Janes Seite direkt, mit automatischen Canonical-Weiterleitungen, SEO-tauglichen Sitemaps und strikter Admin-Host-Sperre. Bindungen werden beim ersten echten Besuch aktiv (selbstverifizierendes DNS), und der Seiten-Scope legt fest, ob eine Domain die Seite IST (exklusiv) oder ein Hub für alle Slugs.
 
 Komplette Einrichtung - DNS, Wildcard-TLS und Copy-Paste-Reverse-Proxy-Konfigurationen für Caddy, nginx und Traefik - in **[docs/custom-domains.md](docs/custom-domains.md)**.
+
+## 🔌 REST-API
+
+Verwalte Links, Profil und Analysen aus Skripten, CI-Pipelines oder Drittanbieter-Tools. Erstelle einen API-Schlüssel unter **Settings → Security → API access** (der volle Schlüssel wird nur einmal angezeigt - sicher speichern) und sende ihn im `Authorization`-Header über das HTTP-Bearer-Schema. Die Rotation ist standardmäßig sofort; wenn der Admin die optionale einstündige Gnadenfrist aktiviert hat, kann der alte Schlüssel weiterarbeiten, bis das Fenster endet oder der Admin ihn widerruft. Limit: 120 Anfragen/Minute pro Schlüssel, dazu ein IP-Schutz. Schreibende Endpunkte sind im Demo-Modus gesperrt. Jede Instanz bietet ihre eigene OpenAPI-3.1-Referenz unter `/api/v1/docs` und `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Endpunkte</summary>
+
+| Methode | Pfad | Beschreibung |
+|---------|------|--------------|
+| GET | `/api/v1/links` | Links auflisten (`?limit`/`?cursor` Seiten, `?fields=` reduzierte Felder) |
+| GET | `/api/v1/links/:id` | Ein Link per ID abrufen |
+| POST | `/api/v1/links` | Link erstellen |
+| PUT | `/api/v1/links/:id` | Link aktualisieren (partiell - nur gesendete Felder ändern sich) |
+| DELETE | `/api/v1/links/:id` | Link löschen |
+| PUT | `/api/v1/links/reorder` | Links neu ordnen (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Links im Bulk erstellen (1-100 Einträge, Ergebnis pro Eintrag) |
+| GET | `/api/v1/sections` | Sektionen auflisten (`?pageId=N` filtert) |
+| POST | `/api/v1/sections` | Sektion anlegen |
+| PUT | `/api/v1/sections/:id` | Sektion aktualisieren (partiell) |
+| DELETE | `/api/v1/sections/:id` | Sektion löschen (deren Links fallen zurück auf unkategorisiert) |
+| PUT | `/api/v1/sections/reorder` | Sektionen neu ordnen (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Profil abrufen |
+| PUT | `/api/v1/profile` | Profil aktualisieren (partiell) |
+| GET | `/api/v1/analytics` | Aufrufe, Klicks und Top-Links (`?range=7d\|30d\|90d`) |
+
+Erfolgreiche Antworten verpacken die Nutzlast in `data`; Fehler sind `{ "error": { "code", "message" } }` mit passenden HTTP-Statuscodes (401 fehlender oder ungültiger Schlüssel, 400 Validierung, 403 Demo-Modus, 429 Limit). Link-Schreibvorgänge durchlaufen dieselbe Validierung wie die Admin-Oberfläche - inklusive URL-Schema-Allowlist. Leseendpunkte senden zusätzlich ein `ETag`; sende es als `If-None-Match` zurück für einen leeren `304`, solange sich nichts ändert. Jede Antwort trägt außerdem den Header-Vertrag: `X-RateLimit-Limit`, `X-RateLimit-Remaining` und `X-RateLimit-Reset` zeigen das Budget pro Minute (ein `429` sendet zusätzlich `Retry-After`), `Cache-Control: no-store` hält authentifizierte Antworten aus dem Cache, und `401` antwortet mit `WWW-Authenticate`.
+
+</details>
+
+<details>
+<summary>📦 &nbsp;API-Cookbook (curl)</summary>
+
+```bash
+# Einmalige Einrichtung
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# Links auflisten: volle Liste oder eine paginierte Seite mit reduzierten Feldern
+# (--oauth2-bearer sendet den Bearer-Header für dich)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Link erstellen (201 liefert die angelegte Zeile inklusive id)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Partielle Aktualisierung: nur gesendete Felder ändern sich (null leert)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Links neu ordnen, dann eine Metrik lesen
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# Sektion anlegen, dann Links im Bulk importieren (Ergebnis pro Eintrag)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# Bedingtes Lesen: ETag erneut senden → leerer 304, solange sich nichts ändert
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+Folge `meta.nextCursor` (als `?cursor=` zurückgeben), um alle Seiten zu durchlaufen. Der vollständige maschinenlesbare Vertrag liegt unter `$BASE/openapi.json`.
+
+</details>
 
 ## 🎨 Theme-System
 

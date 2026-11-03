@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildVCard, vcardFilename } from "../vcard";
+import { buildVCard, vcardFilename, pageToVCardInput } from "../vcard";
 
 describe("buildVCard", () => {
   const base = {
@@ -42,14 +42,53 @@ describe("buildVCard", () => {
     expect(blankBio).not.toContain("NOTE:");
   });
 
-  it("defaults ORG to LinkBreeze when no organization given", () => {
+  it("omits ORG when no organization given (no hardcoded brand)", () => {
     const vc = buildVCard(base);
-    expect(vc).toContain("ORG:LinkBreeze");
+    expect(vc).not.toContain("ORG:");
   });
 
   it("escapes ORG when provided", () => {
     const vc = buildVCard({ ...base, organization: "Acme, Inc" });
     expect(vc).toContain("ORG:Acme\\, Inc");
+  });
+
+  it("emits the extended contact fields only when set", () => {
+    const vc = buildVCard({
+      ...base,
+      jobTitle: "Founder",
+      email: "hi@acme.dev",
+      phone: "+212600000000",
+      address: "Casablanca, MA",
+      photoUrl: "https://acme.dev/me.png",
+      socials: [{ platform: "x", url: "https://x.com/acme" }],
+    });
+    expect(vc).toContain("TITLE:Founder");
+    expect(vc).toContain("EMAIL;TYPE=INTERNET:hi@acme.dev");
+    expect(vc).toContain("TEL;TYPE=CELL:+212600000000");
+    expect(vc).toContain("ADR;TYPE=WORK:;;Casablanca\\, MA");
+    expect(vc).toContain("PHOTO;VALUE=URI:https://acme.dev/me.png");
+    expect(vc).toContain("X-SOCIALPROFILE;TYPE=x:https://x.com/acme");
+  });
+
+  it("pageToVCardInput layers vcard_* overrides over page data", () => {
+    const page = {
+      title: "Jane",
+      slug: "jane",
+      bio: "Designer",
+      socialLinks: JSON.stringify([{ platform: "x", url: "https://x.com/jane" }]),
+      avatarUrl: "/api/uploads/a.png",
+      vcardOrganization: "Acme",
+      vcardJobTitle: null,
+      vcardEmail: "jane@acme.dev",
+      vcardPhone: null,
+      vcardAddress: null,
+    } as unknown as Parameters<typeof pageToVCardInput>[0];
+    const input = pageToVCardInput(page, "https://links.example.com");
+    expect(input.organization).toBe("Acme");
+    expect(input.email).toBe("jane@acme.dev");
+    expect(input.jobTitle).toBeNull();
+    expect(input.photoUrl).toBe("https://links.example.com/api/uploads/a.png");
+    expect(input.socials).toEqual([{ platform: "x", url: "https://x.com/jane" }]);
   });
 
   it("falls back to slug for empty title (FN is required by spec)", () => {

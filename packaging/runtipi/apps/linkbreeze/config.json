@@ -8,7 +8,7 @@
   "categories": ["network", "social"],
   "description": "LinkBreeze is a self-hosted link-in-bio platform, the open source alternative to Linktree. One public page holds all your links, with a real admin dashboard, privacy-first analytics, QR codes, and a full theme engine. It runs as a single container backed by SQLite, the public page is fully server rendered with zero client JavaScript, and the setup wizard has you live in under a minute. Unlimited pages, a migration wizard that imports from Linktree and other platforms in about 30 seconds, 11 built-in themes, link scheduling, custom /go/ redirect slugs, email capture, and custom domain support. Your data stays on your server: no subscription, no tracking, no ads.",
   "tipi_version": 1,
-  "version": "v1.5.0",
+  "version": "v1.5.1",
   "source": "https://github.com/OmniRise/LinkBreeze",
   "website": "https://linkbreeze.omnirise.dev",
   "exposable": true,

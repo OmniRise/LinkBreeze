@@ -1,6 +1,6 @@
 {
-  "version": "1.5.0",
-  "releasedAt": "2026-10-24",
-  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.5.0",
-  "notes": "Custom domains for pages: bind your own domain names to pages with per-alias redirect behavior, a new Domains admin section, DNS pre-flight checks, an admin host lock, and full SEO handling (canonicals, sitemaps, 301s). Automatic scheduled backups with keep-last-N retention and one-click restore from Settings. Custom /go/ redirect slugs that survive delete-and-recreate, and optional leading-@ page slugs for the handle style people know from other tools. The auto-generated OG share card is redesigned as a Poster Hero derived from the page theme, Settings gains an update status card with a Recheck button, the language picker becomes a compact dropdown, and self-hosters get the official omnirise/linkbreeze Docker Hub image plus a one-shot update script."
+  "version": "1.5.1",
+  "releasedAt": "2026-10-27",
+  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.5.1",
+  "notes": "The admin and README now ship in eleven languages (Italian, Russian, Turkish, and Japanese join the lineup), LinkBreeze publishes first-party CasaOS, Runtipi, and Unraid app-store packaging, and Settings gains an update status card showing the installed version against the latest GitHub and website releases with a one-click Recheck. Importing a Linktree page no longer pulls Linktree's own affiliate links, dependency updates resolve the outstanding Dependabot alerts, and a security fix closes update-check server actions that skipped the demo guard on public demo instances."
 }

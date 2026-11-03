@@ -375,6 +375,8 @@ Toute la configuration passe par des variables d'environnement. **[`.env.example
 | `EXTRA_SCRIPT_SRC` | _(vide)_ | Domaines d'analytique séparés par des espaces pour la CSP (ex. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(vide)_ | Hôte principal où vit votre admin ; le verrou admin des domaines personnalisés renvoie 404 sur tous les autres hôtes (l'env a priorité sur le réglage admin) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Faire confiance à `X-Forwarded-Host` pour le routage des domaines - à activer uniquement derrière un proxy qui ÉCRASE cet en-tête (nginx, Caddy) ; l'en-tête `Host` par défaut ne peut pas être falsifié |
+| `OIDC_CLIENT_SECRET` | _(vide)_ | Secret client pour la connexion unique OIDC (#124 multi-utilisateurs). L'émetteur, l'ID client, le provisioning JIT et le mode de connexion se configurent dans Réglages → Sécurité. Les secrets restent en variable d'environnement - les réglages sont exportés tels quels dans les sauvegardes |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | Dérogation de test : autoriser un émetteur OIDC http sur un LAN de confiance (la production exige https) |
 
 <details>
 <summary>💳 &nbsp;Variables de passes wallet (Google Wallet / Apple Wallet)</summary>
@@ -403,6 +405,90 @@ Les réglages à l'exécution (slug de la page, titre, SEO, thème) se gèrent d
 Pointez vos propres domaines vers vos pages - une instance, plusieurs identités. Les visiteurs arrivent sur `https://jane.com/` et voient directement la page de Jane, avec redirections canoniques automatiques, sitemaps optimisés SEO et verrou admin strict par hôte. Les liaisons s'activent lors de leur première vraie visite (DNS auto-vérifié), et la portée par page décide si un domaine EST la page (exclusive) ou un hub pour tous les slugs.
 
 Configuration complète - DNS, TLS wildcard et configs reverse-proxy prêtes à coller pour Caddy, nginx et Traefik - dans **[docs/custom-domains.md](docs/custom-domains.md)**.
+
+## 🔌 API REST
+
+Gérez vos liens, votre profil et vos statistiques depuis des scripts, des pipelines CI ou des outils tiers. Générez une clé API dans **Settings → Security → API access** (la clé complète est affichée une seule fois - stockez-la en sécurité), puis envoyez-la dans l'en-tête `Authorization` avec le schéma HTTP Bearer. La rotation est instantanée par défaut ; si l'admin a activé l'heure de grâce facultative, l'ancienne clé peut continuer de fonctionner jusqu'à la fin de la fenêtre ou sa révocation. Limite : 120 requêtes/minute par clé, plus une garde par IP. Les endpoints d'écriture sont bloqués en mode démo. Chaque instance sert sa propre référence OpenAPI 3.1 sur `/api/v1/docs` et `/api/v1/openapi.json`.
+
+<details>
+<summary>🔗 &nbsp;Points d'entrée</summary>
+
+| Méthode | Chemin | Description |
+|---------|--------|-------------|
+| GET | `/api/v1/links` | Lister les liens (`?limit`/`?cursor` pages, `?fields=` champs réduits) |
+| GET | `/api/v1/links/:id` | Obtenir un lien par son id |
+| POST | `/api/v1/links` | Créer un lien |
+| PUT | `/api/v1/links/:id` | Modifier un lien (partiel - seuls les champs envoyés changent) |
+| DELETE | `/api/v1/links/:id` | Supprimer un lien |
+| PUT | `/api/v1/links/reorder` | Réordonner les liens (`{ "ids": [3, 1, 2] }`) |
+| POST | `/api/v1/links/import` | Créer des liens en lot (1-100 éléments, résultats par élément) |
+| GET | `/api/v1/sections` | Lister les sections (`?pageId=N` filtre) |
+| POST | `/api/v1/sections` | Créer une section |
+| PUT | `/api/v1/sections/:id` | Modifier une section (partiel) |
+| DELETE | `/api/v1/sections/:id` | Supprimer une section (ses liens repassent hors catégorie) |
+| PUT | `/api/v1/sections/reorder` | Réordonner les sections (`{ "ids": [3, 1, 2] }`) |
+| GET | `/api/v1/profile` | Obtenir le profil |
+| PUT | `/api/v1/profile` | Modifier le profil (partiel) |
+| GET | `/api/v1/analytics` | Vues, clics et liens populaires (`?range=7d\|30d\|90d`) |
+
+Les réponses de succès enveloppent la charge dans `data` ; les erreurs sont `{ "error": { "code", "message" } }` avec les codes HTTP correspondants (401 clé manquante ou invalide, 400 validation, 403 mode démo, 429 limite dépassée). Les écritures de liens passent par la même validation que l'interface d'administration - liste blanche des schémas d'URL incluse. Les lectures renvoient aussi un `ETag` ; renvoyez-le en `If-None-Match` pour un `304` vide tant que rien ne change. Chaque réponse porte aussi le contrat d'en-têtes : `X-RateLimit-Limit`, `X-RateLimit-Remaining` et `X-RateLimit-Reset` indiquent le budget par minute (un `429` envoie aussi `Retry-After`), `Cache-Control: no-store` empêche la mise en cache des réponses authentifiées, et un `401` répond avec `WWW-Authenticate`.
+
+</details>
+
+<details>
+<summary>📦 &nbsp;Cookbook API (curl)</summary>
+
+```bash
+# Configuration unique
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# Lister les liens : liste complète, ou une page paginée avec champs réduits
+# (--oauth2-bearer envoie l'en-tête Bearer pour vous)
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# Créer un lien (201 renvoie la ligne créée, id compris)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# Mise à jour partielle : seuls les champs envoyés changent (null efface)
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# Réordonner les liens, puis lire une métrique
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# Créer une section, puis importer des liens en lot (résultats par élément)
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# Lecture conditionnelle : rejouez l'ETag → 304 vide tant que rien ne change
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+Suivez `meta.nextCursor` (renvoyez-le en `?cursor=`) pour parcourir toutes les pages. Le contrat machine lisible complet est sur `$BASE/openapi.json`.
+
+</details>
 
 ## 🎨 Système de thèmes
 

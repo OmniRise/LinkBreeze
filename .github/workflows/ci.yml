@@ -18,7 +18,8 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: node scripts/check-changelog.mjs
+      # privatized: scripts/ is local-only (gitignored) — step removed
+      # - run: node scripts/check-changelog.mjs
       - run: npm run lint
       - run: npx tsc --noEmit --skipLibCheck
       # Locale gates: catch a forgotten/unsynced key or a broken placeholder in
@@ -26,6 +27,7 @@ jobs:
       # sync hash; locale-audit covers placeholder + untranslated parity that
       # neither tsc nor the hash gate sees).
       - run: npm run i18n:check
-      - run: node scripts/locale-audit.mjs
+      # privatized: scripts/ is local-only (gitignored) — step removed
+      # - run: node scripts/locale-audit.mjs
       - run: npm run test
       - run: npm run build

@@ -437,6 +437,7 @@ export default async function PublicPage({ params }: PageProps) {
                       index={0}
                       baseDelayMs={delays[gi]?.links[li] ?? 0}
                       theme={themeInput}
+                      pageSlug={slug}
                     />
                   ),
                 )}

@@ -49,6 +49,50 @@ if (update) {
   process.exit(0);
 }
 
+// E.78 content rule: README endpoint tables use the `:id` placeholder
+// convention, never the OpenAPI `{id}` template syntax (that lives only in
+// the spec). A translator drifting into {id} fails here.
+const readmes = fs.readdirSync(root).filter((f) => /^README(\.[^.]+)?\.md$/.test(f));
+const badPlaceholders = readmes.filter((f) =>
+  /\{id\}/.test(fs.readFileSync(path.join(root, f), "utf8")),
+);
+if (badPlaceholders.length) {
+  console.error("OAS-style {id} placeholder leaked into README(s) — table convention is :id:");
+  for (const f of badPlaceholders) console.error(`  - ${f}`);
+  process.exit(1);
+}
+
+// E.93 content rule: every translation must carry the SAME number of ```bash
+// fence lines as the authoritative README.md (cookbook blocks translate their
+// comments only — a dropped/added block is a re-sync bug, headings or not).
+const fenceCount = (txt, lang) =>
+  txt.split("\n").filter((line) => line === `\`\`\`${lang}`).length;
+const enFences = fenceCount(fs.readFileSync(path.join(root, "README.md"), "utf8"), "bash");
+const fenceDrift = readmes
+  .filter((f) => f !== "README.md")
+  .filter((f) => fenceCount(fs.readFileSync(path.join(root, f), "utf8"), "bash") !== enFences);
+if (fenceDrift.length) {
+  console.error(`\`\`\`bash fence count drift — README.md has ${enFences}, mismatches:`);
+  for (const f of fenceDrift) console.error(`  - ${f}`);
+  process.exit(1);
+}
+
+// E.116 content rule: every jq filter in every README must address the
+// success envelope roots ({ data } / { meta }) — a path like `.rows` would
+// mean the documented contract drifted from apiOk's actual shape.
+const jqOutsideEnvelope = [];
+for (const f of readmes) {
+  const txt = fs.readFileSync(path.join(root, f), "utf8");
+  for (const m of txt.matchAll(/jq '([^']+)'/g)) {
+    if (!/^(\.data\b|\.meta\b)/.test(m[1].trim())) jqOutsideEnvelope.push(`${f}: ${m[1]}`);
+  }
+}
+if (jqOutsideEnvelope.length) {
+  console.error("jq filter outside the { data, meta } envelope root:");
+  for (const j of jqOutsideEnvelope) console.error(`  - ${j}`);
+  process.exit(1);
+}
+
 if (stale.length) {
   console.error("Stale translation(s) — README.md changed since they were synced:");
   for (const s of stale) console.error(`  - ${s}`);

@@ -1,15 +1,16 @@
 "use server";
 
-import { getSession } from "@/lib/auth";
+import { demoGuard } from "@/lib/demo-guard";
+import { requireInstanceAdminOrThrow } from "@/server/access";
 import { checkForUpdates, getUpdateStatus, setUpdateCheckEnabled } from "@/lib/update-check";
 
 /**
  * Manual refresh — bypasses the 24h cache.
  */
 export async function refreshUpdateCheck() {
-  if (!(await getSession())) {
-    throw new Error("Unauthorized");
-  }
+  const blocked = demoGuard();
+  if (blocked) throw new Error(blocked.error);
+  await requireInstanceAdminOrThrow();
   return checkForUpdates(true);
 }
 
@@ -17,9 +18,9 @@ export async function refreshUpdateCheck() {
  * Toggle update checks on/off.
  */
 export async function toggleUpdateCheck(enabled: boolean): Promise<void> {
-  if (!(await getSession())) {
-    throw new Error("Unauthorized");
-  }
+  const blocked = demoGuard();
+  if (blocked) throw new Error(blocked.error);
+  await requireInstanceAdminOrThrow();
   await setUpdateCheckEnabled(enabled);
 }
 
@@ -27,8 +28,8 @@ export async function toggleUpdateCheck(enabled: boolean): Promise<void> {
  * Combined status for the settings update card (website + GitHub sources).
  */
 export async function refreshUpdateStatus() {
-  if (!(await getSession())) {
-    throw new Error("Unauthorized");
-  }
+  const blocked = demoGuard();
+  if (blocked) throw new Error(blocked.error);
+  await requireInstanceAdminOrThrow();
   return getUpdateStatus(true);
 }

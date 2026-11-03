@@ -58,3 +58,10 @@ next-env.d.ts
 # auto-generated session secret (from instrumentation.ts)
 .secret-key
 test-results/
+
+# local-only tooling — ALL project scripts live in /scripts/ (private, not on GitHub)
+/scripts/
+
+# demo instance (hosted at linkbreeze-demo.omnirise.dev) — deploy-machine only,
+# everything demo-related lives in /data-demo/ (DB, uploads, compose file)
+/data-demo/

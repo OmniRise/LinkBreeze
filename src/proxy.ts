@@ -43,6 +43,8 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/pages",
   "/domains",
+  "/accounts",
+  "/audit",
 ];
 
 const PUBLIC_EXACT = new Set([
@@ -57,6 +59,7 @@ const PUBLIC_EXACT = new Set([
 const ADMIN_RESERVED = new Set([
   "/login",
   "/setup",
+  "/invite",
   "/dashboard",
   "/links",
   "/profile",
@@ -64,6 +67,8 @@ const ADMIN_RESERVED = new Set([
   "/settings",
   "/pages",
   "/domains",
+  "/accounts",
+  "/audit",
 ]);
 
 export async function proxy(request: NextRequest) {

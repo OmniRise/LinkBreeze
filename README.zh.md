@@ -375,6 +375,8 @@ cloudflared tunnel --url http://localhost:3000
 | `EXTRA_SCRIPT_SRC` | _(空)_ | CSP 允许的统计域名，空格分隔（如 `plausible.io umami.is`） |
 | `LINKBREEZE_PRIMARY_HOST` | _（空）_ | 管理后台所在的主机；自定义域名的主机锁定会对其他所有主机返回 404（环境变量优先于后台设置） |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | 让域名路由信任 `X-Forwarded-Host` - 仅在代理会覆写该请求头时启用（nginx、Caddy）；默认的 `Host` 请求头无法被伪造 |
+| `OIDC_CLIENT_SECRET` | _（空）_ | OIDC 单点登录的客户端密钥（#124 多用户）。Issuer、客户端 ID、JIT 供应和登录方式在 设置 → 安全 中配置。密钥仅存于环境变量 - 设置会原样导出到备份中 |
+| `LINKBREEZE_ALLOW_HTTP_ISSUER` | `false` | 测试例外：允许受信任局域网内的 http OIDC issuer（生产环境必须 https） |
 
 <details>
 <summary>💳 &nbsp;钱包通行证变量（Google Wallet / Apple Wallet）</summary>
@@ -403,6 +405,90 @@ cloudflared tunnel --url http://localhost:3000
 将自有域名指向页面 - 一个实例，多个身份。访客打开 `https://jane.com/` 即可直接看到 Jane 的页面，并配有自动 canonical 重定向、利于 SEO 的站点地图和严格的管理后台主机锁定。绑定会在首次真实访问时激活（DNS 自验证），页面范围决定域名是该页面本身（独占）还是所有 slug 的中心。
 
 完整设置 - DNS、泛域名 TLS 以及 Caddy、nginx、Traefik 的即拷即用反向代理配置 - 见 **[docs/custom-domains.md](docs/custom-domains.md)**。
+
+## 🔌 REST API
+
+从脚本、CI 流水线或第三方工具管理链接、个人资料和统计数据。在 **Settings → Security → API access** 中创建 API 密钥（完整密钥只显示一次 - 请妥善保管），并在 `Authorization` 请求头中以 HTTP Bearer 方式发送。默认情况下轮换立即生效；若管理员启用了可选的一小时宽限期，旧密钥可能在窗口结束或被撤销前继续有效。速率限制：每个密钥每分钟 120 次请求，另有按 IP 的防护。写入类接口在演示模式下被阻止。每个实例都在 `/api/v1/docs` 和 `/api/v1/openapi.json` 提供自己的 OpenAPI 3.1 参考文档。
+
+<details>
+<summary>🔗 &nbsp;接口列表</summary>
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/links` | 列出链接（`?limit`/`?cursor` 分页，`?fields=` 精简字段） |
+| GET | `/api/v1/links/:id` | 按 id 获取单个链接 |
+| POST | `/api/v1/links` | 创建链接 |
+| PUT | `/api/v1/links/:id` | 更新链接（部分 - 只有发送的字段会更改） |
+| DELETE | `/api/v1/links/:id` | 删除链接 |
+| PUT | `/api/v1/links/reorder` | 重新排序链接（`{ "ids": [3, 1, 2] }`） |
+| POST | `/api/v1/links/import` | 批量创建链接（1-100 项，逐项结果） |
+| GET | `/api/v1/sections` | 列出分节（`?pageId=N` 过滤） |
+| POST | `/api/v1/sections` | 创建分节 |
+| PUT | `/api/v1/sections/:id` | 更新分节（部分） |
+| DELETE | `/api/v1/sections/:id` | 删除分节（其链接回到未分类） |
+| PUT | `/api/v1/sections/reorder` | 重新排序分节（`{ "ids": [3, 1, 2] }`） |
+| GET | `/api/v1/profile` | 获取个人资料 |
+| PUT | `/api/v1/profile` | 更新个人资料（部分） |
+| GET | `/api/v1/analytics` | 浏览量、点击量和热门链接（`?range=7d\|30d\|90d`） |
+
+成功响应将数据包装在 `data` 中；错误为 `{ "error": { "code", "message" } }` 并带有对应的 HTTP 状态码（401 密钥缺失或无效、400 校验、403 演示模式、429 超出限流）。链接写入经过与管理界面相同的校验 - 包括 URL 协议白名单。读取接口还会返回 `ETag`；在无变化时将其作为 `If-None-Match` 传回即可得到空的 `304`。每个响应还携带头部契约: `X-RateLimit-Limit`、`X-RateLimit-Remaining`、`X-RateLimit-Reset` 显示每分钟配额(`429` 还会发送 `Retry-After`)，`Cache-Control: no-store` 防止认证响应被缓存，`401` 则以 `WWW-Authenticate` 应答。
+
+</details>
+
+<details>
+<summary>📦 &nbsp;API 实例（curl）</summary>
+
+```bash
+# 一次性设置
+export LB_API_KEY="lbk_..."
+export BASE="https://your-instance.example/api/v1"
+```
+
+```bash
+# 列出链接：完整列表，或带精简字段的分页
+# （--oauth2-bearer 会为你发送 Bearer 认证头）
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links" | jq '.data | length'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/links?limit=10&fields=title,url" | jq '.meta'
+```
+
+```bash
+# 创建链接（201 返回创建的行及其 id）
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Docs","url":"https://example.com/docs","cardStyle":"rich"}' \
+  "$BASE/links" | jq '.data.id'
+```
+
+```bash
+# 部分更新：只有发送的字段会更改（null 清空）
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"isActive": false}' "$BASE/links/12" | jq '.data.isActive'
+```
+
+```bash
+# 重新排序链接，然后读取指标
+curl -s -X PUT --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"ids":[3,1,2]}' "$BASE/links/reorder" | jq '.data'
+curl -s --oauth2-bearer "$LB_API_KEY" "$BASE/analytics?range=30d" | jq '.data.ctr'
+```
+
+```bash
+# 创建分节，然后批量导入链接（逐项结果）
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"pageId":1,"title":"Work"}' "$BASE/sections" | jq '.data.id'
+curl -s -X POST --oauth2-bearer "$LB_API_KEY" -H "Content-Type: application/json" \
+  -d '{"items":[{"title":"A","url":"https://a.example"},{"title":"","url":"https://bad.example"}]}' \
+  "$BASE/links/import" | jq '.data.results'
+```
+
+```bash
+# 条件读取: 重发 ETag → 无变化时得到空 304
+ETAG=$(curl -sI --oauth2-bearer "$LB_API_KEY" "$BASE/links" | tr -d '\r' | grep -i '^etag:' | cut -d' ' -f2)
+curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-None-Match: $ETAG" "$BASE/links"   # → 304
+```
+
+跟随 `meta.nextCursor`（以 `?cursor=` 传回）即可遍历所有页面。完整的机器可读契约在 `$BASE/openapi.json`。
+
+</details>
 
 ## 🎨 主题系统
 
