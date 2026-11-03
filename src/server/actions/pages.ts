@@ -189,7 +189,21 @@ const updatePageSchema = z.object({
 export async function updatePageAction(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+
+  // #124 hardening: analyticsScript/customCss are raw code rendered into the
+  // public page (dangerouslySetInnerHTML). A member writing them could run
+  // same-origin script inside an admin's PreviewPane iframe (escapable
+  // sandbox) — member→admin XSS. Members never see these inputs (settings
+  // tabs are admin-gated); this closes direct action calls. Queried only
+  // when the fields are present so regular page saves stay cheap.
+  if (formData.has("analyticsScript") || formData.has("customCss")) {
+    const { caps } = await getCapabilitiesForUser(session.userId);
+    if (!caps.manageInstance) {
+      return forbiddenError("Only instance admins can edit code-injection page fields");
+    }
+  }
 
   const data: Record<string, unknown> = {
     pageId: formData.get("pageId"),

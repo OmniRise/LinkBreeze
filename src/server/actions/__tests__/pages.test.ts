@@ -44,6 +44,17 @@ beforeEach(() => {
   mocks.demoBlock.mockReturnValue(null);
   mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" });
   mocks.countPagesByOwner.mockResolvedValue(0);
+  // Re-establish the default page owner — mockResolvedValue set by a test
+  // (e.g. a member-owned page) persists past clearAllMocks.
+  mocks.getPageById.mockResolvedValue({ id: 1, slug: "home", userId: 1 });
+  // Same for the capabilities mock — the 2B pageLimit tests replace the
+  // implementation wholesale and it would otherwise leak into later tests.
+  mocks.getCapabilitiesForUser.mockImplementation(async (userId: number) => ({
+    roleText: userId === 1 ? "admin" : "owner",
+    caps: userId === 1
+      ? { pagesLimit: null, visibility: "manage_all", manageAccounts: true, manageInstance: true }
+      : { pagesLimit: 1, visibility: "own", manageAccounts: false, manageInstance: false },
+  }));
 });
 
 describe("createPageAction", () => {
@@ -124,6 +135,38 @@ describe("updatePageAction", () => {
   it("updates a page", async () => {
     const res = await updatePageAction(fd({ pageId: "1", title: "Updated" }));
     expect(res.success).toBe(true);
+  });
+
+  // #124 hardening: analyticsScript/customCss are instance-admin-only (raw
+  // code on the public page = member→admin XSS via the preview iframe).
+  it("refuses analyticsScript from a non-instance-admin", async () => {
+    mocks.getSession.mockResolvedValue({ userId: 2, username: "member", exp: Date.now() + 60000, pv: 1 });
+    mocks.getPageById.mockResolvedValue({ id: 1, slug: "home", userId: 2 });
+    const res = await updatePageAction(fd({ pageId: "1", analyticsScript: "<script>x()</script>" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updatePage).not.toHaveBeenCalled();
+  });
+
+  it("refuses customCss from a non-instance-admin", async () => {
+    mocks.getSession.mockResolvedValue({ userId: 2, username: "member", exp: Date.now() + 60000, pv: 1 });
+    mocks.getPageById.mockResolvedValue({ id: 1, slug: "home", userId: 2 });
+    const res = await updatePageAction(fd({ pageId: "1", customCss: ".x{}" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updatePage).not.toHaveBeenCalled();
+  });
+
+  it("still lets a member save their own page without the code fields", async () => {
+    mocks.getSession.mockResolvedValue({ userId: 2, username: "member", exp: Date.now() + 60000, pv: 1 });
+    mocks.getPageById.mockResolvedValue({ id: 1, slug: "home", userId: 2 });
+    const res = await updatePageAction(fd({ pageId: "1", title: "Member title" }));
+    expect(res.success).toBe(true);
+    expect(mocks.updatePage).toHaveBeenCalledWith(1, expect.objectContaining({ title: "Member title" }));
+  });
+
+  it("lets an instance admin write analyticsScript", async () => {
+    const res = await updatePageAction(fd({ pageId: "1", analyticsScript: "<script>a()</script>" }));
+    expect(res.success).toBe(true);
+    expect(mocks.updatePage).toHaveBeenCalledWith(1, expect.objectContaining({ analyticsScript: "<script>a()</script>" }));
   });
 
   it("passes isDefault=true through to the query layer", async () => {
