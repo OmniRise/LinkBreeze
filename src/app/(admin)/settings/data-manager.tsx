@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { localizeActionError } from "@/lib/action-error-i18n";
+import { AB_AUTO_PROMOTE_SETTING } from "@/lib/ab-test";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -12,6 +13,7 @@ import {
   setRetention,
 } from "@/server/actions/data";
 import { toggleUpdateCheck } from "@/server/actions/update-check";
+import { setAbAutoPromote } from "@/server/actions/links";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,9 +36,12 @@ import {
 export function DataManager({
   retentionDays,
   updateCheckEnabled,
+  abAutoPromoteEnabled,
 }: {
   retentionDays: string;
   updateCheckEnabled: boolean;
+  /** #81 E.1: global auto-promotion for significant A/B tests (default off). */
+  abAutoPromoteEnabled: boolean;
 }) {
   const t = useTranslations("settings.data");
   const tErr = useTranslations("errors");
@@ -196,6 +201,33 @@ export function DataManager({
               defaultChecked={updateCheckEnabled}
               onChange={async (e) => {
                 await toggleUpdateCheck(e.target.checked);
+                router.refresh();
+              }}
+            />
+            <div className="peer h-5 w-9 rounded-full bg-muted transition-colors after:absolute after:left-[2px] after:top-[2px] after:size-4 after:rounded-full after:bg-foreground after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-4" />
+          </label>
+        </div>
+
+        {/* #81 E.1: auto-promotion of significant A/B tests (settings KV,
+            default OFF — opted-in automation only). Same switch pattern as
+            update notifications above. */}
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <div>
+            <p className="text-sm font-medium">{t("abAutoPromote")}</p>
+            <p className="text-xs text-muted-foreground">{t("abAutoPromoteHint")}</p>
+          </div>
+          <label htmlFor="ab-auto-promote" className="relative inline-flex cursor-pointer items-center">
+            <input
+              id="ab-auto-promote"
+              type="checkbox"
+              role="switch"
+              aria-label={t("abAutoPromote")}
+              className="peer sr-only"
+              defaultChecked={abAutoPromoteEnabled}
+              onChange={async (e) => {
+                const fd = new FormData();
+                fd.set(AB_AUTO_PROMOTE_SETTING, e.target.checked ? "on" : "off");
+                await setAbAutoPromote(fd);
                 router.refresh();
               }}
             />

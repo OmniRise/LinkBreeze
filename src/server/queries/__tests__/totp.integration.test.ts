@@ -98,8 +98,10 @@ describe("TOTP integration", () => {
     expect(verifyTrustToken(tok, userId, secret, ua)).toBe(true); // token math still matches stale secret…
     // …but login() gates on totpEnabled && totpSecret, so it can never be used.
     expect(disabled!.totpEnabled && disabled!.totpSecret).toBeFalsy();
-    // bcryptjs cost-12 × 8 recovery codes measures ~8s on dev hardware (single-threaded JS),
-    // well past vitest's 5s default — CI runners squeak under; give this test an honest budget.
+    // Argon2 re-hashes + bcryptjs cost-12 recovery codes make this lifecycle
+    // heavy on single-threaded JS — well past vitest's 5s default, and it
+    // flaked at 5000ms on a CPU-contended box (5.18s even in isolation).
+    // 30s still fails a genuine hang.
   });
 
   it("secret encrypted at rest is never the plaintext in the DB", async () => {

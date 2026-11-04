@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/card";
 import { RangePicker } from "@/app/(admin)/dashboard/range-picker";
 import { ClicksChart } from "./clicks-chart";
+import { AbTestCard } from "./ab-test-card";
+import { parseAbConfig } from "@/lib/ab-test";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +51,10 @@ export default async function LinkDetailPage({
   ]);
   if (!stats) notFound();
 
-  const { link, totalClicks, clicksPerDay, topReferrers } = stats;
+  const { link, totalClicks, clicksPerDay, topReferrers, variants } = stats;
+  // #81: per-variant breakdown card — only when the link carries a valid
+  // config (URL links; malformed JSON degrades to no card).
+  const abConfig = link.type === "url" ? parseAbConfig(link.abConfig ?? null) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,6 +90,17 @@ export default async function LinkDetailPage({
           <ClicksChart data={clicksPerDay} locale={locale} />
         </CardContent>
       </Card>
+
+      {/* #81: per-variant breakdown + lifecycle controls (URL links with a
+          test; archived configs render as read-only history). */}
+      {abConfig ? (
+        <AbTestCard
+          linkId={link.id}
+          config={abConfig}
+          clicksA={variants.a}
+          clicksB={variants.b}
+        />
+      ) : null}
 
       <Card>
         <CardHeader>

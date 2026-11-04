@@ -171,6 +171,17 @@ const en = {
   },
 
   linksPage: {
+    abTest: "A/B test",
+    abTestHint: "Split clicks between this URL and a second destination",
+    abVariantBUrl: "Variant B URL",
+    abLabelA: "Label A (optional)",
+    abLabelB: "Label B (optional)",
+    abWeightA: "Weight A (%)",
+    abWeightHint: "Variant B gets the rest. 50 = even split.",
+    abOpenBoth: "Open both",
+    abStartsAt: "Starts (optional)",
+    abEndsAt: "Ends (optional)",
+
     deleting: "Deleting…",
     delete: "Delete",
 
@@ -940,6 +951,8 @@ const en = {
       exportCsv: "Export CSV",
       retentionLabel: "Analytics retention (days)",
       updateNotifications: "Update notifications",
+      abAutoPromote: "A/B test auto-promotion",
+      abAutoPromoteHint: "Automatically promote a significant winner and archive the test (200+ clicks).",
       restoreTitle: "Restore backup?",
       clearAnalyticsTitle: "Clear all analytics?",
       clearTitle: "Clear all subscribers?",
@@ -1036,6 +1049,25 @@ const en = {
   },
 
   linkDetail: {
+    abTitle: "A/B test",
+    abStatusRunning: "Running",
+    abStatusPaused: "Paused",
+    abStatusArchived: "Archived",
+    abShareCol: "Share",
+    abLiftB: "Lift B vs A",
+    abSignificant: "Statistically significant (95%)",
+    abNotSignificant: "Not enough data for a confident winner",
+    abPausedNote: "Paused - all clicks go to variant A.",
+    abArchivedNote: "Archived - winner: {variant}",
+    abPause: "Pause",
+    abResume: "Resume",
+    abPromote: "Promote {variant}",
+    abPromoteAConfirm: "Pin the current URL as the permanent destination and archive the test? Click history is kept.",
+    abPromoteBConfirm: "Pin variant B as the permanent destination and archive the test? The main URL will be updated; click history is kept.",
+    abConfirm: "Confirm",
+    abRemove: "Remove test",
+    abRemoveConfirm: "Remove the A/B test? Click history is kept, but the test configuration is deleted.",
+
     backToLinks: "Back to links",
     clicksOverTime: "Clicks over time",
     dailyClicks: "Daily clicks for this link",

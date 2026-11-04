@@ -42,8 +42,12 @@ import {
   slugError,
   MAX_SLUG_LENGTH,
 } from "@/lib/link-slug";
-import { checkSlugAvailability } from "@/server/actions/links";
+import {
+  checkSlugAvailability,
+  setAbTest,
+} from "@/server/actions/links";
 import { useSavedAction } from "@/hooks/use-saved-action";
+import { AbTestEditor } from "./ab-test-editor";
 
 /** Derive the dialog's initial icon mode from an editing row (#91). */
 function initialIconMode(editing?: LinkRow | null): IconMode {
@@ -335,6 +339,28 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
       if (!result.success) {
         setActionError(result.error ?? null);
         return;
+      }
+      // #81 A/B test: chain after the link save so a brand-new row exists
+      // before setAbTest reads it. Toggle OFF at save = leave any existing
+      // test untouched (removal is explicit via the detail page's Remove).
+      // Reads the UNCONTROLLED inputs directly — the editor's hidden
+      // ab_enabled flag gates whether the fields are even present.
+      if (editing && formData.get("ab_enabled") === "on") {
+        const abData = new FormData();
+        abData.set("id", String(editing.id));
+        abData.set("urlB", String(formData.get("ab_urlB") ?? ""));
+        abData.set("labelA", String(formData.get("ab_labelA") ?? ""));
+        abData.set("labelB", String(formData.get("ab_labelB") ?? ""));
+        abData.set("weightA", String(formData.get("ab_weightA") ?? "50"));
+        // E.2 time box: empty string = unbounded side (server stores null).
+        abData.set("startsAt", String(formData.get("ab_startsAt") ?? ""));
+        abData.set("endsAt", String(formData.get("ab_endsAt") ?? ""));
+        const abResult = await savedAction.run(setAbTest, abData);
+        if (!abResult.success) {
+          // The link itself saved; surface the A/B error without closing.
+          setActionError(abResult.error ?? null);
+          return;
+        }
       }
       setActionError(null);
       router.refresh();
@@ -652,6 +678,12 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
               <UTMField label={t("utmTerm")} name="utm_term" placeholder="running_shoes" defaultValue={utmDefaults.term} />
               <UTMField label={t("utmContent")} name="utm_content" placeholder="banner_ad_1" defaultValue={utmDefaults.content} />
             </div>
+          ) : null}
+
+          {/* #81 A/B test editor — URL links only, editing only (setAbTest
+              needs a saved row). Sits with the other expandable builders. */}
+          {isUrlType && editing ? (
+            <AbTestEditor storedConfig={editing.abConfig ?? null} urlA={editing.url} />
           ) : null}
 
           {/* Schedule builder — expands under the toggle strip */}

@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 5c392c873ab0 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 31a9964a6a50 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -163,6 +163,17 @@ const it: Messages = {
   },
 
   linksPage: {
+    abTest: "Test A/B",
+    abTestHint: "Dividi i clic tra questo URL e una seconda destinazione",
+    abVariantBUrl: "URL della variante B",
+    abLabelA: "Etichetta A (facoltativa)",
+    abLabelB: "Etichetta B (facoltativa)",
+    abWeightA: "Peso A (%)",
+    abWeightHint: "La variante B riceve il resto. 50 = divisione pari.",
+    abOpenBoth: "Apri entrambi",
+    abStartsAt: "Inizio (facoltativo)",
+    abEndsAt: "Fine (facoltativo)",
+
     deleting: "Eliminazione…",
     delete: "Elimina",
 
@@ -932,6 +943,8 @@ const it: Messages = {
       exportCsv: "Esporta CSV",
       retentionLabel: "Conservazione analitiche (giorni)",
       updateNotifications: "Notifiche di aggiornamento",
+      abAutoPromote: "Auto-promozione dei test A/B",
+      abAutoPromoteHint: "Promuovi automaticamente un vincitore significativo e archivia il test (oltre 200 clic).",
       restoreTitle: "Ripristinare il backup?",
       clearAnalyticsTitle: "Cancellare tutte le analitiche?",
       clearTitle: "Cancellare tutti gli iscritti?",
@@ -1028,6 +1041,25 @@ const it: Messages = {
   },
 
   linkDetail: {
+    abTitle: "Test A/B",
+    abStatusRunning: "In corso",
+    abStatusPaused: "In pausa",
+    abStatusArchived: "Archiviato",
+    abShareCol: "Quota",
+    abLiftB: "Differenza B vs A",
+    abSignificant: "Statisticamente significativa (95%)",
+    abNotSignificant: "Dati insufficienti per un vincitore affidabile",
+    abPausedNote: "In pausa: tutti i clic vanno alla variante A.",
+    abArchivedNote: "Archiviato: vincitore {variant}",
+    abPause: "Metti in pausa",
+    abResume: "Riprendi",
+    abPromote: "Promuovi {variant}",
+    abPromoteAConfirm: "Fissa l'URL attuale come destinazione permanente e archivia il test? La cronologia dei clic viene conservata.",
+    abPromoteBConfirm: "Fissa la variante B come destinazione permanente e archivia il test? L'URL principale verrà aggiornato; la cronologia dei clic viene conservata.",
+    abConfirm: "Conferma",
+    abRemove: "Rimuovi test",
+    abRemoveConfirm: "Rimuovere il test A/B? La cronologia dei clic viene conservata, ma la configurazione del test viene eliminata.",
+
     backToLinks: "Torna ai link",
     clicksOverTime: "Clic nel tempo",
     dailyClicks: "Clic giornalieri per questo link",

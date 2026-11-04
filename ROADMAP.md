@@ -8,8 +8,8 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 ## Now
 
+- **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance, each with their own public page, plus sign-in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID, ...) alongside local accounts.
 - **A/B testing for links** (#81) - variant split, per-variant analytics, promote-to-winner.
-
 - **Markdown text cards with pop-up full text** - text cards render markdown-format content (clickable `[text](url)` hyperlinks and more), and a card's full text opens in a pop-up.
 
 ## Next

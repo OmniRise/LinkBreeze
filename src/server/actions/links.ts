@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
-import { buildMapsUrl, isMapsShortLink } from "@/lib/link-url";
+import { isAllowedLinkUrl, buildMapsUrl, isMapsShortLink } from "@/lib/link-url";
+import { z } from "zod";
 import { linkSchema } from "@/lib/validation/link";
 import { LOCALE_COOKIE } from "@/i18n/config";
 import { fetchAndCacheFavicon, extractDomain } from "@/lib/favicon";
@@ -20,8 +21,17 @@ import {
   reorderLinks as reorderLinksQuery,
   isSlugTaken,
   getCapabilitiesForUser,
+  updateSetting,
 } from "@/server/queries";
 import { canEditPage } from "@/lib/ownership";
+import {
+  abConfigSchema,
+  parseAbConfig,
+  serializeAbConfig,
+  AB_AUTO_PROMOTE_SETTING,
+  type AbConfig,
+  type AbStatus,
+} from "@/lib/ab-test";
 import {
   normalizeSlug,
   slugError,
@@ -590,4 +600,259 @@ export async function checkSlugAvailability(
   return taken
     ? { success: true, available: false, error: "This slug is already in use" }
     : { success: true, available: true };
+}
+
+// ─── #81 A/B testing ─────────────────────────────────────────────────────────
+
+const abWeightsSchema = z.object({
+  weightA: z.coerce.number().int().min(1).max(99),
+});
+
+/**
+ * #81 — enable or update the A/B test on a URL-type link.
+ *
+ * Variant A is the link's own url (untouched); this action stores variant
+ * B's destination, labels and integer weight (B = 100 - A). Re-saving an
+ * existing test keeps its lifecycle status and winner — only pause/resume
+ * and promote change those. Editing an ARCHIVED test reopens it as paused
+ * (never silently restarts a finished test's split).
+ */
+export async function setAbTest(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  if (link.type !== "url") {
+    return validationError("A/B tests are only available for URL links");
+  }
+
+  const rawWeightA = formData.get("weightA");
+  const w = abWeightsSchema.safeParse({ weightA: rawWeightA ?? 50 });
+  if (!w.success) {
+    return validationError("Weight A must be a whole number between 1 and 99");
+  }
+  const weightA = w.data.weightA;
+  const weightB = 100 - weightA;
+
+  const urlB = String(formData.get("urlB") ?? "").trim();
+  if (!urlB) return validationError("Variant B needs a destination URL");
+  // SAME validator as the primary add-link path (repo security rule).
+  if (!isAllowedLinkUrl("url", urlB)) {
+    return validationError("Variant B must be an http(s) URL");
+  }
+
+  const labelA = String(formData.get("labelA") ?? "").trim() || null;
+  const labelB = String(formData.get("labelB") ?? "").trim() || null;
+  // Negative parity with abConfigSchema's .max(60) (#81 E.82): the editor
+  // caps both inputs, but without this a direct action call could store a
+  // config the schema refuses to parse — the test would then silently
+  // degrade to NULL (hidden until re-saved).
+  if (labelA && labelA.length > 60) {
+    return validationError("Label A must be 60 characters or fewer");
+  }
+  if (labelB && labelB.length > 60) {
+    return validationError("Label B must be 60 characters or fewer");
+  }
+
+  // E.2 time box: datetime-local values stored as-is (local wall-clock,
+  // no TZ conversion — matches the schema comment). Empty = unbounded side.
+  // The schema refines reject unparseable bounds and end-before-start.
+  const startsAt = String(formData.get("startsAt") ?? "").trim() || null;
+  const endsAt = String(formData.get("endsAt") ?? "").trim() || null;
+
+  const existing = parseAbConfig(link.abConfig ?? null);
+  const status: AbStatus = existing
+    ? existing.status === "archived"
+      ? "paused"
+      : existing.status
+    : "running";
+
+  const config: AbConfig = {
+    v: 1,
+    status,
+    labelA,
+    labelB,
+    urlB,
+    weightA,
+    weightB,
+    winner: existing?.winner ?? null,
+    startsAt,
+    endsAt,
+  };
+  const validated = abConfigSchema.safeParse(config);
+  if (!validated.success) {
+    return validationError("Invalid A/B configuration");
+  }
+
+  try {
+    await updateLinkQuery(id, { abConfig: serializeAbConfig(validated.data) });
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("setAbTest", err, { id });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/** #81 — pause (revert to A, keep data) or resume a running test. */
+export async function setAbTestStatus(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+  const status = String(formData.get("status") ?? "");
+  if (status !== "running" && status !== "paused") {
+    return validationError("Invalid status");
+  }
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  const existing = parseAbConfig(link.abConfig ?? null);
+  if (!existing) return validationError("This link has no A/B test");
+  if (existing.status === "archived") {
+    return validationError("An archived test cannot be restarted — set a new test instead");
+  }
+
+  try {
+    await updateLinkQuery(id, {
+      abConfig: serializeAbConfig({ ...existing, status }),
+    });
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("setAbTestStatus", err, { id, status });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/**
+ * #81 — promote a variant to the permanent destination and archive the
+ * test. Promoting A pins the current url; promoting B copies urlB into
+ * links.url (the short URL/QR keep working — they point at /go/:id).
+ * Labels, weights, urlB and all variant-labeled click rows stay as history.
+ */
+export async function promoteAbVariant(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+  const winner = String(formData.get("winner") ?? "");
+  if (winner !== "A" && winner !== "B") {
+    return validationError("Winner must be A or B");
+  }
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  const existing = parseAbConfig(link.abConfig ?? null);
+  if (!existing) return validationError("This link has no A/B test");
+
+  try {
+    if (winner === "B") {
+      // Re-check the allowlist at promote time too — the config may predate
+      // a validator tightening or come from a restored backup.
+      if (!isAllowedLinkUrl("url", existing.urlB)) {
+        return validationError("Variant B is no longer an allowed destination");
+      }
+      await updateLinkQuery(id, {
+        url: existing.urlB,
+        abConfig: serializeAbConfig({ ...existing, status: "archived", winner }),
+      });
+    } else {
+      await updateLinkQuery(id, {
+        abConfig: serializeAbConfig({ ...existing, status: "archived", winner }),
+      });
+    }
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("promoteAbVariant", err, { id, winner });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/** #81 — remove the test entirely (config -> NULL). Click history keeps its
+ *  variant labels; they just no longer render as an active/archived test. */
+export async function removeAbTest(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await requireAuth())) return unauthorizedError();
+
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return validationError("Invalid link id");
+
+  const link = await getLink(id);
+  if (!link) return notFoundError("Link not found");
+  if (!parseAbConfig(link.abConfig ?? null)) {
+    return validationError("This link has no A/B test");
+  }
+
+  try {
+    await updateLinkQuery(id, { abConfig: null });
+    revalidatePath("/links");
+    revalidatePath(`/links/${id}`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    logError("removeAbTest", err, { id });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
+}
+
+/**
+ * #81 E.1 — global auto-promotion toggle (settings KV `abAutoPromote`).
+ *
+ * DEFAULT OFF: an operator who set up a manual test never gets it promoted
+ * out from under them without opting in. When on, the throttled scanner in
+ * src/server/ab-auto-promote.ts promotes any running test whose variant
+ * clicks clear the minimum sample with a significant margin.
+ */
+export async function setAbAutoPromote(formData: FormData): Promise<ActionResult> {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
+  if (!(await getSession())) return unauthorizedError();
+
+  const enabled = formData.get(AB_AUTO_PROMOTE_SETTING) === "on";
+  try {
+    await updateSetting(AB_AUTO_PROMOTE_SETTING, enabled ? "on" : "off");
+    revalidatePath("/settings");
+    return { success: true };
+  } catch (err) {
+    logError("setAbAutoPromote", err, { enabled });
+    return {
+      success: false,
+      error: "Something went wrong. Please try again.",
+      errorCode: ErrorCode.INTERNAL,
+    };
+  }
 }

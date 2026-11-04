@@ -52,7 +52,7 @@ const LINK_ROW_KEYS = [
   "id", "pageId", "sectionId", "orderIndex", "type", "title", "description",
   "url", "icon", "iconUrl", "customIconUrl", "iconMode", "autoIcon", "imageUrl",
   "isHighlighted", "isActive", "scheduleStart", "scheduleEnd", "clicksCount",
-  "cardStyle", "popupText", "ctaLabel", "redirectSlug", "createdAt",
+  "cardStyle", "popupText", "ctaLabel", "redirectSlug", "abConfig", "createdAt",
 ].sort();
 const SECTION_ROW_KEYS = ["id", "pageId", "title", "icon", "orderIndex", "createdAt"].sort();
 const PROFILE_KEYS = ["displayName", "bio", "badgeText", "avatarUrl", "socialLinks"].sort();
