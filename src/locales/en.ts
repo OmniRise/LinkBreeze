@@ -39,6 +39,7 @@ const en = {
   },
 
   nav: {
+    app: "App",
     dashboard: "Dashboard",
     links: "Links",
     theme: "Theme",
