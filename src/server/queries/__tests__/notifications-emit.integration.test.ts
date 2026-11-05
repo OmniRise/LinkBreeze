@@ -213,6 +213,145 @@ describe("[integration] real delivery pipeline writes the log", () => {
   });
 });
 
+// ── Wiring-specific coverage (goal audit 2026-11-05) ──────────────────
+
+describe("[integration] #13 wiring guarantees", () => {
+  it("fire-and-forget: the click request resolves BEFORE delivery completes, and the delivery still logs", async () => {
+    const page = seedPage({ slug: "emit-fire" });
+    const link = seedLink({ pageId: page.id });
+    seedConfig({ pageId: page.id, viewsThreshold: null, clicksThreshold: 1 });
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const fetchMock = vi.fn(async (): Promise<Response> => {
+      await gate;
+      return new Response("{}", { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      // Production path: NO injected deps -> real fire-and-forget delivery
+      // through the stubbed global fetch. Must not wait on the gated fetch.
+      await recordClick(link.id, "v1", null);
+
+      // The request path finished while delivery is still in flight.
+      const pending = allDeliveries();
+      expect(pending).toHaveLength(1);
+      expect(pending[0].status).toBe("pending");
+
+      release();
+      await vi.waitFor(() => {
+        const rows = allDeliveries();
+        expect(rows).toHaveLength(1);
+        expect(rows[0].status).toBe("success");
+        expect(rows[0].httpStatus).toBe(200);
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("fire-and-forget: a failing delivery never fails the request path", async () => {
+    const page = seedPage({ slug: "emit-fail" });
+    const link = seedLink({ pageId: page.id });
+    seedConfig({ pageId: page.id, viewsThreshold: null, clicksThreshold: 1 });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (): Promise<Response> => new Response("{}", { status: 500 })),
+    );
+    try {
+      // Must resolve (not throw) even though every delivery attempt 500s.
+      await expect(recordClick(link.id, "v1", null)).resolves.toBeUndefined();
+
+      // The click itself landed despite the delivery failure; the retries
+      // run on the real backoff (200ms + 800ms) off the request path, so
+      // give the waitFor a window that outlasts the backoff.
+      await vi.waitFor(
+        () => {
+          const rows = allDeliveries();
+          expect(rows).toHaveLength(1);
+          expect(rows[0].status).toBe("failed");
+          expect(rows[0].attempt).toBe(3);
+          expect(rows[0].httpStatus).toBe(500);
+        },
+        { timeout: 5_000, interval: 50 },
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("form_submission metric stays unwired (reserved for #125): emitNotification ignores it", async () => {
+    const page = seedPage({ slug: "emit-form" });
+    seedConfig({ pageId: page.id, clicksThreshold: 1, viewsThreshold: 1 });
+    const r = recorder();
+    setEmitDeps(r.deps);
+
+    await emitNotification({
+      type: "form_submission",
+      pageId: page.id,
+      pageTitle: "Emit Form",
+      slug: "emit-form",
+      metric: "form_submissions",
+      level: 0,
+      total: 10_000,
+      dedupeKey: "",
+    });
+    expect(r.calls).toEqual([]);
+    expect(allDeliveries()).toHaveLength(0);
+  });
+
+  it("instance-wide event (pageId: null) broadcasts to every enabled config", async () => {
+    const pageA = seedPage({ slug: "emit-broadcast-a" });
+    const pageB = seedPage({ slug: "emit-broadcast-b" });
+    const cfgA = seedConfig({ pageId: pageA.id, clicksThreshold: 5, viewsThreshold: null });
+    const cfgB = seedConfig({ pageId: pageB.id, clicksThreshold: 5, viewsThreshold: null });
+    const disabled = seedConfig({
+      pageId: pageA.id,
+      enabled: false,
+      clicksThreshold: 5,
+      viewsThreshold: null,
+    });
+    const r = recorder();
+    setEmitDeps(r.deps);
+
+    // A null-page event matches every config (per-page configs are the only
+    // kind the schema allows — page_id is NOT NULL — so "instance-wide" is
+    // expressed as an event without a page, fanned out to all of them).
+    await emitNotification({
+      type: "milestone",
+      pageId: null,
+      pageTitle: "Instance",
+      slug: null,
+      metric: "clicks",
+      level: 0,
+      total: 10,
+      dedupeKey: "",
+    });
+    expect(r.calls.map((c) => c.configId).sort()).toEqual([cfgA.id, cfgB.id].sort());
+    expect(r.calls.map((c) => c.configId)).not.toContain(disabled.id);
+  });
+
+  it("clicks across ALL of a page's links aggregate into one page-level total", async () => {
+    const page = seedPage({ slug: "emit-multi" });
+    const link1 = seedLink({ pageId: page.id });
+    const link2 = seedLink({ pageId: page.id });
+    const cfg = seedConfig({ pageId: page.id, viewsThreshold: null, clicksThreshold: 3 });
+    const r = recorder();
+    setEmitDeps(r.deps);
+
+    await recordClick(link1.id, "v1", null); // 1
+    await recordClick(link2.id, "v2", null); // 2 — below threshold
+    expect(r.calls).toEqual([]);
+
+    await recordClick(link1.id, "v3", null); // 3 — crosses on the combined total
+    expect(r.calls).toEqual([
+      { configId: cfg.id, key: `milestone:clicks:${cfg.id}:3` },
+    ]);
+    void page;
+  });
+});
+
 describe("[integration] notification config queries", () => {
   it("deletes cascade from pages", async () => {
     const page = seedPage({ slug: "emit-h" });
