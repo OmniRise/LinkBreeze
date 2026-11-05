@@ -915,6 +915,12 @@ export type AccountSummaryRow = Pick<
 > & { roleId: number | null; roleName: string | null; pageSlug: string | null };
 
 export async function listAccountSummaries(): Promise<AccountSummaryRow[]> {
+  // One row per ACCOUNT. The pages join used to be a plain LEFT JOIN, which
+  // multiplied a user across every page they own (admin owning 3 pages came
+  // out as 3 rows with the same user id — duplicate React keys "1" and the
+  // account listed three times). The page slug now comes from a correlated
+  // subquery pinned to the account's primary page (default first, then
+  // alphabetical), so the row count is exactly the account count.
   return db
     .select({
       id: users.id,
@@ -925,10 +931,11 @@ export async function listAccountSummaries(): Promise<AccountSummaryRow[]> {
       status: users.status,
       createdAt: users.createdAt,
       lastLoginAt: users.lastLoginAt,
-      pageSlug: pages.slug,
+      pageSlug: sql<
+        string | null
+      >`(select p.slug from pages p where p.user_id = ${users.id} order by p.is_default desc, p.slug asc limit 1)`,
     })
     .from(users)
-    .leftJoin(pages, eq(pages.userId, users.id))
     .leftJoin(roles, eq(users.roleId, roles.id))
     .orderBy(asc(users.id));
 }

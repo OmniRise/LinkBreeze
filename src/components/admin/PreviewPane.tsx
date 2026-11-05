@@ -306,7 +306,10 @@ function PhoneFrame({ src, scrollRef }: { src: string; scrollRef: React.RefObjec
           title={t("livePreview")}
           className="h-full w-full border-0"
           loading="lazy"
-          sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+          // No sandbox: the preview loads the instance's OWN public page
+          // (same origin). allow-scripts + allow-same-origin together make
+          // the sandbox a no-op AND Chrome logs a console warning on every
+          // load, so the attribute bought nothing here.
         />
       </div>
     </div>
