@@ -8,8 +8,6 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 ## Now
 
-- **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance, each with their own public page, plus sign-in through any standard identity provider (Authentik, Keycloak, Authelia, Pocket ID, ...) alongside local accounts.
-- **A/B testing for links** (#81) - variant split, per-variant analytics, promote-to-winner.
 - **Markdown text cards with pop-up full text** - text cards render markdown-format content (clickable `[text](url)` hyperlinks and more), and a card's full text opens in a pop-up.
 
 ## Next
@@ -30,10 +28,8 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 Recent highlights - the full history lives in [CHANGELOG.md](CHANGELOG.md):
 
-- **Public REST API** (#4) - programmatic link management for power users and integrations.
+- **A/B testing for links** (#81)
 
-- **Multi-user support with generic OIDC/OAuth2 SSO** (#124) - multiple accounts per instance + sign-in through any standard identity provider alongside local accounts.
+- **Public REST API** (#4)
 
-- **v1.5.1** - 11-language, CasaOS + Runtipi + Unraid app-store packaging, Update status card, a Linktree import fix and a demo-guard security fix.
-
-- **v1.5.0** - custom domains, automatic scheduled backups, custom `/go/` redirect slugs, `@` in page slugs, Poster Hero OG cards, official `omnirise/linkbreeze` Docker image, one-shot `update.sh`.
+- **Multi-user support with generic OIDC/OAuth2 SSO** (#124)
