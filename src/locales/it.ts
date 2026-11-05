@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 31a9964a6a50 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 72e2e697a407 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -31,6 +31,7 @@ const it: Messages = {
   },
 
   nav: {
+    app: "App",
     dashboard: "Dashboard",
     links: "Link",
     theme: "Tema",

@@ -14,7 +14,8 @@ import { MobileTabBar } from "@/components/admin/MobileTabBar";
 import { PageSwitcher } from "@/components/admin/PageSwitcher";
 import { getCapabilitiesForUser } from "@/server/queries";
 import { filterVisiblePages } from "@/lib/ownership";
-import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminSidebar } from "@/components/admin/admin-sidebar";
+import { getUpdateStatus } from "@/lib/update-check";
 import { PreviewProvider } from "@/components/admin/PreviewPane";
 import { getLocale } from "@/i18n/server";
 import { LOCALE_HTML_LANG, localeDir } from "@/i18n/config";
@@ -75,6 +76,9 @@ export default async function AdminLayout({
     isPublished: p.isPublished,
   }));
 
+  // Update chip for the sidebar floor (24h KV-cached; quiet when disabled).
+  const updateStatus = await getUpdateStatus();
+
   return (
     <NextIntlClientProvider>
     <PreviewProvider pages={pageList}>
@@ -88,57 +92,20 @@ export default async function AdminLayout({
         {/* Full-bleed row: sidebar anchors to the left edge instead of floating
             in a centered box, so the layout stays grounded at every resolution. */}
         <div className="flex w-full">
-          {/* Sidebar — pinned left, full viewport height, sticky while scrolling */}
-          <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar p-4 md:flex md:sticky md:top-0 md:h-dvh md:self-start">
-            <div className="mb-8 flex items-center gap-2 px-2">
-              <a
-                href="https://linkbreeze.omnirise.dev/"
-                target="_blank"
-                rel="noopener noreferrer"
-                title={t("visitSite")}
-                aria-label={t("visitSite")}
-                className="flex items-center gap-2 rounded-md transition-opacity hover:opacity-80"
-              >
-                <Image src="/logo-mark.svg" alt="LinkBreeze" width={24} height={24} unoptimized />
-                <span className="font-heading text-lg font-semibold">LinkBreeze</span>
-              </a>
-            </div>
-
-            <React.Suspense fallback={null}>
-              <AdminNav canManageAccounts={capsForUser.caps.manageAccounts} canManageInstance={capsForUser.caps.manageInstance} />
-            </React.Suspense>
-
-            <div className="border-t border-border pt-3 mb-3">
-              <p className="mb-1.5 px-2.5 text-xs font-medium text-muted-foreground">
-                {t("pagesSection")}
-              </p>
-              <React.Suspense fallback={null}>
-                <PageSwitcher pages={pageList} />
-              </React.Suspense>
-            </div>
-
-            <div className="mt-auto flex flex-col gap-2 border-t border-border pt-3">
-              <span className="px-2.5 text-xs text-muted-foreground">
-                {t.rich("signedInAs", {
-                  name: session.username,
-                  b: (chunk) => (
-                    <span className="font-medium text-foreground">{chunk}</span>
-                  ),
-                })}
-              </span>
-              <form action={logout}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="submit"
-                  className="w-full justify-start gap-2"
-                >
-                  <LogOut className="size-4" />
-                  {t("signOut")}
-                </Button>
-              </form>
-            </div>
-          </aside>
+          {/* Sidebar — pinned left, full viewport height, sticky while scrolling.
+              Collapses to the icon rail via AdminSidebar (client). */}
+          <React.Suspense fallback={null}>
+            <AdminSidebar
+              username={session.username}
+              pages={pageList}
+              canManageAccounts={capsForUser.caps.manageAccounts}
+              canManageInstance={capsForUser.caps.manageInstance}
+              update={{
+                hasUpdate: updateStatus.hasUpdate,
+                latestVersion: updateStatus.latestVersion,
+              }}
+            />
+          </React.Suspense>
 
           {/* Main column */}
           <div className="flex min-h-dvh flex-1 flex-col min-w-0">
@@ -169,9 +136,10 @@ export default async function AdminLayout({
               </div>
             </header>
 
-            {/* pb-24 reserves space for the fixed mobile tab bar so content is
+            {/* pb-32 reserves space for the fixed mobile dock (its raised
+                center Preview button adds ~28px above the bar) so content is
                 never hidden behind it; md:pb-8 restores desktop padding. */}
-            <main className="flex-1 p-4 pb-24 md:p-6 md:pb-6">
+            <main className="flex-1 p-4 pb-32 md:p-6 md:pb-6">
               <div className="w-full">
                 {isDemoMode && (
                   <div className="mb-4 shrink-0 rounded-lg border border-violet/30 bg-violet/10 px-4 py-3 text-sm text-lavender">
@@ -189,7 +157,10 @@ export default async function AdminLayout({
               </div>
             </main>
             <React.Suspense fallback={null}>
-              <MobileTabBar canManageAccounts={capsForUser.caps.manageAccounts} canManageInstance={capsForUser.caps.manageInstance} />
+              <MobileTabBar
+                canManageAccounts={capsForUser.caps.manageAccounts}
+                canManageInstance={capsForUser.caps.manageInstance}
+              />
             </React.Suspense>
           </div>
         </div>

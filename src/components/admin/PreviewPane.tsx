@@ -125,23 +125,53 @@ function ActivePageResolver({
 
 // ── Preview Button (for sidebar + mobile tab bar) ───────────────────────
 
-export function PreviewButton({ className }: { className?: string }) {
+export function PreviewButton({
+  className,
+  variant = "sidebar",
+  labelHidden = false,
+}: {
+  className?: string;
+  /** "sidebar" = inline row (desktop sidebar); "dock" = raised aurora circle (mobile tab bar). */
+  variant?: "sidebar" | "dock";
+  labelHidden?: boolean;
+}) {
   const { open, setOpen } = React.useContext(PreviewContext);
   const t = useTranslations("preview");
+  if (variant === "dock") {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-pressed={open}
+        aria-label={t("livePreview")}
+        className={cn("group relative flex flex-col items-center", className)}
+      >
+        <span
+          className={cn(
+            "-mt-7 grid size-12 place-items-center rounded-full border-[3px] border-background shadow-[0_10px_26px_rgba(124,58,237,0.45)] transition-transform duration-150 group-hover:-translate-y-0.5",
+            open && "ring-2 ring-lavender ring-offset-2 ring-offset-background",
+          )}
+          style={{ background: "var(--aurora-grad)" }}
+        >
+          <Eye className="size-5 text-white" />
+        </span>
+        <span className="mt-0.5 text-[10px] font-semibold text-lavender">{t("livePreview")}</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
       onClick={() => setOpen(!open)}
       aria-pressed={open}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-all hover:translate-x-0.5 hover:bg-violet/15 hover:text-lavender",
+        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-all hover:translate-x-0.5 rtl:hover:-translate-x-0.5 hover:bg-violet/15 hover:text-lavender",
         open && "bg-violet/15 text-lavender",
         className,
       )}
     >
       <Eye className="size-4" />
-      <span className="hidden lg:inline">{t("livePreview")}</span>
-      <span className="lg:hidden">{t("livePreview")}</span>
+      <span className={cn(labelHidden && "hidden")}>{t("livePreview")}</span>
     </button>
   );
 }
@@ -276,7 +306,10 @@ function PhoneFrame({ src, scrollRef }: { src: string; scrollRef: React.RefObjec
           title={t("livePreview")}
           className="h-full w-full border-0"
           loading="lazy"
-          sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+          // No sandbox: the preview loads the instance's OWN public page
+          // (same origin). allow-scripts + allow-same-origin together make
+          // the sandbox a no-op AND Chrome logs a console warning on every
+          // load, so the attribute bought nothing here.
         />
       </div>
     </div>
