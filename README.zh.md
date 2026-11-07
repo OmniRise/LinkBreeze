@@ -77,6 +77,7 @@
 - **✏️ 自定义 CSS** - 通过原生 CSS 注入精细调整你的页面
 - **📧 邮件收集** - 在公共页面收集订阅者邮箱，导出为 CSV
 - **🔔 更新通知** - 有新版本时仪表盘横幅会提醒你。不回传数据，不自动更新
+- **🔔 里程碑 Webhook** - 当页面达到点击或浏览阈值时，通过 Discord、Slack、Telegram 或 ntfy 收到消息。设置方法见 Webhook 通知章节
 - **🔑 快速管理面板** - 以上所有功能，尽在一个简洁、即时的仪表盘
 
 - **🌐 自定义域名** - 将自有域名绑定到页面；独占或中心范围，自动 canonical 重定向，严格的管理后台主机锁定
@@ -509,6 +510,37 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 
 </details>
 
+
+## 🔔 Webhook 通知
+
+当页面跨越点击或浏览里程碑时，通过 Discord、Slack、Telegram 或 ntfy 收到消息。每页一个 webhook，在管理后台配置 - 无需环境变量，无需重启。
+
+<details>
+<summary>🔧 &nbsp;Webhook 设置（Discord + Telegram）</summary>
+
+打开 **设置 → 集成 → Webhook 通知**，选择页面，然后：
+
+- **Webhook 地址** - 接收端 URL（见下方的服务商步骤）
+- **服务** - Discord、Slack、Telegram 或 ntfy
+- **点击阈值 / 浏览阈值** - 每 N 次点击或 N 次浏览通知一次；留空字段则关闭对应指标
+- 使用 **发送测试通知** 保存并验证送达。表单下方的最近发送记录显示最近 10 次尝试（状态、HTTP 状态码、错误信息）
+
+**Discord，逐步操作：**
+
+1. 在你的服务器中：**服务器设置 → 集成 → Webhook → 新建 Webhook**，选择公告频道
+2. **复制 Webhook URL**（形如 `https://discord.com/api/webhooks/123/abc-def`）
+3. 将其作为 webhook 地址粘贴到 LinkBreeze，选择 **Discord** 服务，填写阈值并保存。消息以富文本 embed 形式送达
+
+**Telegram，逐步操作：**
+
+1. 向 [@BotFather](https://t.me/BotFather) 发消息 → `/newbot` → 复制机器人 token
+2. 将机器人添加到你的频道并设为管理员（需要发帖权限）
+3. 构造 URL：`https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=@yourchannel`（将 `<TOKEN>` 替换为机器人 token，`@yourchannel` 替换为频道句柄；私聊请使用数字 chat id）
+4. 粘贴到 LinkBreeze，选择 **Telegram** 服务，填写阈值并保存。消息以格式化文本送达
+
+里程碑只在阈值的整数倍时触发（100、200、300...），每个阈值触发一次。如果接收端宕机，会重试 3 次并记录为失败 - 你的页面不会因此变慢，该里程碑的 webhook 直接跳过。Webhook 地址存储在数据库中，永远不会以明文出现在备份或日志里。
+
+</details>
 ## 📖 文档与链接
 
 [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md) · [故障排查](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [架构决策](docs/adr/) · [配置参考](.env.example)

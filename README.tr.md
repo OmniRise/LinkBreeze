@@ -77,6 +77,7 @@
 - **✏️ Özel CSS** - Sayfanı ham CSS enjeksiyonuyla ince ayarla
 - **📧 E-posta Toplama** - Herkese açık sayfanda abone e-postaları topla, CSV olarak dışa aktar
 - **🔔 Güncelleme Bildirimleri** - Yeni bir sürüm mevcut olduğunda panoda banner. Sunucuya sessiz veri gönderimi yok, otomatik güncelleme yok
+- **🔔 Kilometre Taşı Webhook'ları** - Bir sayfa bir tıklama veya görüntüleme eşiğine ulaştığında Discord, Slack, Telegram veya ntfy mesajı alın. Kurulum rehberi Webhook bildirimleri bölümünde
 - **🔑 Hızlı Yönetim Paneli** - Yukarıdaki her şey tek bir temiz ve anında açılan panoda
 
 - **🌐 Özel Alan Adları** - Kendi alan adlarını sayfalara bağla; tek sayfa ya da hub kapsamı, otomatik canonical yönlendirmeler, sıkı yönetici host kilidi
@@ -509,6 +510,37 @@ Tema motoru, CSS özel özelliklerine (`--lb-*`) dayalı bir token sistemidir - 
 
 </details>
 
+
+## 🔔 Webhook bildirimleri
+
+Bir sayfa bir tıklama veya görüntüleme kilometresini geçtiğinde Discord, Slack, Telegram veya ntfy mesajı alın. Sayfa başına bir webhook, yönetici panelinden yapılandırılır - ortam değişkeni yok, yeniden başlatma yok.
+
+<details>
+<summary>🔧 &nbsp;Webhook kurulumu (Discord + Telegram)</summary>
+
+**Ayarlar → Entegrasyon → Webhook bildirimleri** bölümünü aç, sayfayı seç, sonra:
+
+- **Webhook URL'si** - alıcı URL (aşağıdaki sağlayıcı adımlarına bakın)
+- **Sağlayıcı** - Discord, Slack, Telegram veya ntfy
+- **Tıklama / Görüntüleme eşiği** - her N tıklama veya N görüntülemede bildir; o metriği kapatmak için alanı boş bırakın
+- Teslimatı doğrulamak için **Test bildirimi gönder** ile kaydedin. Son 10 deneme (durum, HTTP kodu, hata) formun altındaki teslimat günlüğünde gösterilir
+
+**Discord, adım adım:**
+
+1. Sunucunuzda: **Sunucu Ayarları → Entegrasyonlar → Webhook'lar → Yeni Webhook** yolunu izleyin ve duyuru kanalını seçin
+2. **Webhook URL'sini Kopyala** (`https://discord.com/api/webhooks/123/abc-def` gibi görünür)
+3. LinkBreeze'de webhook URL'si olarak yapıştırın, **Discord** sağlayıcısını seçin, eşiklerinizi girin ve kaydedin. Mesajlar zengin embed'ler olarak gelir
+
+**Telegram, adım adım:**
+
+1. [@BotFather](https://t.me/BotFather) hesabına mesaj atın → `/newbot` → bot token'ını kopyalayın
+2. Botu kanalınıza yönetici olarak ekleyin (gönderi paylaşma iznine ihtiyacı var)
+3. URL'yi oluşturun: `https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=@yourchannel` (`<TOKEN>` yerine bot token'ını, `@yourchannel` yerine kanal adını yazın; özel sohbetler için sayısal chat id kullanın)
+4. LinkBreeze'e yapıştırın, **Telegram** sağlayıcısını seçin, eşiklerinizi girin ve kaydedin. Mesajlar biçimlendirilmiş metin olarak gelir
+
+Bildirim yalnızca eşiğin tam katlarında tetiklenir (100, 200, 300...), eşik başına bir kez. Alıcı erişilemezse teslimat 3 kez denenir ve başarısız olarak günlüğe kaydedilir - sayfanız hiç yavaşlamaz ve webhook o kilometre taşı için atlanır. Webhook URL'leri veritabanında saklanır ve hiçbir zaman yedeklere veya günlüklere açık metin olarak eklenmez.
+
+</details>
 ## 📖 Belgeler ve Bağlantılar
 
 [Katkıda Bulunma](CONTRIBUTING.md) · [Güvenlik Politikası](SECURITY.md) · [Değişiklik Günlüğü](CHANGELOG.md) · [Sorun Giderme](TROUBLESHOOTING.md) · [Özel Alan Adları](docs/custom-domains.md) · [Mimari Kararlar](docs/adr/) · [Yapılandırma başvurusu](.env.example)

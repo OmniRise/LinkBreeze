@@ -77,6 +77,7 @@
 - **✏️ Eigenes CSS** - Feintune deine Seite mit direkter CSS-Injektion
 - **📧 E-Mail-Sammlung** - Abonnenten-E-Mails auf deiner öffentlichen Seite sammeln, Export als CSV
 - **🔔 Update-Benachrichtigungen** - Dashboard-Banner, wenn eine neue Version verfügbar ist. Kein Phone-Home, kein Auto-Update
+- **🔔 Meilenstein-Webhooks** - Erhalte eine Discord-, Slack-, Telegram- oder ntfy-Nachricht, wenn eine Seite eine Klick- oder Besuchsschwelle erreicht. Einrichtungsanleitung im Abschnitt Webhook-Benachrichtigungen
 - **🔑 Schnelles Admin-Panel** - Alles oben Genannte aus einem übersichtlichen, blitzschnellen Dashboard
 
 - **🌐 Eigene Domains** - Eigene Domains auf Seiten binden; exklusiver oder Hub-Scope, automatische Canonical-Weiterleitungen, strikte Admin-Host-Sperre
@@ -509,6 +510,37 @@ Die Theme-Engine ist ein Token-System auf Basis von CSS-Custom-Properties (`--lb
 
 </details>
 
+
+## 🔔 Webhook-Benachrichtigungen
+
+Erhalte eine Discord-, Slack-, Telegram- oder ntfy-Nachricht, wenn eine Seite einen Klick- oder Besuch-Meilenstein überschreitet. Ein Webhook pro Seite, konfiguriert im Admin-Dashboard - keine Umgebungsvariablen, kein Neustart.
+
+<details>
+<summary>🔧 &nbsp;Webhook-Einrichtung (Discord + Telegram)</summary>
+
+Öffne **Einstellungen → Integration → Webhook-Benachrichtigungen**, wähle die Seite, dann:
+
+- **Webhook-URL** - die Empfänger-URL (siehe die Anbieter-Schritte unten)
+- **Anbieter** - Discord, Slack, Telegram oder ntfy
+- **Klick-/Besuch-Schwelle** - benachrichtige alle N Klicks oder N Besuche; Feld leer lassen, um die jeweilige Metrik zu deaktivieren
+- Speichere mit **Testbenachrichtigung senden**, um die Zustellung zu prüfen. Die letzten 10 Versuche (Status, HTTP-Code, Fehler) erscheinen im Zustellungsprotokoll unter dem Formular
+
+**Discord, Schritt für Schritt:**
+
+1. In deinem Server: **Servereinstellungen → Integrationen → Webhooks → Neuer Webhook**, wähle den Ankündigungskanal
+2. **Webhook-URL kopieren** (sieht aus wie `https://discord.com/api/webhooks/123/abc-def`)
+3. Füge sie in LinkBreeze als Webhook-URL ein, wähle den Anbieter **Discord**, trage deine Schwellenwerte ein und speichere. Nachrichten kommen als Rich Embeds an
+
+**Telegram, Schritt für Schritt:**
+
+1. Schreibe [@BotFather](https://t.me/BotFather) → `/newbot` → kopiere den Bot-Token
+2. Füge den Bot deinem Kanal als Administrator hinzu (er braucht die Berechtigung zu posten)
+3. Baue die URL: `https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=@yourchannel` (ersetze `<TOKEN>` durch den Bot-Token und `@yourchannel` durch den Kanalnamen; für private Chats nutze die numerische Chat-ID)
+4. Füge sie in LinkBreeze ein, wähle den Anbieter **Telegram**, trage deine Schwellenwerte ein und speichere. Nachrichten kommen als formatierter Text an
+
+Ein Meilenstein wird nur bei exakten Vielfachen der Schwelle ausgelöst (100, 200, 300...), einmal pro Schwelle. Ist der Empfänger nicht erreichbar, wird die Zustellung 3 Mal wiederholt und als fehlgeschlagen protokolliert - deine Seite wird nie verlangsamt und der Webhook wird für diesen Meilenstein einfach übersprungen. Webhook-URLs werden in der Datenbank gespeichert und erscheinen niemals im Klartext in Backups oder Logs.
+
+</details>
 ## 📖 Dokumentation & Links
 
 [Mitmachen](CONTRIBUTING.md) · [Sicherheitsrichtlinie](SECURITY.md) · [Changelog](CHANGELOG.md) · [Fehlerbehebung](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Architekturentscheidungen](docs/adr/) · [Konfigurationsreferenz](.env.example)

@@ -77,6 +77,7 @@
 - **✏️ CSS Personalizzato** - Rifinisci la tua pagina con iniezione di CSS grezzo
 - **📧 Raccolta Email** - Raccogli le email degli iscritti sulla tua pagina pubblica, esporta in CSV
 - **🔔 Notifiche di Aggiornamento** - Banner nella dashboard quando è disponibile una nuova versione. Nessun phone-home, nessun aggiornamento automatico
+- **🔔 Webhook per traguardi** - Ricevi un messaggio Discord, Slack, Telegram o ntfy quando una pagina raggiunge una soglia di clic o visualizzazioni. Guida di configurazione nella sezione Notifiche webhook
 - **🔑 Pannello Admin Veloce** - Tutto quanto sopra da una dashboard pulita e istantanea
 
 - **🌐 Domini Personalizzati** - Collega i tuoi domini alle pagine; scope esclusivo o hub, reindirizzamenti canonici automatici, rigoroso blocco dell'host admin
@@ -509,6 +510,37 @@ Il motore dei temi è un sistema di token basato su custom property CSS (`--lb-*
 
 </details>
 
+
+## 🔔 Notifiche webhook
+
+Ricevi un messaggio Discord, Slack, Telegram o ntfy quando una pagina supera un traguardo di clic o visualizzazioni. Un webhook per pagina, configurato nella dashboard admin - nessuna variabile d'ambiente, nessun riavvio.
+
+<details>
+<summary>🔧 &nbsp;Configurazione webhook (Discord + Telegram)</summary>
+
+Apri **Impostazioni → Integrazione → Notifiche webhook**, scegli la pagina, poi:
+
+- **URL del webhook** - l'URL del ricevente (vedi i passi per il provider qui sotto)
+- **Provider** - Discord, Slack, Telegram o ntfy
+- **Soglia clic / Soglia visualizzazioni** - notifica ogni N clic o N visualizzazioni; lascia un campo vuoto per disattivare quella metrica
+- Salva con **Invia notifica di prova** per verificare la consegna. Gli ultimi 10 tentativi (stato, codice HTTP, errore) compaiono nel log delle consegne sotto il modulo
+
+**Discord, passo per passo:**
+
+1. Nel tuo server: **Impostazioni server → Integrazioni → Webhook → Nuovo webhook**, scegli il canale degli annunci
+2. **Copia URL webhook** (simile a `https://discord.com/api/webhooks/123/abc-def`)
+3. Incollalo come URL del webhook in LinkBreeze, scegli il provider **Discord**, inserisci le soglie e salva. I messaggi arrivano come embed completi
+
+**Telegram, passo per passo:**
+
+1. Scrivi a [@BotFather](https://t.me/BotFather) → `/newbot` → copia il token del bot
+2. Aggiungi il bot al tuo canale come amministratore (gli serve il permesso di pubblicare)
+3. Costruisci l'URL: `https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=@yourchannel` (sostituisci `<TOKEN>` con il token del bot e `@yourchannel` con l'handle del canale; per le chat private usa l'ID chat numerico)
+4. Incollalo in LinkBreeze, scegli il provider **Telegram**, inserisci le soglie e salva. I messaggi arrivano come testo formattato
+
+Un traguardo scatta solo ai multipli esatti della soglia (100, 200, 300...), una sola volta per soglia. Se il ricevente non è raggiungibile, la consegna viene ritentata 3 volte e registrata come fallita - la tua pagina non rallenta mai e il webhook viene semplicemente saltato per quel traguardo. Gli URL dei webhook sono memorizzati nel database e non compaiono mai in chiaro nei backup o nei log.
+
+</details>
 ## 📖 Documentazione e Link
 
 [Contribuire](CONTRIBUTING.md) · [Politica di Sicurezza](SECURITY.md) · [Changelog](CHANGELOG.md) · [Risoluzione dei Problemi](TROUBLESHOOTING.md) · [Domini Personalizzati](docs/custom-domains.md) · [Decisioni Architetturali](docs/adr/) · [Riferimento Configurazione](.env.example)

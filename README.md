@@ -77,6 +77,7 @@
 - **✏️ Custom CSS** - Fine-tune your page with raw CSS injection
 - **📧 Email Capture** - Collect subscriber emails on your public page, export to CSV
 - **🔔 Update Notifications** - Dashboard banner when a new version is available. No phone-home, no auto-update
+- **🔔 Milestone Webhooks** - Get a Discord, Slack, Telegram or ntfy message when a page hits a click or view threshold. Setup guide in the [Webhook Notifications](#-webhook-notifications) section
 - **🔑 Fast Admin Panel** - Everything above from one clean, instant dashboard
 
 - **🌐 Custom Domains** - Bind your own domains to pages; exclusive or hub scope, automatic canonical redirects, strict admin host lock
@@ -506,6 +507,37 @@ The theme engine is a CSS custom property (`--lb-*`) token system - every color,
 - **Layout** - container width, alignment (left/center/right), density (compact/normal/relaxed)
 - **Effects** - glow with custom color, glass blur, noise texture, reveal animation
 - **Duplicate / import / export** - clone any theme as an editable copy and share it as JSON
+
+</details>
+
+## 🔔 Webhook Notifications
+
+Get a Discord, Slack, Telegram or ntfy message when a page crosses a click or view milestone. One webhook per page, configured in the admin dashboard - no environment variables, no restart.
+
+<details>
+<summary>🔧 &nbsp;Webhook setup (Discord + Telegram)</summary>
+
+Open **Settings → Integration → Webhook notifications**, pick the page, then:
+
+- **Webhook URL** - the receiver URL (see the provider steps below)
+- **Provider** - Discord, Slack, Telegram or ntfy
+- **Clicks / Views threshold** - notify every N clicks or N views; leave a field empty to turn that metric off
+- Save with **Send test notification** to verify the delivery. The last 10 attempts (status, HTTP code, error) show in the delivery log under the form
+
+**Discord, step by step:**
+
+1. In your server: **Server Settings → Integrations → Webhooks → New Webhook**, choose the announcement channel
+2. **Copy Webhook URL** (looks like `https://discord.com/api/webhooks/123/abc-def`)
+3. Paste it as the webhook URL in LinkBreeze, pick the **Discord** provider, enter your thresholds and save. Messages arrive as rich embeds
+
+**Telegram, step by step:**
+
+1. Message [@BotFather](https://t.me/BotFather) → `/newbot` → copy the bot token
+2. Add the bot to your channel as an administrator (it needs permission to post)
+3. Build the URL: `https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=@yourchannel` (replace `<TOKEN>` with the bot token and `@yourchannel` with the channel handle; for private chats use the numeric chat id)
+4. Paste it in LinkBreeze, pick the **Telegram** provider, enter your thresholds and save. Messages arrive as formatted text
+
+A milestone fires at exact multiples of the threshold only (100, 200, 300...), once per threshold. If the receiver is down, delivery is retried 3 times and logged as failed - your page never slows down and the webhook is simply skipped for that milestone. Webhook URLs are stored in the database and are never included in backups or logs in plaintext.
 
 </details>
 
