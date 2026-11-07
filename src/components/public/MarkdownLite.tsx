@@ -3,10 +3,12 @@
 import * as React from "react";
 
 /**
- * Minimal, safe markdown renderer for privacy policy text.
+ * Minimal, safe markdown renderer for privacy policy text (and the link
+ * dialog's live preview for #93 popup cards).
  *
- * Supports: # h1, ## h2, paragraphs, - lists, **bold**, *italic*, `code`,
- * and *italic* lines (like the date).
+ * Supports: # h1, ## h2, paragraphs, - lists, 1. ordered lists, --- dividers,
+ * **bold**, *italic*, `code`, and [text](url) links (http(s) hrefs only —
+ * anything else passes through as plain text).
  *
  * No dangerouslySetInnerHTML. All content is output as React children.
  * Only a controlled subset of markdown is parsed; unknown patterns pass through as plain text.
@@ -15,11 +17,16 @@ import * as React from "react";
  */
 
 interface ParsedLine {
-  type: "h1" | "h2" | "li" | "p" | "blank";
+  type: "h1" | "h2" | "li" | "oli" | "hr" | "p" | "blank";
   children: React.ReactNode[];
 }
 
-function renderInline(text: string): React.ReactNode[] {
+/** Only http(s) hrefs become anchors; anything else renders as plain text. */
+function isSafeHref(url: string): boolean {
+  return /^https?:\/\/\S+$/i.test(url);
+}
+
+function renderMarkers(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   // Split on **bold**, *italic*, and `code` while keeping delimiters.
   const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
@@ -57,6 +64,35 @@ function renderInline(text: string): React.ReactNode[] {
   return nodes;
 }
 
+function renderInline(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  // Link-first split so [text](url) wins over the plain markers inside it.
+  const regex = /(\[[^\]]+\]\([^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+  const parts = text.split(regex).filter(Boolean);
+
+  parts.forEach((part, i) => {
+    const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
+    if (link && isSafeHref(link[2])) {
+      nodes.push(
+        <a
+          key={i}
+          href={link[2]}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="lb-md-link"
+          style={{ color: "var(--lb-accent)", textDecoration: "underline" }}
+        >
+          {renderMarkers(link[1])}
+        </a>,
+      );
+    } else {
+      nodes.push(...renderMarkers(part));
+    }
+  });
+
+  return nodes;
+}
+
 export function MarkdownLite({ content }: { content: string }) {
   const lines = content.split("\n");
   const parsed: ParsedLine[] = lines.map((line) => {
@@ -67,6 +103,12 @@ export function MarkdownLite({ content }: { content: string }) {
     if (trimmed.startsWith("## ")) {
       return { type: "h2", children: renderInline(trimmed.slice(3)) };
     }
+    if (/^\d+\. /.test(trimmed)) {
+      return { type: "oli", children: renderInline(trimmed.slice(trimmed.indexOf(". ") + 2)) };
+    }
+    if (trimmed === "---") {
+      return { type: "hr", children: [] };
+    }
     if (trimmed.startsWith("- ")) {
       return { type: "li", children: renderInline(trimmed.slice(2)) };
     }
@@ -76,16 +118,28 @@ export function MarkdownLite({ content }: { content: string }) {
     return { type: "p", children: renderInline(trimmed) };
   });
 
-  // Group consecutive "li" lines into <ul> elements.
+  // Group consecutive "li"/"oli" lines into <ul>/<ol> elements.
   const blocks: React.ReactNode[] = [];
   let listItems: React.ReactNode[] = [];
+  let listKind: "ul" | "ol" = "ul";
 
   const flushList = (key: number) => {
     if (listItems.length > 0) {
+      const ListTag = listKind;
       blocks.push(
-        <ul key={`ul-${key}`} style={{ margin: "0 0 16px 0", paddingLeft: "20px", listStyle: "disc", display: "flex", flexDirection: "column", gap: "4px" }}>
+        <ListTag
+          key={`list-${key}`}
+          style={{
+            margin: "0 0 16px 0",
+            paddingLeft: "20px",
+            listStyle: listKind === "ol" ? "decimal" : "disc",
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+          }}
+        >
           {listItems}
-        </ul>,
+        </ListTag>,
       );
       listItems = [];
     }
@@ -130,10 +184,24 @@ export function MarkdownLite({ content }: { content: string }) {
         );
         break;
       case "li":
+      case "oli": {
+        const kind = line.type === "oli" ? "ol" : "ul";
+        if (listItems.length > 0 && listKind !== kind) flushList(i);
+        listKind = kind;
         listItems.push(
           <li key={i} style={{ fontSize: "var(--lb-font-size)", lineHeight: 1.6 }}>
             {line.children}
           </li>,
+        );
+        break;
+      }
+      case "hr":
+        flushList(i);
+        blocks.push(
+          <hr
+            key={i}
+            style={{ border: "none", borderTop: "1px solid var(--lb-card-border)", margin: "16px 0" }}
+          />,
         );
         break;
       case "p":

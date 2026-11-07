@@ -48,6 +48,7 @@ import {
 } from "@/server/actions/links";
 import { useSavedAction } from "@/hooks/use-saved-action";
 import { AbTestEditor } from "./ab-test-editor";
+import { PopupPreview } from "./popup-preview";
 
 /** Derive the dialog's initial icon mode from an editing row (#91). */
 function initialIconMode(editing?: LinkRow | null): IconMode {
@@ -234,6 +235,8 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
   const savedAction = useSavedAction();
   // Action error surfaced inline (upload too large, bad SVG, unknown icon…).
   const [actionError, setActionError] = React.useState<string | null>(null);
+  // Live-preview source for text popup bodies (mirror of the textarea).
+  const [popupText, setPopupText] = React.useState(editing?.popupText ?? "");
 
   // Reset local form state whenever the dialog opens (or switches target).
   const sessionKey = open ? `open:${editing?.id ?? "new"}` : "closed";
@@ -251,6 +254,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
       setIconFileName("");
       setHasNewIconFile(false);
       setActionError(null);
+      setPopupText(editing?.popupText ?? "");
       setCardStyle(editing?.cardStyle === "rich" ? "rich" : "compact");
 
       const had = editing?.type === "url" && hasUTM(editing?.url ?? "");
@@ -413,17 +417,44 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
               label. The URL field above doubles as CTA target (text) or
               place/address input (location) — labels swap per type. */}
           {isPopupType ? (
-            <FormField label={t("popupTextLabel")} htmlFor="popupText" required={isTextPopup}>
-              <textarea
-                id="popupText"
-                name="popupText"
-                defaultValue={editing?.popupText ?? ""}
-                rows={6}
-                maxLength={5000}
-                placeholder={t("phPopupText")}
-                className="flex min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-violet focus-visible:ring-2 focus-visible:ring-violet/20 disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </FormField>
+            isTextPopup ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField label={t("popupTextLabel")} htmlFor="popupText" required>
+                  <textarea
+                    id="popupText"
+                    name="popupText"
+                    value={popupText}
+                    onChange={(e) => setPopupText(e.target.value)}
+                    rows={8}
+                    maxLength={5000}
+                    placeholder={t("phPopupText")}
+                    className="flex min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-violet focus-visible:ring-2 focus-visible:ring-violet/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  {/* Syntax hint (literal markdown tokens, no translation) + char counter. */}
+                  <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                    <span className="truncate font-mono">
+                      **b** · *i* · `code` · [link](url) · # h · - list · 1. list · ---
+                    </span>
+                    <span className="shrink-0 tabular-nums">{popupText.length}/5000</span>
+                  </div>
+                </FormField>
+                <FormField label={t("popupPreview")}>
+                  <PopupPreview content={popupText} />
+                </FormField>
+              </div>
+            ) : (
+              <FormField label={t("popupTextLabel")} htmlFor="popupText" required>
+                <textarea
+                  id="popupText"
+                  name="popupText"
+                  defaultValue={editing?.popupText ?? ""}
+                  rows={6}
+                  maxLength={5000}
+                  placeholder={t("phPopupText")}
+                  className="flex min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-violet focus-visible:ring-2 focus-visible:ring-violet/20 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </FormField>
+            )
           ) : null}
           {isPopupType ? (
             <FormField label={t("ctaLabel")} htmlFor="ctaLabel">

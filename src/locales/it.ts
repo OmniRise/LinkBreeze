@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 72e2e697a407 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 8a30983b1823 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -265,9 +265,10 @@ const it: Messages = {
     ltDivider: "Separatore",
     ltLocationLabel: "Indirizzo, luogo o link di Google Maps",
     phLocation: "Moschea della Koutoubia, Marrakech",
-    phPopupText: "Testo più lungo mostrato nel popup quando si tocca la card.\\nSupporta **grassetto**, *corsivo*, `codice`, elenchi e titoli.",
+    phPopupText: "Testo più lungo mostrato nel popup quando si tocca la card.\\nSupporta **grassetto**, *corsivo*, `codice`, [collegamento](url), elenchi e titoli.",
     phCtaUrl: "https://example.com/cta (vuoto = nessun pulsante)",
     popupTextLabel: "Testo del popup",
+    popupPreview: "Anteprima in tempo reale",
     ctaLabel: "Etichetta del pulsante CTA (opzionale)",
     ctaUrlLabel: "URL CTA",
     phCtaLabel: "Prenota ora (vuoto = nessun pulsante)",
