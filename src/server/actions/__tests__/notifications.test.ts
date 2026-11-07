@@ -20,6 +20,12 @@ const mocks = vi.hoisted(() => {
     deliverToWebhook: vi.fn<(...args: unknown[]) => Promise<DeliveryOutcome>>(
       async () => ({ ok: true, attempts: [{ attempt: 1, ok: true, httpStatus: 200, error: null }] }),
     ),
+    getCapabilitiesForUser: vi.fn<(userId: number) => Promise<{ roleText: string | null; caps: { manageInstance: boolean } }>>(
+      async (userId: number) => ({
+        roleText: userId === 1 ? "admin" : "member",
+        caps: { manageInstance: userId === 1 },
+      }),
+    ),
   };
 });
 
@@ -34,6 +40,9 @@ vi.mock("@/server/queries/notifications", () => ({
 }));
 vi.mock("@/server/notifications/emit", () => ({
   deliverToWebhook: mocks.deliverToWebhook,
+}));
+vi.mock("@/server/queries", () => ({
+  getCapabilitiesForUser: mocks.getCapabilitiesForUser,
 }));
 
 import {
@@ -65,6 +74,62 @@ beforeEach(() => {
   mocks.deliverToWebhook.mockResolvedValue({
     ok: true,
     attempts: [{ attempt: 1, ok: true, httpStatus: 200, error: null }],
+  });
+  // Re-establish the admin baseline — clearAllMocks clears CALLS only, so an
+  // implementation replaced by a member test would otherwise leak into later tests.
+  mocks.getCapabilitiesForUser.mockImplementation(async (userId: number) => ({
+    roleText: userId === 1 ? "admin" : "member",
+    caps: { manageInstance: userId === 1 },
+  }));
+});
+
+describe("instance-admin gate (#124 hardening)", () => {
+  // Webhook URLs are fetched server-side (SSRF posture) and embed receiver
+  // tokens — the whole surface is instance-admin-only, mirroring the
+  // analyticsScript/customCss gate (511c9b0). The UI already hides the
+  // Integration tab from members; these tests close direct action calls.
+  function asMember() {
+    mocks.getSession.mockResolvedValue({ userId: 2 });
+  }
+
+  it("refuses config save from a non-instance-admin", async () => {
+    asMember();
+    const res = await saveNotificationConfigAction(fd(VALID));
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.errorCode).toBe("forbidden");
+    expect(mocks.createConfig).not.toHaveBeenCalled();
+    expect(mocks.updateConfig).not.toHaveBeenCalled();
+  });
+
+  it("refuses test-send from a non-instance-admin", async () => {
+    asMember();
+    mocks.getConfigByPage.mockResolvedValue({
+      id: 7, pageId: 3, url: VALID.url, provider: "discord",
+      clicksThreshold: 100, viewsThreshold: null,
+    });
+    const res = await sendTestNotificationAction(fd({ pageId: "3" }));
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.errorCode).toBe("forbidden");
+    expect(mocks.deliverToWebhook).not.toHaveBeenCalled();
+  });
+
+  it("refuses config delete from a non-instance-admin", async () => {
+    asMember();
+    const res = await deleteNotificationConfigAction(fd({ pageId: "3" }));
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.errorCode).toBe("forbidden");
+    expect(mocks.deleteForPage).not.toHaveBeenCalled();
+  });
+
+  it("still lets an instance admin save, test, and delete", async () => {
+    mocks.getConfigByPage.mockResolvedValue({
+      id: 7, pageId: 3, url: VALID.url, provider: "discord",
+      clicksThreshold: 100, viewsThreshold: null,
+    });
+    expect((await saveNotificationConfigAction(fd(VALID))).success).toBe(true);
+    expect((await sendTestNotificationAction(fd({ pageId: "3" }))).success).toBe(true);
+    expect((await deleteNotificationConfigAction(fd({ pageId: "3" }))).success).toBe(true);
+    expect(mocks.getCapabilitiesForUser).toHaveBeenCalledTimes(3);
   });
 });
 

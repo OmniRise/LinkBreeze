@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
-import { type ActionResult, validationError, unauthorizedError } from "@/lib/errors";
+import {
+  type ActionError,
+  type ActionResult,
+  validationError,
+  unauthorizedError,
+  forbiddenError,
+} from "@/lib/errors";
+import { getCapabilitiesForUser } from "@/server/queries";
 import {
   testDedupeKey,
   type NotificationProvider,
@@ -18,13 +25,32 @@ import {
 } from "@/server/queries/notifications";
 import { deliverToWebhook } from "@/server/notifications/emit";
 
-/** "" (present but empty) = metric off (null). Tri-state FormData contract. */
+/** Tri-state FormData contract: "" (present but empty) = metric off (null). */
 function optionalThreshold(raw: FormDataEntryValue | null): number | null {
   const s = typeof raw === "string" ? raw.trim() : "";
   if (s === "") return null;
   const n = Number(s);
   if (!Number.isFinite(n) || n <= 0) return null;
   return Math.min(Math.floor(n), 1_000_000_000);
+}
+
+/**
+ * #124 hardening: the whole notification surface is instance-admin-only. The
+ * configured webhook URL is fetched server-side (SSRF posture in
+ * DESIGN-13.md) and webhook URLs embed receiver tokens; under multi-user a
+ * member could otherwise point the instance's server at an internal address
+ * or exfiltrate page traffic. The settings UI already hides the Integration
+ * tab from members; this closes direct action calls. Mirrors the
+ * analyticsScript/customCss gate in updatePageAction (511c9b0).
+ */
+async function requireInstanceAdmin(
+  session: { userId: number },
+): Promise<ActionError | null> {
+  const { caps } = await getCapabilitiesForUser(session.userId);
+  if (!caps.manageInstance) {
+    return forbiddenError("Only instance admins can manage webhook notifications");
+  }
+  return null;
 }
 
 const saveSchema = z.object({
@@ -43,7 +69,10 @@ export async function saveNotificationConfigAction(
 ): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const gated = await requireInstanceAdmin(session);
+  if (gated) return gated;
 
   const parsed = saveSchema.safeParse({
     pageId: formData.get("pageId"),
@@ -85,7 +114,10 @@ export async function sendTestNotificationAction(
 ): Promise<ActionResult<{ detail: string | null }>> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const gated = await requireInstanceAdmin(session);
+  if (gated) return gated;
 
   const pageId = Number(formData.get("pageId"));
   if (!Number.isInteger(pageId) || pageId <= 0) {
@@ -125,7 +157,10 @@ export async function deleteNotificationConfigAction(
 ): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  const gated = await requireInstanceAdmin(session);
+  if (gated) return gated;
 
   const pageId = Number(formData.get("pageId"));
   if (!Number.isInteger(pageId) || pageId <= 0) {
