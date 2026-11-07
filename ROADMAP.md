@@ -10,9 +10,9 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 - **Markdown text cards with pop-up full text** - text cards render markdown-format content (clickable `[text](url)` hyperlinks and more), and a card's full text opens in a pop-up.
 
-## Next
-
 - **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord-style and Telegram-compatible payloads.
+
+## Next
 
 - **Link guardian** - scheduled broken-link checking (off / daily / weekly, owner's choice) with a manual "check now" button and per-link health status. Bot-wall responses are reported as unknown, never as broken. 
 
