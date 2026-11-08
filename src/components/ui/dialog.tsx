@@ -43,21 +43,41 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  side = "center",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /** "center" = classic modal; "left" = full-height left-docked sheet (AddLink rework). */
+  side?: "center" | "left"
 }) {
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[90dvh] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95",
-          className
-        )}
+        className={
+          side === "left"
+            ? cn(
+                // Mobile (< md, where the bottom navbar dock is active): bottom
+                // sheet — slides up, full width, rounded top.
+                // Desktop (md+): full-height left-docked sheet — slides in from
+                // the navbar side (left). (AddLink rework.)
+                "fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] w-full flex-col gap-0 overflow-hidden rounded-t-2xl bg-popover p-0 text-sm text-popover-foreground shadow-[0_20px_60px_-20px_rgba(5,3,20,0.8)] ring-1 ring-foreground/10 transition-[width] duration-200 ease-out outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out",
+                "max-md:data-open:slide-in-from-bottom-8 max-md:data-closed:slide-out-to-bottom-8",
+                "md:inset-y-0 md:inset-x-auto md:bottom-auto md:left-0 md:max-h-none md:h-full md:w-[640px] md:rounded-t-none md:rounded-r-2xl md:data-open:slide-in-from-left-8 md:data-closed:slide-out-to-left-8",
+                className
+              )
+            : cn(
+                "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[90dvh] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95",
+                className
+              )
+        }
         {...props}
       >
+        {/* Mobile grabber handle */}
+        {side === "left" && (
+          <div aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30 md:hidden" />
+        )}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close

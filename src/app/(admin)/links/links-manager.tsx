@@ -18,11 +18,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, DownloadCloud, FolderOpen, Pencil, Trash2, Minus } from "lucide-react";
+import { Plus, DownloadCloud, FolderOpen, GripVertical, Pencil, Trash2, Minus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { reorderContent } from "@/server/actions/sections";
 import { createDivider } from "@/server/actions/links";
-import type { LinkRow, LinkSectionRow } from "@/server/queries";
+import type { LinkRow, LinkSectionRow, ThemeRow } from "@/server/queries";
 import { groupLinksBySection } from "@/lib/link-sections";
 import { LucideIcon, isLucideIconName } from "@/components/public/LucideIcon";
 import { Button } from "@/components/ui/button";
@@ -85,17 +85,25 @@ function SectionGroup({
           opacity: isDragging ? 0.5 : 1,
         }}
       >
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1.5">
           {section ? (
             <button
-              className="flex cursor-grab items-center px-1 text-muted-foreground active:cursor-grabbing"
+              className="flex cursor-grab touch-none items-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:cursor-grabbing"
               {...attributes}
               {...listeners}
               aria-label={t("dragReorderSection")}
               type="button"
             >
-              <FolderOpen className="size-4 shrink-0" />
+              <GripVertical className="size-4" />
             </button>
+          ) : null}
+          {section ? (
+            <span
+              aria-hidden
+              className="flex size-7 shrink-0 items-center justify-center rounded-md bg-violet/15 text-violet"
+            >
+              <FolderOpen className="size-4" />
+            </span>
           ) : null}
           <span className="truncate text-sm font-semibold">
             {section ? (
@@ -149,10 +157,15 @@ export function LinksManager({
   initialLinks,
   sections,
   pageId,
+  pageTheme,
+  pageSlug,
 }: {
   initialLinks: LinkRow[];
   sections: LinkSectionRow[];
   pageId?: number;
+  /** Page's resolved theme row — feeds the live card preview in LinkDialog. */
+  pageTheme?: ThemeRow | null;
+  pageSlug?: string | null;
 }) {
   const t = useTranslations("linksPage");
   const { reload: reloadPreview } = usePreview();
@@ -319,18 +332,22 @@ export function LinksManager({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="font-heading text-2xl font-semibold tracking-tight">{t("links")}</h1>
-          <p className="text-sm text-muted-foreground">{t("addEditAndReorder")}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t("addEditAndReorder")}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={openCreateSection}>
-            <FolderOpen className="size-4" />{t("addSection")}</Button>
-          <Button variant="outline" onClick={addDivider} disabled={dividerPending}>
-            <Minus className="size-4" />{t("addDivider")}</Button>
-          <Button onClick={openCreate}>
-            <Plus className="size-4" />{t("addLink")}</Button>
+        {/* Vertical stack on mobile (right side), horizontal row on sm+. */}
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <Button variant="outline" onClick={openCreateSection} aria-label={t("addSection")}>
+            <FolderOpen className="size-4" /><span className="hidden sm:inline">{t("addSection")}</span>
+          </Button>
+          <Button variant="outline" onClick={addDivider} disabled={dividerPending} aria-label={t("addDivider")}>
+            <Minus className="size-4" /><span className="hidden sm:inline">{t("addDivider")}</span>
+          </Button>
+          <Button onClick={openCreate} aria-label={t("addLink")}>
+            <Plus className="size-4" /><span className="hidden sm:inline">{t("addLink")}</span>
+          </Button>
         </div>
       </div>
 
@@ -404,6 +421,8 @@ export function LinksManager({
         editing={editing}
         pageId={pageId}
         sections={sectionList}
+        pageTheme={pageTheme}
+        pageSlug={pageSlug}
       />
       <DeleteLinkDialog
         link={deleting}

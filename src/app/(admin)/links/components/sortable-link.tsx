@@ -17,8 +17,10 @@ import {
   Image as ImageIcon,
   Code2,
   Minus,
+  MoreVertical,
 } from "lucide-react";
 import { toggleLink } from "@/server/actions/links";
+import { createPortal } from "react-dom";
 import { resolveIcon, isLucideIconName } from "@/lib/icon-registry";
 import { useRouter } from "next/navigation";
 import type { LinkRow } from "@/server/queries";
@@ -104,7 +106,7 @@ export function SortableLink({ link, onEdit, onDelete }: SortableLinkProps) {
   return (
     <div ref={setNodeRef} style={style} className="flex items-stretch gap-1">
       <button
-        className="flex cursor-grab items-center px-1 text-muted-foreground active:cursor-grabbing"
+        className="flex cursor-grab touch-none items-center px-1 text-muted-foreground active:cursor-grabbing"
         {...attributes}
         {...listeners}
         aria-label={t("dragReorder")}
@@ -165,6 +167,11 @@ export function SortableLink({ link, onEdit, onDelete }: SortableLinkProps) {
                   <Clock className="size-3" />{t("scheduled")}</Badge>
               ) : null}
             </div>
+            {/* Optional description, then the URL — both get room on mobile now
+                that the inline actions collapsed into the 3-dots menu. */}
+            {link.type !== "divider" && link.description ? (
+              <p className="truncate text-xs text-foreground/80">{link.description}</p>
+            ) : null}
             {link.type === "divider" ? null : (
               <p className="truncate text-xs text-muted-foreground">{link.url}</p>
             )}
@@ -188,7 +195,7 @@ export function SortableLink({ link, onEdit, onDelete }: SortableLinkProps) {
 
           <Link
             href={`/links/${link.id}`}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className="hidden shrink-0 text-muted-foreground hover:text-foreground sm:block"
             aria-label={t("linkAnalyticsAria")}
           >
             <BarChart3 className="size-4" />
@@ -204,6 +211,7 @@ export function SortableLink({ link, onEdit, onDelete }: SortableLinkProps) {
           <Button
             variant="ghost"
             size="icon-sm"
+            className="hidden sm:inline-flex"
             onClick={() => onEdit(link)}
             aria-label={t("editLinkAria")}
           >
@@ -213,14 +221,128 @@ export function SortableLink({ link, onEdit, onDelete }: SortableLinkProps) {
           <Button
             variant="ghost"
             size="icon-sm"
+            className="hidden text-destructive hover:text-destructive sm:inline-flex"
             onClick={() => onDelete(link)}
             aria-label={t("deleteLinkAria")}
-            className="text-destructive hover:text-destructive"
           >
             <Trash2 className="size-4" />
           </Button>
+
+          {/* Mobile: inline actions collapse into a 3-dots dropdown so the
+              title/description/URL get the row's width back. */}
+          <RowActionsMenu link={link} onEdit={onEdit} onDelete={onDelete} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** Mobile-only 3-dots actions menu for one link row (desktop keeps inline icons).
+ *  The panel is position:FIXED (anchored to the trigger's rect at open time):
+ *  the row Card clips overflow-hidden, so an absolutely-positioned panel would
+ *  be cut off — and making the Card overflow-visible would un-clamp its
+ *  min-width:auto and re-create the page-wide horizontal overflow. */
+function RowActionsMenu({ link, onEdit, onDelete }: SortableLinkProps) {
+  const t = useTranslations("linksPage");
+  const [open, setOpen] = React.useState(false);
+  const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      const target = e.target as Node;
+      // the panel is PORTALED to document.body (see below), so it is not a DOM
+      // descendant of ref — treat taps inside it as "inside" or every tap on a
+      // menu item would close the menu before the item's click fires.
+      if (!ref.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false);
+    };
+    const closeOnScroll = () => setOpen(false);
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("resize", closeOnScroll);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("resize", closeOnScroll);
+    };
+  }, [open]);
+
+  const itemCls =
+    "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent";
+
+  // Toggle via a NATIVE listener on the button element (not React's delegated
+  // onClick): hardened against browser extensions whose injected overlays /
+  // capture-phase listeners can swallow delegated events (observed with the
+  // Bitwarden autofill overlay fighting React DOM commits on this page).
+  React.useEffect(() => {
+    const btn = ref.current?.querySelector("button");
+    if (!btn) return;
+    const handler = () => {
+      if (open) { setOpen(false); return; }
+      const r = ref.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+      setOpen(true);
+    };
+    btn.addEventListener("click", handler);
+    return () => btn.removeEventListener("click", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative sm:hidden">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={t("moreActions")}
+      >
+        <MoreVertical className="size-4" />
+      </Button>
+      {open && pos
+        ? createPortal(
+            /* PORTAL to document.body: dnd-kit puts an inline transform on every
+               sortable row, and a transformed ancestor becomes the containing
+               block for position:fixed — the panel's viewport coords (top/right
+               from the trigger's getBoundingClientRect) would be re-interpreted
+               inside the row's offset space and land off-screen (the "menu
+               doesn't open" bug on real devices). Portaling escapes it. */
+            <div
+              ref={panelRef}
+              className="fixed z-50 w-44 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-[0_20px_60px_-20px_rgba(5,3,20,0.8)]"
+              style={{ top: pos.top, right: pos.right }}
+            >
+          <button
+            type="button"
+            className={itemCls}
+            onClick={() => { setOpen(false); onEdit(link); }}
+          >
+            <Pencil className="size-4 text-muted-foreground" />{t("editLinkAria")}
+          </button>
+          <Link href={`/links/${link.id}`} className={itemCls} onClick={() => setOpen(false)}>
+            <BarChart3 className="size-4 text-muted-foreground" />{t("linkAnalyticsAria")}
+          </Link>
+          {link.type !== "divider" ? (
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={itemCls}
+              onClick={() => setOpen(false)}
+            >
+              <ExternalLink className="size-4 text-muted-foreground" />{t("openLinkAria")}
+            </a>
+          ) : null}
+          <button
+            type="button"
+            className={`${itemCls} text-destructive hover:text-destructive`}
+            onClick={() => { setOpen(false); onDelete(link); }}
+          >
+            <Trash2 className="size-4" />{t("deleteLinkAria")}
+          </button>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

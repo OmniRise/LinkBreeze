@@ -8,8 +8,6 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 ## Now
 
-- **Markdown text cards with pop-up full text** - text cards render markdown-format content (clickable `[text](url)` hyperlinks and more), and a card's full text opens in a pop-up.
-
 - **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord-style and Telegram-compatible payloads.
 
 ## Next
@@ -27,6 +25,8 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 ## Shipped
 
 Recent highlights - the full history lives in [CHANGELOG.md](CHANGELOG.md):
+
+- **Markdown text cards with pop-up full text**
 
 - **A/B testing for links** (#81)
 

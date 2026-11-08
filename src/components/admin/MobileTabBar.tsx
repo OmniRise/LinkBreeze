@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   Link as LinkIcon,
+  Palette,
   User,
   Settings,
   ChevronUp,
@@ -30,6 +31,7 @@ type DockTab = {
 const LEFT_TABS: DockTab[] = [
   { href: "/dashboard", label: "dashboard", icon: LayoutDashboard },
   { href: "/links", label: "links", icon: LinkIcon },
+  { href: "/theme", label: "theme", icon: Palette },
 ];
 
 const RIGHT_TABS: DockTab[] = [{ href: "/profile", label: "profile", icon: User }];

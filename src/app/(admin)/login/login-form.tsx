@@ -54,6 +54,12 @@ export function LoginForm({
   const ssoReason = searchParams.get("sso");
   const [ssoPending, startSsoTransition] = React.useTransition();
   const [ssoError, setSsoError] = React.useState<string | null>(null);
+  // Focus after hydration — the SSR `autoFocus` attribute causes a
+  // server/client attribute diff (caret style) and a hydration warning.
+  const usernameRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    usernameRef.current?.focus();
+  }, []);
 
   const startSso = () => {
     setSsoError(null);
@@ -141,11 +147,11 @@ export function LoginForm({
               <Label htmlFor="username">{t("username")}</Label>
               <Input
                 id="username"
+                ref={usernameRef}
                 name="username"
                 type="text"
                 autoComplete="username"
                 required
-                autoFocus
               />
             </div>
             <div className="flex flex-col gap-2 mb-4">

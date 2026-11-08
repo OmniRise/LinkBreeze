@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 8a30983b1823 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: e4e900f93132 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -285,6 +285,9 @@ const it: Messages = {
     createDescription: "Crea un nuovo link per la tua pagina.",
     updateDescription: "Aggiorna i dettagli di questo link.",
     typeLabel: "Tipo",
+    advanced: "Avanzate",
+    moreActions: "Altre azioni",
+    preview: "Anteprima",
     cardStyle: "Stile card",
     richHint: "Miniatura + anteprima automatica dai dati Open Graph del link. Se non trova immagini, ripiega sullo stile compatto.",
     sectionPlaceholder: "I miei progetti",
