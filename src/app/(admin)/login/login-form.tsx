@@ -139,7 +139,14 @@ export function LoginForm({
             </Link>
           </CardContent>
         ) : (
-        <form action={formAction}>
+        <form
+          onSubmit={(e) => {
+            // Opt out of React 19's post-action auto-reset: a failed login
+            // must keep the typed username/password for correction.
+            e.preventDefault();
+            formAction(new FormData(e.currentTarget));
+          }}
+        >
           <CardContent className="flex flex-col gap-4">
             {ssoBlock}
             {ssoBlock && <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />{t("orDivider")}<span className="h-px flex-1 bg-border" /></div>}

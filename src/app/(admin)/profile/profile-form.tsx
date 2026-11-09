@@ -251,7 +251,12 @@ export function ProfileForm({ profile, pageId }: ProfileFormProps) {
 
       <form
         ref={formRef}
-        action={handleSubmit}
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset of uncontrolled
+          // inputs: a failed profile save must keep the typed values.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
         onBlurCapture={() => flushNow()}
         className="flex flex-col gap-6"
       >

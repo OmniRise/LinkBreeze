@@ -328,7 +328,16 @@ export function MigrationWizard({ pageId }: MigrationWizardProps) {
             </Button>
           </form>
         ) : (
-          <form action={handlePreview} className="flex flex-col gap-3">
+          <form
+            onSubmit={(e) => {
+              // Opt out of React 19's post-action auto-reset: a failed parse
+              // must keep the chosen file (uncontrolled input, unlike the
+              // controlled URL form above).
+              e.preventDefault();
+              handlePreview(new FormData(e.currentTarget));
+            }}
+            className="flex flex-col gap-3"
+          >
             <FormField
               label={t("fileLabel")}
               htmlFor="import-file"

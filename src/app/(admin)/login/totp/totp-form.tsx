@@ -57,7 +57,14 @@ export function TotpForm() {
             <CardTitle className="text-xl">{t("totpPrompt")}</CardTitle>
             <CardDescription>{t("totpDesc")}</CardDescription>
           </CardHeader>
-          <form action={formAction}>
+          <form
+            onSubmit={(e) => {
+              // Opt out of React 19's post-action auto-reset: a wrong code
+              // must keep the typed value for correction.
+              e.preventDefault();
+              formAction(new FormData(e.currentTarget));
+            }}
+          >
             <CardContent className="flex flex-col gap-4">
               <input type="hidden" name="username" value={username} />
               <input type="hidden" name="pending" value={pending} />

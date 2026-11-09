@@ -164,7 +164,16 @@ export function GeneralTab({
           {t("description")}
         </CardDescription>
       </CardHeader>
-      <form ref={formRef} action={handleSubmit} onBlurCapture={() => flushNow()}>
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset of uncontrolled
+          // inputs: a failed settings save must keep the typed values.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
+        onBlurCapture={() => flushNow()}
+      >
         <CardContent className="flex flex-col gap-4">
           <FormField
             label={t("pageSlug")}
@@ -393,7 +402,16 @@ export function IntegrationTab({
           {t("description")}
         </CardDescription>
       </CardHeader>
-      <form ref={formRef} action={handleSubmit} onBlurCapture={() => flushNow()}>
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset of uncontrolled
+          // inputs: a failed settings save must keep the typed values.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
+        onBlurCapture={() => flushNow()}
+      >
         <CardContent className="flex flex-col gap-4">
           {pageId ? null : (
             <input type="hidden" name="slug" value={slug} />
@@ -647,7 +665,16 @@ export function AppearanceTab({
   };
 
   return (
-    <form ref={formRef} action={handleSubmit} onBlurCapture={() => flushNow()}>
+    <form
+      ref={formRef}
+      onSubmit={(e) => {
+        // Opt out of React 19's post-action auto-reset of uncontrolled
+        // inputs: a failed settings save must keep the typed values.
+        e.preventDefault();
+        handleSubmit(new FormData(e.currentTarget));
+      }}
+      onBlurCapture={() => flushNow()}
+    >
       <div className="flex flex-col gap-4">
         {/* Theme showcase — only the selected theme, full visual treatment */}
         {themes.length > 0 ? (
@@ -796,7 +823,16 @@ export function CustomCssCard({ pageId, slug, customCss }: {
           {tInt.rich("customCssHintRich", { code: (chunk) => <code>{chunk}</code> })}
         </CardDescription>
       </CardHeader>
-      <form ref={formRef} action={handleSubmit} onBlurCapture={() => flushNow()}>
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset of uncontrolled
+          // inputs: a failed settings save must keep the typed values.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
+        onBlurCapture={() => flushNow()}
+      >
         <CardContent>
           <FormField htmlFor="customCss">
             <textarea
@@ -865,7 +901,16 @@ function ContactCardCard({
         <CardTitle>{t("title")}</CardTitle>
         <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
-      <form ref={formRef} action={handleSubmit} onBlurCapture={() => schedule()}>
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset of uncontrolled
+          // inputs: a failed settings save must keep the typed values.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
+        onBlurCapture={() => schedule()}
+      >
         <CardContent className="flex flex-col gap-4">
           {fields.map((field) => (
             <FormField key={field.name} label={field.label} htmlFor={field.name}>

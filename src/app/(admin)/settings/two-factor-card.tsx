@@ -85,7 +85,14 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
           </CardTitle>
           <CardDescription>{t("twoFactor.enabledDesc")}</CardDescription>
         </CardHeader>
-        <form action={handleDisable}>
+        <form
+          onSubmit={(e) => {
+            // Opt out of React 19's post-action auto-reset: a wrong code must
+            // keep the typed value (retyping on error loses work).
+            e.preventDefault();
+            handleDisable(new FormData(e.currentTarget));
+          }}
+        >
           <CardContent className="flex flex-col gap-4">
             <FormField
               label={t("twoFactor.codeLabel")}
@@ -185,7 +192,14 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
           </CardTitle>
           <CardDescription>{t("twoFactor.setupDesc")}</CardDescription>
         </CardHeader>
-        <form action={handleConfirm}>
+        <form
+          onSubmit={(e) => {
+            // Opt out of React 19's post-action auto-reset: a wrong code must
+            // keep the typed value (retyping on error loses work).
+            e.preventDefault();
+            handleConfirm(new FormData(e.currentTarget));
+          }}
+        >
           <CardContent className="flex flex-col gap-4">
             {/* SVG from our own API route — never a remote image */}
             <Image

@@ -40,7 +40,14 @@ export function ChangePasswordForm() {
           <Lock className="size-4" />{t("changePassword")}</CardTitle>
         <CardDescription>{t("desc")}</CardDescription>
       </CardHeader>
-      <form action={handleSubmit}>
+      <form
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset: a failed change
+          // (wrong current password) must keep the typed passwords.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
+      >
         <CardContent className="flex flex-col gap-4">
           <FormField label={t("currentPassword")} htmlFor="currentPassword" required>
             <Input
