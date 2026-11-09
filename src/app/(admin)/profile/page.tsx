@@ -42,7 +42,7 @@ export default async function ProfilePage({
     : [[], false];
 
   return (
-    <>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <ProfileForm
       pageId={activePage?.id}
       profile={
@@ -67,6 +67,6 @@ export default async function ProfilePage({
       }
       />
       <SsoIdentitiesCard identities={identities} linkingSupported={linkingSupported} />
-    </>
+    </div>
   );
 }
