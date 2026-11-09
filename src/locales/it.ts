@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: e4e900f93132 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 3132ffe13dee ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -285,6 +285,8 @@ const it: Messages = {
     createDescription: "Crea un nuovo link per la tua pagina.",
     updateDescription: "Aggiorna i dettagli di questo link.",
     typeLabel: "Tipo",
+    draftRestored: "Bozza ripristinata",
+    draftDiscard: "Scarta bozza",
     advanced: "Avanzate",
     moreActions: "Altre azioni",
     preview: "Anteprima",

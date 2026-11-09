@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/server/actions/auth";
+import { clearAllLinkDrafts } from "@/lib/link-drafts";
 import {
   SETTINGS_GROUP_PATHS,
   visibleSettingsGroup,
@@ -78,7 +79,7 @@ export function MobileHeaderActions({
             <div aria-hidden="true" className="mx-1 my-1 border-t border-border" />
             {/* Sign-out rides in the same menu so the header stays two slots
                 (pages + settings) and the dock stays purely navigational. */}
-            <form action={logout}>
+            <form action={logout} onSubmit={() => clearAllLinkDrafts()}>
               <button
                 role="menuitem"
                 type="submit"

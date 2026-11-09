@@ -49,6 +49,13 @@ import {
 import { useSavedAction } from "@/hooks/use-saved-action";
 import { AbTestEditor } from "./ab-test-editor";
 import { CardPreview, PopupBodyPreview } from "./card-preview";
+import {
+  loadLinkDraft,
+  saveLinkDraft,
+  clearLinkDraft,
+  linkDraftHasContent,
+  type LinkDraft,
+} from "@/lib/link-drafts";
 
 /** Derive the dialog's initial icon mode from an editing row (#91). */
 function initialIconMode(editing?: LinkRow | null): IconMode {
@@ -77,19 +84,19 @@ export interface LinkDialogProps {
 }
 
 function SectionSelect({
-  editing,
+  value,
+  onValueChange,
   sections,
 }: {
-  editing?: LinkRow | null;
+  value: string;
+  onValueChange: (v: string | null) => void;
   sections: LinkSectionRow[];
 }) {
   const t = useTranslations("linksPage");
-  // Initial value from `editing`; resets via key remount in the parent.
-  const [value, setValue] = React.useState(String(editing?.sectionId ?? "none"));
 
   return (
     <FormField label={t("section")}>
-      <Select value={value} onValueChange={(v) => setValue(v ?? "none")}>
+      <Select value={value} onValueChange={onValueChange}>
         <SelectTrigger className="w-full">
           <SelectValue />
         </SelectTrigger>
@@ -129,10 +136,20 @@ const SLUG_ERROR_KEYS = {
   length: "slugErrLength",
 } as const;
 
-function SlugField({ editing }: { editing?: LinkRow | null }) {
+function SlugField({
+  editing,
+  initialSlug,
+  onSlugChange,
+}: {
+  editing?: LinkRow | null;
+  /** Draft-restored value — wins over the stored row (session remount). */
+  initialSlug?: string;
+  /** Mirror for the parent's draft persistence. */
+  onSlugChange?: (slug: string) => void;
+}) {
   const t = useTranslations("linksPage");
   const storedSlug = editing?.redirectSlug ?? "";
-  const [value, setValue] = React.useState(storedSlug);
+  const [value, setValue] = React.useState(initialSlug ?? storedSlug);
   // Set ONLY from the async check callback — render derives everything else
   // (react-hooks/set-state-in-effect forbids sync setState in effects).
   const [lastCheck, setLastCheck] = React.useState<{ slug: string; available: boolean } | null>(null);
@@ -171,7 +188,10 @@ function SlugField({ editing }: { editing?: LinkRow | null }) {
           id="redirectSlug"
           name="redirectSlug"
           value={display}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            onSlugChange?.(e.target.value);
+          }}
           maxLength={MAX_SLUG_LENGTH + 1}
           placeholder="my-consulting"
           autoComplete="off"
@@ -221,10 +241,16 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
   // Live card preview pane (expandable sheet): open when editing, where the
   // styling usually matters; collapsed for a quick add.
   const [previewOpen, setPreviewOpen] = React.useState(!!editing);
-  // Controlled mirrors of the uncontrolled inputs — the preview renders from
-  // these on every keystroke while submit still reads the native form fields.
+  // Controlled inputs — every keystroke updates these mirrors, which feed
+  // the live preview AND the debounced sessionStorage draft (link-drafts.ts).
   const [titleValue, setTitleValue] = React.useState(editing?.title ?? "");
-  const [urlValue, setUrlValue] = React.useState(editing?.url ?? "");
+  // Starts at the DISPLAY url (UTM stripped for edited url links) — the same
+  // value the old defaultValue showed; UTM params re-append on submit.
+  const [urlValue, setUrlValue] = React.useState(() =>
+    editing?.type === "url" && hasUTM(editing?.url ?? "")
+      ? stripUTM(editing.url)
+      : editing?.url ?? "",
+  );
   const [descValue, setDescValue] = React.useState(editing?.description ?? "");
   const [imageValue, setImageValue] = React.useState(editing?.imageUrl ?? "");
   // Advanced disclosure (slug, icon, UTM, A/B, schedule): collapsed for a
@@ -252,36 +278,127 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
   const [actionError, setActionError] = React.useState<string | null>(null);
   // Live-preview source for text popup bodies (mirror of the textarea).
   const [popupText, setPopupText] = React.useState(editing?.popupText ?? "");
+  // Draft-persistence state: CTA label (lifted from an uncontrolled input),
+  // section choice (lifted from SectionSelect) and the slug mirror — all
+  // included in the sessionStorage draft (see link-drafts.ts).
+  const [ctaLabelValue, setCtaLabelValue] = React.useState(editing?.ctaLabel ?? "");
+  const [sectionValue, setSectionValue] = React.useState(
+    editing?.sectionId ? String(editing.sectionId) : "none",
+  );
+  const [slugValue, setSlugValue] = React.useState("");
+  // True when this dialog session restored a saved draft (drives the chip).
+  const [draftRestored, setDraftRestored] = React.useState(false);
 
   // Reset local form state whenever the dialog opens (or switches target).
+  // After the defaults, a persisted draft (link-drafts.ts) wins: the
+  // operator's half-typed entries survive closing and reopening the sheet,
+  // until a successful save, logout, or tab close clears them.
   const sessionKey = open ? `open:${editing?.id ?? "new"}` : "closed";
   const [lastSession, setLastSession] = React.useState(sessionKey);
+  const resetToDefaults = () => {
+    setType(editing?.type ?? "url");
+    setHighlighted(editing?.isHighlighted ?? false);
+    setActive(editing?.isActive ?? true);
+    setScheduled(!!editing?.scheduleStart || !!editing?.scheduleEnd);
+    setIconMode(initialIconMode(editing));
+    setLucidePick(editing?.iconMode === "lucide" ? editing.icon ?? "" : "");
+    setCustomIconUrl(editing?.iconMode === "custom" ? editing.customIconUrl ?? "" : "");
+    setIconFileName("");
+    setHasNewIconFile(false);
+    setActionError(null);
+    setPopupText(editing?.popupText ?? "");
+    setCardStyle(editing?.cardStyle === "rich" ? "rich" : "compact");
+    setPreviewOpen(!!editing);
+    setAdvancedOpen(!!editing);
+    setTitleValue(editing?.title ?? "");
+    setUrlValue(
+      editing?.type === "url" && hasUTM(editing?.url ?? "")
+        ? stripUTM(editing.url)
+        : editing?.url ?? "",
+    );
+    setDescValue(editing?.description ?? "");
+    setImageValue(editing?.imageUrl ?? "");
+    setCtaLabelValue(editing?.ctaLabel ?? "");
+    setSectionValue(editing?.sectionId ? String(editing.sectionId) : "none");
+    setSlugValue("");
+    setDraftRestored(false);
+
+    const had = editing?.type === "url" && hasUTM(editing?.url ?? "");
+    setShowUTM(had);
+  };
   if (sessionKey !== lastSession) {
     setLastSession(sessionKey);
     if (open) {
-      setType(editing?.type ?? "url");
-      setHighlighted(editing?.isHighlighted ?? false);
-      setActive(editing?.isActive ?? true);
-      setScheduled(!!editing?.scheduleStart || !!editing?.scheduleEnd);
-      setIconMode(initialIconMode(editing));
-      setLucidePick(editing?.iconMode === "lucide" ? editing.icon ?? "" : "");
-      setCustomIconUrl(editing?.iconMode === "custom" ? editing.customIconUrl ?? "" : "");
-      setIconFileName("");
-      setHasNewIconFile(false);
-      setActionError(null);
-      setPopupText(editing?.popupText ?? "");
-      setCardStyle(editing?.cardStyle === "rich" ? "rich" : "compact");
-      setPreviewOpen(!!editing);
-      setAdvancedOpen(!!editing);
-      setTitleValue(editing?.title ?? "");
-      setUrlValue(editing?.url ?? "");
-      setDescValue(editing?.description ?? "");
-      setImageValue(editing?.imageUrl ?? "");
-
-      const had = editing?.type === "url" && hasUTM(editing?.url ?? "");
-      setShowUTM(had);
+      resetToDefaults();
+      const draft = loadLinkDraft(pageId, editing?.id);
+      if (draft) {
+        if (draft.type) setType(draft.type as LinkRow["type"]);
+        if (typeof draft.highlighted === "boolean") setHighlighted(draft.highlighted);
+        if (typeof draft.active === "boolean") setActive(draft.active);
+        if (typeof draft.scheduled === "boolean") setScheduled(draft.scheduled);
+        if (draft.iconMode) setIconMode(draft.iconMode as IconMode);
+        if (typeof draft.lucidePick === "string") setLucidePick(draft.lucidePick);
+        if (typeof draft.customIconUrl === "string") setCustomIconUrl(draft.customIconUrl);
+        if (draft.cardStyle === "compact" || draft.cardStyle === "rich") setCardStyle(draft.cardStyle);
+        if (typeof draft.advancedOpen === "boolean") setAdvancedOpen(draft.advancedOpen);
+        if (typeof draft.titleValue === "string") setTitleValue(draft.titleValue);
+        if (typeof draft.urlValue === "string") setUrlValue(draft.urlValue);
+        if (typeof draft.descValue === "string") setDescValue(draft.descValue);
+        if (typeof draft.imageValue === "string") setImageValue(draft.imageValue);
+        if (typeof draft.showUTM === "boolean") setShowUTM(draft.showUTM);
+        if (typeof draft.popupText === "string") setPopupText(draft.popupText);
+        if (typeof draft.ctaLabel === "string") setCtaLabelValue(draft.ctaLabel);
+        if (draft.sectionValue) setSectionValue(draft.sectionValue);
+        if (typeof draft.slug === "string") setSlugValue(draft.slug);
+        setDraftRestored(true);
+      }
     }
   }
+
+  // Discard the restored draft: drop storage AND fall back to the defaults.
+  const discardDraft = () => {
+    clearLinkDraft(pageId, editing?.id);
+    resetToDefaults();
+  };
+
+  // Debounced draft write (sessionStorage, see link-drafts.ts): fires while
+  // the sheet is open and any field changes; when nothing is typed it drops
+  // any stale draft instead, so an empty dialog never claims a restore.
+  React.useEffect(() => {
+    if (!open) return;
+    const snapshot: LinkDraft = {
+      v: 1,
+      type,
+      highlighted,
+      active,
+      scheduled,
+      iconMode,
+      lucidePick,
+      customIconUrl,
+      cardStyle,
+      advancedOpen,
+      titleValue,
+      urlValue,
+      descValue,
+      imageValue,
+      showUTM,
+      popupText,
+      ctaLabel: ctaLabelValue,
+      sectionValue,
+      slug: slugValue,
+    };
+    const timer = setTimeout(() => {
+      if (linkDraftHasContent(snapshot)) {
+        saveLinkDraft(pageId, editing?.id, snapshot);
+      } else {
+        clearLinkDraft(pageId, editing?.id);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [open, pageId, editing, type, highlighted, active, scheduled, iconMode,
+      lucidePick, customIconUrl, cardStyle, advancedOpen, titleValue, urlValue,
+      descValue, imageValue, showUTM, popupText, ctaLabelValue, sectionValue,
+      slugValue]);
 
   // If user switches away from "url" type, collapse UTM (values preserved).
   const utmVisible = isUrlType && showUTM;
@@ -296,10 +413,6 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
       ? t("phCtaUrl")
       : t("phLocation")
     : t(getUrlPlaceholder(type));
-
-  // For the URL field default: show the clean URL (UTM stripped) so the
-  // user sees the base URL separately from the UTM builder.
-  const urlDefault = hadUTM ? stripUTM(storedUrl) : storedUrl;
 
   // Pre-compute default values for the UTM fields when editing.
   const utmDefaults: UTMParams = hadUTM ? parseUTM(storedUrl) : emptyUTM();
@@ -388,6 +501,8 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
         }
       }
       setActionError(null);
+      // Saved — the draft has served its purpose.
+      clearLinkDraft(pageId, editing?.id);
       router.refresh();
       onOpenChange(false);
     });
@@ -438,7 +553,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
       clicksCount: editing?.clicksCount ?? 0,
       cardStyle,
       popupText: popupText || null,
-      ctaLabel: null,
+      ctaLabel: ctaLabelValue || null,
       redirectSlug: editing?.redirectSlug ?? null,
       abConfig: editing?.abConfig ?? null,
       createdAt: editing?.createdAt ?? "2026-01-01 00:00:00",
@@ -446,13 +561,17 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
     }),
     [editing, pageId, type, titleValue, urlValue, descValue, iconMode, lucidePick,
       customIconUrl, hasNewIconFile, imageValue, active, cardStyle, popupText, highlighted,
-      autoIconUrl],
+      autoIconUrl, ctaLabelValue],
   );
 
   // Peer fields that share a two-column row on wide panels (stack on mobile).
   const sectionField =
     sections.length > 0 ? (
-      <SectionSelect key={editing?.id ?? "new"} editing={editing} sections={sections} />
+      <SectionSelect
+        value={sectionValue}
+        onValueChange={(v) => setSectionValue(v ?? "none")}
+        sections={sections}
+      />
     ) : null;
   const cardStyleField = isUrlType ? (
     <FormField label={t("cardStyle")} hint={cardStyle === "rich" ? t("richHint") : t("iconHint")}>
@@ -573,6 +692,20 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
             {pageId ? <input type="hidden" name="pageId" value={pageId} /> : null}
 
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+              {/* Draft-restored chip: the sheet reopened with persisted
+                  entries; one click discards them back to defaults. */}
+              {draftRestored ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-violet/40 bg-violet/5 px-3 py-2 text-sm">
+                  <span className="text-foreground">{t("draftRestored")}</span>
+                  <button
+                    type="button"
+                    onClick={discardDraft}
+                    className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    {t("draftDiscard")}
+                  </button>
+                </div>
+              ) : null}
               {/* Type first — it is a mode that re-lays-out the fields below
                   (URL label, popup fields, thumbnail visibility), so it leads. */}
               <FormField label={t("typeLabel")}>
@@ -604,7 +737,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                 <Input
                   id="title"
                   name="title"
-                  defaultValue={editing?.title ?? ""}
+                  value={titleValue}
                   onChange={(e) => setTitleValue(e.target.value)}
                   required={!isDivider}
                   maxLength={120}
@@ -621,7 +754,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                 <Input
                   id="url"
                   name="url"
-                  defaultValue={urlDefault}
+                  value={urlValue}
                   onChange={(e) => setUrlValue(e.target.value)}
                   required={!isTextPopup}
                   maxLength={2048}
@@ -663,7 +796,8 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                   <Input
                     id="ctaLabel"
                     name="ctaLabel"
-                    defaultValue={editing?.ctaLabel ?? ""}
+                    value={ctaLabelValue}
+                    onChange={(e) => setCtaLabelValue(e.target.value)}
                     maxLength={80}
                     placeholder={isTextPopup ? t("phCtaLabel") : t("phCtaLabelLocation")}
                   />
@@ -679,7 +813,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                   <Input
                     id="description"
                     name="description"
-                    defaultValue={editing?.description ?? ""}
+                    value={descValue}
                     onChange={(e) => setDescValue(e.target.value)}
                     maxLength={300}
                     placeholder={t("descriptionPlaceholder")}
@@ -690,7 +824,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                   <Input
                     id="imageUrl"
                     name="imageUrl"
-                    defaultValue={editing?.imageUrl ?? ""}
+                    value={imageValue}
                     onChange={(e) => setImageValue(e.target.value)}
                     maxLength={2048}
                     placeholder="https://example.com/image.jpg"
@@ -732,7 +866,12 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                         type can carry one (popups route their CTA through /go/
                         too). Remounts with the dialog session so state resets. */}
                     {!isDivider ? (
-                      <SlugField key={editing?.id ?? "new"} editing={editing} />
+                      <SlugField
+                        key={sessionKey}
+                        editing={editing}
+                        initialSlug={draftRestored && slugValue ? slugValue : undefined}
+                        onSlugChange={setSlugValue}
+                      />
                     ) : null}
 
                     {/* Icon system (#91): auto favicon / lucide pick / upload.

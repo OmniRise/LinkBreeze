@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { LogOut, ChevronLeft, CircleArrowUp } from "lucide-react";
 import { logout } from "@/server/actions/auth";
+import { clearAllLinkDrafts } from "@/lib/link-drafts";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { PageSwitcher } from "@/components/admin/PageSwitcher";
@@ -177,7 +178,11 @@ export function AdminSidebar({
             })}
           </span>
         )}
-        <form action={logout} className={cn(rail && "flex")}>
+        <form
+          action={logout}
+          onSubmit={() => clearAllLinkDrafts()}
+          className={cn(rail && "flex")}
+        >
           <Button
             variant="ghost"
             size="sm"

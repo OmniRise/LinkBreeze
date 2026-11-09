@@ -293,6 +293,8 @@ const en = {
     createDescription: "Create a new link for your page.",
     updateDescription: "Update the details of this link.",
     typeLabel: "Type",
+    draftRestored: "Draft restored",
+    draftDiscard: "Discard draft",
     advanced: "Advanced",
     moreActions: "More actions",
     preview: "Preview",
