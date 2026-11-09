@@ -551,7 +551,20 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
             <EyeIcon className="size-4" />
           </button>
         </DialogHeader>
-        <form action={handleSubmit} className="flex min-h-0 flex-1">
+        <form
+          onSubmit={(e) => {
+            // React 19 auto-resets UNCONTROLLED inputs after a <form action>
+            // resolves — a failed save (server validation error) would wipe
+            // every field the operator typed (#Rene report: text popup with
+            // CTA label but no URL → error → all entries gone). Manual
+            // submit + preventDefault opts out of that reset; native
+            // constraint validation still runs BEFORE the submit event, so
+            // required/maxLength bubbles and Enter-key submit keep working.
+            e.preventDefault();
+            handleSubmit(new FormData(e.currentTarget));
+          }}
+          className="flex min-h-0 flex-1"
+        >
           {/* Form pane: FIXED width, always — the same 600px whether the
               preview is open or not; expanding only ADDS the preview pane
               to the right of it. */}
