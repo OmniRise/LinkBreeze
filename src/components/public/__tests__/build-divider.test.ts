@@ -32,6 +32,7 @@ const baseLink: LinkRow = {
   popupText: null,
   ctaLabel: null,
   abConfig: null,
+  vcardConfig: null,
   redirectSlug: null,
   createdAt: "2026-09-01 00:00:00",
 };

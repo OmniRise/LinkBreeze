@@ -280,6 +280,10 @@ export const links = sqliteTable("links", {
   // carries variant B's destination, labels, integer weights (sum 100),
   // lifecycle status (running | paused | archived) and the promoted winner.
   abConfig: text("ab_config"),
+  // Custom vCard: JSON config (see src/lib/vcard-link.ts for the shape +
+  // zod schema). NULL = the page's default contact card (Settings → Contact
+  // card); set = a full-replace custom card served by /api/vcard/<slug>?link=<id>.
+  vcardConfig: text("vcard_config"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 

@@ -42,6 +42,7 @@ import {
   slugError,
   MAX_SLUG_LENGTH,
 } from "@/lib/link-slug";
+import { parseVCardLinkConfig } from "@/lib/vcard-link";
 import {
   checkSlugAvailability,
   setAbTest,
@@ -286,6 +287,19 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
     editing?.sectionId ? String(editing.sectionId) : "none",
   );
   const [slugValue, setSlugValue] = React.useState("");
+  // Custom vCard: mode + per-link contact fields. Custom cards are FULL
+  // REPLACE — blank fields stay blank on the downloaded card (avatar and
+  // social links still come from the page). Editing pre-fills from the
+  // stored config; a fresh link starts on the page's default card.
+  const storedVCard = parseVCardLinkConfig(editing?.vcardConfig ?? null);
+  const [vcardMode, setVcardMode] = React.useState<"page" | "custom">(
+    storedVCard ? "custom" : "page",
+  );
+  const [vcardOrg, setVcardOrg] = React.useState(storedVCard?.organization ?? "");
+  const [vcardJob, setVcardJob] = React.useState(storedVCard?.jobTitle ?? "");
+  const [vcardEmail, setVcardEmail] = React.useState(storedVCard?.email ?? "");
+  const [vcardPhone, setVcardPhone] = React.useState(storedVCard?.phone ?? "");
+  const [vcardAddress, setVcardAddress] = React.useState(storedVCard?.address ?? "");
   // True when this dialog session restored a saved draft (drives the chip).
   const [draftRestored, setDraftRestored] = React.useState(false);
 
@@ -321,6 +335,12 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
     setCtaLabelValue(editing?.ctaLabel ?? "");
     setSectionValue(editing?.sectionId ? String(editing.sectionId) : "none");
     setSlugValue("");
+    setVcardMode(storedVCard ? "custom" : "page");
+    setVcardOrg(storedVCard?.organization ?? "");
+    setVcardJob(storedVCard?.jobTitle ?? "");
+    setVcardEmail(storedVCard?.email ?? "");
+    setVcardPhone(storedVCard?.phone ?? "");
+    setVcardAddress(storedVCard?.address ?? "");
     setDraftRestored(false);
 
     const had = editing?.type === "url" && hasUTM(editing?.url ?? "");
@@ -340,6 +360,12 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
         if (typeof draft.lucidePick === "string") setLucidePick(draft.lucidePick);
         if (typeof draft.customIconUrl === "string") setCustomIconUrl(draft.customIconUrl);
         if (draft.cardStyle === "compact" || draft.cardStyle === "rich") setCardStyle(draft.cardStyle);
+        if (draft.vcardMode === "custom" || draft.vcardMode === "page") setVcardMode(draft.vcardMode);
+        if (typeof draft.vcardOrg === "string") setVcardOrg(draft.vcardOrg);
+        if (typeof draft.vcardJob === "string") setVcardJob(draft.vcardJob);
+        if (typeof draft.vcardEmail === "string") setVcardEmail(draft.vcardEmail);
+        if (typeof draft.vcardPhone === "string") setVcardPhone(draft.vcardPhone);
+        if (typeof draft.vcardAddress === "string") setVcardAddress(draft.vcardAddress);
         if (typeof draft.advancedOpen === "boolean") setAdvancedOpen(draft.advancedOpen);
         if (typeof draft.titleValue === "string") setTitleValue(draft.titleValue);
         if (typeof draft.urlValue === "string") setUrlValue(draft.urlValue);
@@ -386,6 +412,12 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
       ctaLabel: ctaLabelValue,
       sectionValue,
       slug: slugValue,
+      vcardMode,
+      vcardOrg,
+      vcardJob,
+      vcardEmail,
+      vcardPhone,
+      vcardAddress,
     };
     const timer = setTimeout(() => {
       if (linkDraftHasContent(snapshot)) {
@@ -398,7 +430,8 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
   }, [open, pageId, editing, type, highlighted, active, scheduled, iconMode,
       lucidePick, customIconUrl, cardStyle, advancedOpen, titleValue, urlValue,
       descValue, imageValue, showUTM, popupText, ctaLabelValue, sectionValue,
-      slugValue]);
+      slugValue, vcardMode, vcardOrg, vcardJob, vcardEmail, vcardPhone,
+      vcardAddress]);
 
   // If user switches away from "url" type, collapse UTM (values preserved).
   const utmVisible = isUrlType && showUTM;
@@ -425,6 +458,15 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
     const rawUrl = (formData.get("url") as string) || "";
     let finalUrl = prefixLinkUrl(type, rawUrl);
     formData.set("type", type);
+
+    // Custom vCard: the mode flag drives the server's tri-state (present =
+    // write; absent for non-vcard types = untouched). The per-field inputs
+    // are unmounted when the type is not vcard, so they never ride along.
+    if (isVcard) {
+      formData.set("vcardMode", vcardMode);
+    } else {
+      formData.delete("vcardMode");
+    }
 
     // Append UTM params for URL-type links when the builder is open.
     // Read from form fields (uncontrolled inputs) — no React state needed.
@@ -556,6 +598,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
       ctaLabel: ctaLabelValue || null,
       redirectSlug: editing?.redirectSlug ?? null,
       abConfig: editing?.abConfig ?? null,
+      vcardConfig: editing?.vcardConfig ?? null,
       createdAt: editing?.createdAt ?? "2026-01-01 00:00:00",
       isHighlighted: highlighted,
     }),
@@ -749,7 +792,107 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                 <p className="rounded-lg border border-dashed border-border/70 px-3 py-2.5 text-xs text-muted-foreground">
                   {t("dividerHint")}
                 </p>
-              ) : isVcard ? null : (
+              ) : isVcard ? (
+                <>
+                  {/* Custom vCard: page card vs per-link custom (full
+                      replace — blank fields stay blank; the page's avatar
+                      and social links still ride on the downloaded card). */}
+                  <FormField label={t("ltVcard")}>
+                    <div
+                      role="radiogroup"
+                      aria-label={t("ltVcard")}
+                      className="grid grid-cols-2 gap-2"
+                    >
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={vcardMode === "page"}
+                        onClick={() => setVcardMode("page")}
+                        className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                          vcardMode === "page"
+                            ? "border-violet bg-violet/5 text-foreground"
+                            : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                        }`}
+                      >
+                        <span className="font-medium">{t("vcardPageCard")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={vcardMode === "custom"}
+                        onClick={() => setVcardMode("custom")}
+                        className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                          vcardMode === "custom"
+                            ? "border-violet bg-violet/5 text-foreground"
+                            : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                        }`}
+                      >
+                        <span className="font-medium">{t("vcardCustomCard")}</span>
+                      </button>
+                    </div>
+                    <input type="hidden" name="vcardMode" value={vcardMode} />
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {vcardMode === "page" ? t("vcardPageCardHint") : t("vcardCustomHint")}
+                    </p>
+                  </FormField>
+                  {vcardMode === "custom" && (
+                    <>
+                      <FormField label={t("vcardFieldOrg")} htmlFor="vcardOrganization">
+                        <Input
+                          id="vcardOrganization"
+                          name="vcardOrganization"
+                          value={vcardOrg}
+                          onChange={(e) => setVcardOrg(e.target.value)}
+                          maxLength={120}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldJob")} htmlFor="vcardJobTitle">
+                        <Input
+                          id="vcardJobTitle"
+                          name="vcardJobTitle"
+                          value={vcardJob}
+                          onChange={(e) => setVcardJob(e.target.value)}
+                          maxLength={120}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldEmail")} htmlFor="vcardEmail">
+                        <Input
+                          id="vcardEmail"
+                          name="vcardEmail"
+                          type="email"
+                          value={vcardEmail}
+                          onChange={(e) => setVcardEmail(e.target.value)}
+                          maxLength={200}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldPhone")} htmlFor="vcardPhone">
+                        <Input
+                          id="vcardPhone"
+                          name="vcardPhone"
+                          type="tel"
+                          value={vcardPhone}
+                          onChange={(e) => setVcardPhone(e.target.value)}
+                          maxLength={60}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldAddress")} htmlFor="vcardAddress">
+                        <Input
+                          id="vcardAddress"
+                          name="vcardAddress"
+                          value={vcardAddress}
+                          onChange={(e) => setVcardAddress(e.target.value)}
+                          maxLength={300}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                    </>
+                  )}
+                </>
+              ) : (
               <FormField label={urlLabel} htmlFor="url" required={!isTextPopup}>
                 <Input
                   id="url"

@@ -356,6 +356,7 @@ export async function createLink(
         | "popupText"
         | "ctaLabel"
         | "redirectSlug"
+        | "vcardConfig"
       >
     >,
 ): Promise<LinkRow> {
@@ -389,6 +390,7 @@ export async function createLink(
       popupText: data.popupText ?? null,
       ctaLabel: data.ctaLabel ?? null,
       redirectSlug: data.redirectSlug ?? null,
+      vcardConfig: data.vcardConfig ?? null,
       orderIndex: nextOrder,
     })
     .returning();
@@ -420,6 +422,7 @@ export async function updateLink(
       | "ctaLabel"
       | "redirectSlug"
       | "abConfig"
+      | "vcardConfig"
     >
   >,
 ): Promise<void> {

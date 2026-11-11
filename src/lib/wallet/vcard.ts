@@ -65,6 +65,12 @@ export interface VCardInput {
   photoUrl?: string | null;
   /** Optional social profiles — map to X-SOCIALPROFILE entries. */
   socials?: Array<{ platform: string; url: string }> | null;
+  /**
+   * Optional NICKNAME value. Defaults to the slug (page card behavior);
+   * explicit null suppresses the line entirely (custom full-replace cards
+   * carry no page identity beyond avatar + socials).
+   */
+  nickname?: string | null;
 }
 
 export function buildVCard(input: VCardInput): string {
@@ -79,9 +85,15 @@ export function buildVCard(input: VCardInput): string {
     // honest encoding.
     `N:${escapeVcardValue(fn)}`,
     `FN:${escapeVcardValue(fn)}`,
-    `NICKNAME:${escapeVcardValue(input.slug)}`,
     `URL:${url}`,
   ];
+
+  // NICKNAME defaults to the slug; explicit null suppresses the line
+  // (custom per-link cards keep no page identity beyond avatar + socials).
+  const nickname = input.nickname !== undefined ? input.nickname : input.slug;
+  if (nickname && nickname.trim()) {
+    lines.push(`NICKNAME:${escapeVcardValue(nickname.trim())}`);
+  }
 
   if (input.organization && input.organization.trim()) {
     lines.push(`ORG:${escapeVcardValue(input.organization.trim())}`);

@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 3132ffe13dee ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: ba7c181f2405 ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -164,6 +164,16 @@ const it: Messages = {
   },
 
   linksPage: {
+    vcardPageCard: "Card contatti della pagina",
+    vcardPageCardHint: "Generata dalla tua pagina e dalla sezione Impostazioni → Card contatti.",
+    vcardCustomCard: "Card personalizzata",
+    vcardCustomHint: "Solo i campi compilati appaiono sulla card. L'avatar e i link social della pagina sono sempre inclusi.",
+    vcardFieldOrg: "Organizzazione",
+    vcardFieldJob: "Ruolo",
+    vcardFieldEmail: "Email",
+    vcardFieldPhone: "Telefono",
+    vcardFieldAddress: "Indirizzo",
+    vcardFieldBlank: "Lascia vuoto",
     abTest: "Test A/B",
     abTestHint: "Dividi i clic tra questo URL e una seconda destinazione",
     abVariantBUrl: "URL della variante B",

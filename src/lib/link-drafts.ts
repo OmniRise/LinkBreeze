@@ -40,6 +40,12 @@ export interface LinkDraft {
   ctaLabel: string;
   sectionValue: string;
   slug: string;
+  vcardMode: string;
+  vcardOrg: string;
+  vcardJob: string;
+  vcardEmail: string;
+  vcardPhone: string;
+  vcardAddress: string;
 }
 
 /** Draft key: one per dialog target — create (per page) or edit (per link). */
@@ -117,6 +123,12 @@ export function linkDraftHasContent(d: {
   popupText?: string;
   ctaLabel?: string;
   slug?: string;
+  vcardMode?: string;
+  vcardOrg?: string;
+  vcardJob?: string;
+  vcardEmail?: string;
+  vcardPhone?: string;
+  vcardAddress?: string;
 }): boolean {
   return !!(
     d.titleValue?.trim() ||
@@ -125,6 +137,14 @@ export function linkDraftHasContent(d: {
     d.imageValue?.trim() ||
     d.popupText?.trim() ||
     d.ctaLabel?.trim() ||
-    d.slug?.trim()
+    d.slug?.trim() ||
+    // Custom vCard: the mode choice itself is content (a "custom" pick with
+    // blank fields still produces a different downloaded card).
+    d.vcardMode === "custom" ||
+    d.vcardOrg?.trim() ||
+    d.vcardJob?.trim() ||
+    d.vcardEmail?.trim() ||
+    d.vcardPhone?.trim() ||
+    d.vcardAddress?.trim()
   );
 }

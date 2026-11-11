@@ -1,0 +1,1 @@
+ALTER TABLE `links` ADD `vcard_config` text;

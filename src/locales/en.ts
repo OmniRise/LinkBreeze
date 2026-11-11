@@ -172,6 +172,16 @@ const en = {
   },
 
   linksPage: {
+    vcardPageCard: "Page contact card",
+    vcardPageCardHint: "Generated from your page and the Settings → Contact card section.",
+    vcardCustomCard: "Custom card",
+    vcardCustomHint: "Only the fields you fill appear on the card. Your page's avatar and social links are always included.",
+    vcardFieldOrg: "Organization",
+    vcardFieldJob: "Job title",
+    vcardFieldEmail: "Email",
+    vcardFieldPhone: "Phone",
+    vcardFieldAddress: "Address",
+    vcardFieldBlank: "Leave blank",
     abTest: "A/B test",
     abTestHint: "Split clicks between this URL and a second destination",
     abVariantBUrl: "Variant B URL",

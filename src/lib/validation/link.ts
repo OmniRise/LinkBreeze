@@ -26,6 +26,13 @@ export const linkSchema = z
     // #93 popup cards: long body + optional CTA label (target = url column).
     popupText: z.string().max(5000).optional().nullable(),
     ctaLabel: z.string().max(80).optional().nullable(),
+    // Custom vCard: raw per-link contact fields. The action layer encodes
+    // them canonically (encodeVCardLinkConfig) — only vcard links store any.
+    vcardOrganization: z.string().max(120).optional().nullable(),
+    vcardJobTitle: z.string().max(120).optional().nullable(),
+    vcardEmail: z.string().max(200).optional().nullable(),
+    vcardPhone: z.string().max(60).optional().nullable(),
+    vcardAddress: z.string().max(300).optional().nullable(),
     isHighlighted: z
       .union([z.string(), z.boolean()])
       .transform(truthy)

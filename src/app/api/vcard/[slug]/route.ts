@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPageBySlug } from "@/server/queries";
+import { getPageBySlug, getLink } from "@/server/queries";
 import { isSlugServedOnHost } from "@/server/domains";
 import { pickRequestHost } from "@/lib/host-routing";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildVCard, vcardFilename, pageToVCardInput } from "@/lib/wallet/vcard";
+import { parseVCardLinkConfig, buildCustomVCard } from "@/lib/vcard-link";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,7 +67,25 @@ export async function GET(
     return NextResponse.json({ error: "Page not found" }, { status: 404 });
   }
 
-  const vcard = buildVCard(pageToVCardInput(page, getOrigin(request)));
+  const origin = getOrigin(request);
+
+  // Custom per-link card: ?link=<id> selects a vcard link on THIS page whose
+  // vcard_config carries a full-replace custom contact card. Any mismatch
+  // (unknown id, other page, non-vcard type, malformed config) degrades to
+  // the page's default card — the URL shape never 500s or leaks rows.
+  let vcard: string;
+  const linkParam = request.nextUrl.searchParams.get("link");
+  if (linkParam && /^\d+$/.test(linkParam)) {
+    const link = await getLink(Number(linkParam));
+    const config = link && link.pageId === page.id && link.type === "vcard"
+      ? parseVCardLinkConfig(link.vcardConfig)
+      : null;
+    vcard = config
+      ? buildCustomVCard(link!, config, page, origin)
+      : buildVCard(pageToVCardInput(page, origin));
+  } else {
+    vcard = buildVCard(pageToVCardInput(page, origin));
+  }
 
   return new NextResponse(vcard, {
     status: 200,
