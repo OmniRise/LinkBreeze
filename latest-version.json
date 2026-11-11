@@ -1,6 +1,6 @@
 {
-  "version": "1.5.1",
-  "releasedAt": "2026-10-27",
-  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.5.1",
-  "notes": "The admin and README now ship in eleven languages (Italian, Russian, Turkish, and Japanese join the lineup), LinkBreeze publishes first-party CasaOS, Runtipi, and Unraid app-store packaging, and Settings gains an update status card showing the installed version against the latest GitHub and website releases with a one-click Recheck. Importing a Linktree page no longer pulls Linktree's own affiliate links, dependency updates resolve the outstanding Dependabot alerts, and a security fix closes update-check server actions that skipped the demo guard on public demo instances."
+  "version": "1.6.0",
+  "releasedAt": "2026-11-11",
+  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.6.0",
+  "notes": "Multi-user accounts with customizable roles, generic OIDC/OAuth2 single sign-on, a public REST API v1 with OpenAPI docs, and A/B testing for links headline the largest release yet, alongside Add-link drafts that survive closing the sheet, markdown popup cards, and native vCard contact cards now customizable per link. Multi-user and SSO ship with an append-only audit log, invitations, and session lifetime controls, while the REST API covers links, sections, profile, analytics and bulk import with rate limiting, ETags and cursor pagination. Dependency updates close every open Dependabot alert with an available fix, including the November Next.js security release."
 }

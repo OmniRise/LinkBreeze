@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-11
+
 ### Added
 
 - **Add/Edit-link drafts: typed entries survive closing the sheet** — half-filling the link dialog and closing it no longer loses the work: the form's field state (type, title, URL, description, thumbnail, popup body, CTA label, icon mode + pick, card style, section, /go/ slug, advanced disclosure) is debounce-written (300ms) to `sessionStorage` under one key per dialog target (create-per-page, edit-per-link), and reopening restores it behind a "Draft restored" chip with a one-click Discard back to defaults. The draft's lifetime is exactly the browser session by design: the tab closing clears it automatically, sign-out clears it explicitly (both sign-out forms), and a successful save discards it — a second browser tab never sees the first tab's draft. Known limits: freshly picked icon files can't persist (browser `File` objects don't serialize — the stored custom icon URL round-trips fine), and the advanced UTM/schedule date inputs stay per-open. Title/URL/description/thumbnail/CTA fields became fully controlled inputs to make restore exact (URL still displays the UTM-stripped form for edited links). No schema or server changes; drafts are read back defensively (versioned JSON, silent drop on parse failure). Verified live end-to-end on a throwaway instance: restore, discard, save-clears, edit-draft and sign-out-clears, plus the full test suite, lint/tsc/i18n gates.
