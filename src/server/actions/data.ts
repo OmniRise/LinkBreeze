@@ -126,6 +126,11 @@ type ExportableTheme = z.infer<typeof exportableThemeSchema>;
  *  Serialization lives in server/backup-restore.ts — the scheduled-backup
  *  feature (#83) shares the exact same payload. */
 export async function exportBackupPayload(): Promise<BackupPayload> {
+  // Defense-in-depth: this is an exported server action (a public POST
+  // endpoint), so it self-defends — /api/backup gates too, but the action
+  // must not rely on its caller. Scheduled backups call getBackupPayload
+  // directly and are unaffected.
+  await requireInstanceAdminOrThrow();
   return getBackupPayload();
 }
 /** Transactional restore: replace profile/links/settings/themes from a backup

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireInstanceAdminOrThrow } from "@/server/access";
 import { csvCell } from "@/lib/csv";
 import { getAllSubscribers } from "@/server/queries";
 
@@ -8,10 +8,19 @@ export const dynamic = "force-dynamic";
 
 const CSV_HEADER = ["email", "subscribed_at", "consent_at", "consent_text"];
 
-/** CSV export of all subscriber emails. Auth-required. */
+/**
+ * CSV export of all subscriber emails. Instance-admin-only: subscribers are
+ * an instance-wide table with no page owner, so a session-only check let any
+ * Member export every email address collected across the instance.
+ */
 export async function GET() {
-  if (!(await getSession())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    await requireInstanceAdminOrThrow();
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Unauthorized" },
+      { status: err instanceof Error && err.message === "Forbidden" ? 403 : 401 },
+    );
   }
 
   const rows = await getAllSubscribers();
