@@ -579,15 +579,24 @@ describe("docs-drift tripwire (#81 E.19)", () => {
     // docs:check verifies README *hash* sync but never the guide LINK —
     // a rename of docs/ab-testing.md (or a mirror edit dropping the link)
     // would break all 11 surfaces silently. Pin: each README*.md carries
-    // exactly one ](docs/ab-testing.md) target and the file exists.
-    const readmes = readdirSync(process.cwd()).filter(
-      (f) => f.startsWith("README") && f.endsWith(".md"),
-    );
+    // exactly one ](...ab-testing.md) target and the file exists.
+    // Layout since the root reorg: README.md at root, translations in
+    // docs/readme/ (their target is one level up: ../ab-testing.md).
+    const rootReadme = resolve(process.cwd(), "README.md");
+    const readmeDir = resolve(process.cwd(), "docs", "readme");
+    const readmes = [
+      rootReadme,
+      ...readdirSync(readmeDir)
+        .filter((f) => /^README\..+\.md$/.test(f))
+        .map((f) => resolve(readmeDir, f)),
+    ];
     expect(readmes.length).toBe(11); // en + 10 translations
     for (const f of readmes) {
-      const content = readFileSync(resolve(process.cwd(), f), "utf8");
+      const content = readFileSync(f, "utf8");
       const matches = content.match(/\]\([^)]*ab-testing[^)]*\)/g) ?? [];
-      expect(matches, `${f} guide link`).toEqual(["](docs/ab-testing.md)"]);
+      const expected =
+        f === rootReadme ? "](docs/ab-testing.md)" : "](../ab-testing.md)";
+      expect(matches, `${f} guide link`).toEqual([expected]);
     }
   });
 
