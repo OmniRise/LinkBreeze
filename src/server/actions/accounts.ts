@@ -25,7 +25,6 @@ import {
   updatePage,
   getPageById,
   createPage,
-  getAllPages,
   getRoleById,
   listInstanceAdminIds,
   getCapabilitiesForUser,
@@ -36,26 +35,7 @@ import { requireAccountsAdmin, requireInstanceAdmin } from "@/server/access";
 import { recordAudit } from "@/server/audit";
 import { requirePasswordConfirmation } from "@/server/actions/confirm";
 import { normalizeSlug, slugError, SLUG_ERRORS } from "@/lib/link-slug";
-
-/** First page slug for a new account: the username, made unique with -2/-3… */
-export async function uniqueSlugForUsername(username: string): Promise<string> {
-  const base = normalizeSlug(username) || "user";
-  const taken = new Set((await getAllPages()).map((p) => p.slug.toLowerCase()));
-  if (!taken.has(base.toLowerCase()) && !slugError(base)) return base;
-  for (let i = 2; ; i++) {
-    const candidate = `${base}-${i}`;
-    if (!taken.has(candidate.toLowerCase())) return candidate;
-  }
-}
-
-/**
- * #124 2B.4 — instance page policy: 'per_user' (default) auto-creates each
- * new account's own public page; 'manual' leaves new pages to the admin.
- */
-export async function accountPagePolicy(): Promise<"per_user" | "manual"> {
-  const v = await getSetting("accountPagePolicy");
-  return v === "manual" ? "manual" : "per_user";
-}
+import { accountPagePolicy, uniqueSlugForUsername } from "@/server/account-policy";
 
 /**
  * Strip account fields that must never be returned to the client.

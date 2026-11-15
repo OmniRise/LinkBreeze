@@ -32,7 +32,7 @@ import {
   revokeInvite as revokeInviteQuery,
   listInvites,
 } from "@/server/queries";
-import { accountPagePolicy, uniqueSlugForUsername } from "@/server/actions/accounts";
+import { accountPagePolicy, uniqueSlugForUsername } from "@/server/account-policy";
 
 export interface InviteToken {
   token: string;
