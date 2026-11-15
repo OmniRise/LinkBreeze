@@ -202,7 +202,7 @@ Your public page lives at `/<slug>`. The default slug is `u`.
 
 ## Custom domains not working
 
-Full setup guide: [docs/custom-domains.md](docs/custom-domains.md).
+Full setup guide: [docs/custom-domains.md](custom-domains.md).
 
 ### Domain shows 404 or the wrong site
 

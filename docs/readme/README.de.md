@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · **Deutsch** · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
+[English](../../README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · **Deutsch** · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ Link-Miniaturansichten** - Bilder zu deinen Links hinzufügen für visuelle Vorschaukarten
 - **⏰ Link-Planung** - Plane, dass Links automatisch erscheinen oder verschwinden, mit Datum- und Uhrzeitsteuerung
 - **🏷️ Eigene Weiterleitungs-Slugs** - Stabile, teilbare `/go/your-name`-Kurzlinks, die Löschen-und-Neu-Anlegen überstehen
-- **🧪 A/B-Tests** - Aufteilung des Link-Traffics zwischen zwei Zielen mit Besucher-Zuweisung, die über Besuche hinweg gleich bleibt, Varianten-Analytik, Lift-Prozent und Ein-Klick-Siegernennung ([Anleitung](docs/ab-testing.md))
+- **🧪 A/B-Tests** - Aufteilung des Link-Traffics zwischen zwei Zielen mit Besucher-Zuweisung, die über Besuche hinweg gleich bleibt, Varianten-Analytik, Lift-Prozent und Ein-Klick-Siegernennung ([Anleitung](../ab-testing.md))
 - **📈 Externe Analysen** - Plausible, Umami, Matomo oder Google Analytics mit einem einzigen Einfügen einbinden
 - **🖼️ Social-Vorschaubilder (OG)** - Sharecards werden automatisch aus dem Theme deiner Seite gerendert, oder lade ein eigenes Bild hoch mit Kontrolle über Zuschnitt, Position und Zoom
 - **✏️ Eigenes CSS** - Feintune deine Seite mit direkter CSS-Injektion
@@ -236,7 +236,7 @@ Nach dem Deployment ist deine Seite unter `https://your-domain.com/your-slug` er
 2. Setze Port 3000 frei oder schalte einen Reverse Proxy davor
 3. Fertig
 
-**Fertige Compose-Dateien** liegen in [`examples/`](examples/) - eine in sich geschlossene Datei pro Szenario:
+**Fertige Compose-Dateien** liegen in [`examples/`](../../examples) - eine in sich geschlossene Datei pro Szenario:
 
 | Was du willst | Nutze diese Datei |
 |---------------|-------------------|
@@ -363,7 +363,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ Konfiguration
 
-Die gesamte Konfiguration erfolgt über Umgebungsvariablen. **[`.env.example`](.env.example) ist die maßgebliche Referenz** - kopiere sie, dann ist jede Variable inline dokumentiert, einschließlich der Wallet-Blöcke.
+Die gesamte Konfiguration erfolgt über Umgebungsvariablen. **[`.env.example`](../../.env.example) ist die maßgebliche Referenz** - kopiere sie, dann ist jede Variable inline dokumentiert, einschließlich der Wallet-Blöcke.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
@@ -404,7 +404,7 @@ Laufzeiteinstellungen (Seiten-Slug, Titel, SEO, Theme) werden über das Admin-Da
 
 Leite eigene Domains auf Seiten weiter - eine Instanz, viele Identitäten. Besucher landen auf `https://jane.com/` und sehen Janes Seite direkt, mit automatischen Canonical-Weiterleitungen, SEO-tauglichen Sitemaps und strikter Admin-Host-Sperre. Bindungen werden beim ersten echten Besuch aktiv (selbstverifizierendes DNS), und der Seiten-Scope legt fest, ob eine Domain die Seite IST (exklusiv) oder ein Hub für alle Slugs.
 
-Komplette Einrichtung - DNS, Wildcard-TLS und Copy-Paste-Reverse-Proxy-Konfigurationen für Caddy, nginx und Traefik - in **[docs/custom-domains.md](docs/custom-domains.md)**.
+Komplette Einrichtung - DNS, Wildcard-TLS und Copy-Paste-Reverse-Proxy-Konfigurationen für Caddy, nginx und Traefik - in **[docs/custom-domains.md](../custom-domains.md)**.
 
 ## 🔌 REST-API
 
@@ -511,7 +511,7 @@ Die Theme-Engine ist ein Token-System auf Basis von CSS-Custom-Properties (`--lb
 
 ## 📖 Dokumentation & Links
 
-[Mitmachen](CONTRIBUTING.md) · [Sicherheitsrichtlinie](SECURITY.md) · [Changelog](CHANGELOG.md) · [Fehlerbehebung](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Architekturentscheidungen](docs/adr/) · [Konfigurationsreferenz](.env.example)
+[Mitmachen](../../.github/CONTRIBUTING.md) · [Sicherheitsrichtlinie](../../.github/SECURITY.md) · [Changelog](../../CHANGELOG.md) · [Fehlerbehebung](../TROUBLESHOOTING.md) · [Custom Domains](../custom-domains.md) · [Architekturentscheidungen](../adr) · [Konfigurationsreferenz](../../.env.example)
 
 Quelle: [GitHub](https://github.com/OmniRise/LinkBreeze) (kanonisch) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (öffentlicher Pull-Mirror, automatisch synchronisiert) · Image: [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -519,11 +519,11 @@ Issues und PRs sind auf beiden Forges willkommen.
 
 ## 🤝 Mitmachen
 
-Beiträge sind willkommen! Siehe [CONTRIBUTING.md](CONTRIBUTING.md) für die Richtlinien.
+Beiträge sind willkommen! Siehe [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md) für die Richtlinien.
 
 ## 📜 Lizenz
 
-MIT - mach damit, was du willst. Siehe [LICENSE](LICENSE).
+MIT - mach damit, was du willst. Siehe [LICENSE](../../LICENSE).
 
 ## 🏢 Über
 

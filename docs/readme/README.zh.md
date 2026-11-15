@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · **中文** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
+[English](../../README.md) · [العربية](README.ar.md) · **中文** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ 链接缩略图** - 为链接添加图片，生成可视化预览卡片
 - **⏰ 链接定时** - 通过日期/时间控制，让链接自动上线或下线
 - **🏷️ 自定义跳转别名** - 稳定、可分享的 `/go/your-name` 短链接，删除重建后依然有效
-- **🧪 A/B 测试** - 将链接流量分配到两个目标，访客分配跨访问保持一致，支持按变体分析、提升百分比和一键提升胜出变体 ([指南](docs/ab-testing.md))
+- **🧪 A/B 测试** - 将链接流量分配到两个目标，访客分配跨访问保持一致，支持按变体分析、提升百分比和一键提升胜出变体 ([指南](../ab-testing.md))
 - **📈 第三方统计** - 粘贴一次即可接入 Plausible、Umami、Matomo 或 Google Analytics
 - **🖼️ 社交预览（OG）图片** - 根据页面主题自动渲染分享卡片，也可上传自定义图片并控制适配、位置与缩放
 - **✏️ 自定义 CSS** - 通过原生 CSS 注入精细调整你的页面
@@ -236,7 +236,7 @@ npm run dev
 2. 开放 3000 端口，或在前端放置反向代理
 3. 完成
 
-**现成的 compose 文件**位于 [`examples/`](examples/) - 每个场景一个独立文件：
+**现成的 compose 文件**位于 [`examples/`](../../examples) - 每个场景一个独立文件：
 
 | 需求 | 使用这个文件 |
 |---------------|---------------|
@@ -363,7 +363,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ 配置
 
-所有配置均通过环境变量完成。**[`.env.example`](.env.example) 是权威参考** - 复制它，每个变量都有内联说明，包括钱包区块。
+所有配置均通过环境变量完成。**[`.env.example`](../../.env.example) 是权威参考** - 复制它，每个变量都有内联说明，包括钱包区块。
 
 | 变量 | 默认值 | 说明 |
 |----------|---------|-------------|
@@ -404,7 +404,7 @@ cloudflared tunnel --url http://localhost:3000
 
 将自有域名指向页面 - 一个实例，多个身份。访客打开 `https://jane.com/` 即可直接看到 Jane 的页面，并配有自动 canonical 重定向、利于 SEO 的站点地图和严格的管理后台主机锁定。绑定会在首次真实访问时激活（DNS 自验证），页面范围决定域名是该页面本身（独占）还是所有 slug 的中心。
 
-完整设置 - DNS、泛域名 TLS 以及 Caddy、nginx、Traefik 的即拷即用反向代理配置 - 见 **[docs/custom-domains.md](docs/custom-domains.md)**。
+完整设置 - DNS、泛域名 TLS 以及 Caddy、nginx、Traefik 的即拷即用反向代理配置 - 见 **[docs/custom-domains.md](../custom-domains.md)**。
 
 ## 🔌 REST API
 
@@ -511,7 +511,7 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 
 ## 📖 文档与链接
 
-[贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md) · [故障排查](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [架构决策](docs/adr/) · [配置参考](.env.example)
+[贡献指南](../../.github/CONTRIBUTING.md) · [安全策略](../../.github/SECURITY.md) · [更新日志](../../CHANGELOG.md) · [故障排查](../TROUBLESHOOTING.md) · [Custom Domains](../custom-domains.md) · [架构决策](../adr) · [配置参考](../../.env.example)
 
 源码：[GitHub](https://github.com/OmniRise/LinkBreeze)（权威源） · [GitLab](https://gitlab.com/omnirise00/linkbreeze)（公开拉取镜像，自动同步） · 镜像：[`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -519,11 +519,11 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 
 ## 🤝 贡献
 
-欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解指南。
+欢迎贡献！请查看 [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md) 了解指南。
 
 ## 📜 许可证
 
-MIT - 随便用。详见 [LICENSE](LICENSE)。
+MIT - 随便用。详见 [LICENSE](../../LICENSE)。
 
 ## 🏢 关于
 

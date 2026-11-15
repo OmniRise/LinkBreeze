@@ -150,7 +150,7 @@ export async function login(formData: FormData): Promise<ActionResult> {
     // Unreadable secret: fall through to a no-session error — admin must use recovery flow.
     return {
       success: false,
-      error: "Two-factor state is unreadable (was SECRET_KEY changed?). See SECURITY.md for recovery.",
+      error: "Two-factor state is unreadable (was SECRET_KEY changed?). See the SECURITY guide: https://github.com/Manak-hash/LinkBreeze/blob/main/.github/SECURITY.md for recovery.",
       errorCode: ErrorCode.INTERNAL,
     };
   }

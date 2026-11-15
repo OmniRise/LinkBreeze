@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · **Français** · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
+[English](../../README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · **Français** · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ Miniatures de liens** - Ajoutez des images à vos liens pour des cartes d'aperçu visuelles
 - **⏰ Programmation des liens** - Programmez l'apparition ou la disparition automatique des liens avec des contrôles de date et d'heure
 - **🏷️ Slugs de redirection personnalisés** - Des liens courts `/go/your-name` stables et partageables qui survivent à une suppression puis recréation
-- **🧪 Tests A/B** - Répartissez le trafic d'un lien entre deux destinations avec une attribution par visiteur qui reste stable d'une visite à l'autre, une analytique par variante, un pourcentage de lift et la promotion du gagnant en un clic ([guide](docs/ab-testing.md))
+- **🧪 Tests A/B** - Répartissez le trafic d'un lien entre deux destinations avec une attribution par visiteur qui reste stable d'une visite à l'autre, une analytique par variante, un pourcentage de lift et la promotion du gagnant en un clic ([guide](../ab-testing.md))
 - **📈 Statistiques externes** - Injectez Plausible, Umami, Matomo ou Google Analytics d'un simple copier-coller
 - **🖼️ Images d'aperçu social (OG)** - Cartes de partage générées automatiquement à partir du thème de votre page, ou téléversez la vôtre avec un contrôle du recadrage, de la position et du zoom
 - **✏️ CSS personnalisé** - Ajustez votre page au pixel près avec une injection de CSS brut
@@ -236,7 +236,7 @@ Une fois déployé, votre page est accessible à `https://your-domain.com/your-s
 2. Exposez le port 3000 ou placez un reverse proxy devant
 3. C'est fini
 
-Des **fichiers compose prêts à l'emploi** se trouvent dans [`examples/`](examples/) - un fichier autonome par scénario :
+Des **fichiers compose prêts à l'emploi** se trouvent dans [`examples/`](../../examples) - un fichier autonome par scénario :
 
 | Ce que vous voulez | Utilisez ce fichier |
 |---------------|---------------|
@@ -363,7 +363,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ Configuration
 
-Toute la configuration passe par des variables d'environnement. **[`.env.example`](.env.example) est la référence canonique** - copiez-le et chaque variable est documentée en ligne, y compris les blocs wallet.
+Toute la configuration passe par des variables d'environnement. **[`.env.example`](../../.env.example) est la référence canonique** - copiez-le et chaque variable est documentée en ligne, y compris les blocs wallet.
 
 | Variable | Valeur par défaut | Description |
 |----------|---------|-------------|
@@ -404,7 +404,7 @@ Les réglages à l'exécution (slug de la page, titre, SEO, thème) se gèrent d
 
 Pointez vos propres domaines vers vos pages - une instance, plusieurs identités. Les visiteurs arrivent sur `https://jane.com/` et voient directement la page de Jane, avec redirections canoniques automatiques, sitemaps optimisés SEO et verrou admin strict par hôte. Les liaisons s'activent lors de leur première vraie visite (DNS auto-vérifié), et la portée par page décide si un domaine EST la page (exclusive) ou un hub pour tous les slugs.
 
-Configuration complète - DNS, TLS wildcard et configs reverse-proxy prêtes à coller pour Caddy, nginx et Traefik - dans **[docs/custom-domains.md](docs/custom-domains.md)**.
+Configuration complète - DNS, TLS wildcard et configs reverse-proxy prêtes à coller pour Caddy, nginx et Traefik - dans **[docs/custom-domains.md](../custom-domains.md)**.
 
 ## 🔌 API REST
 
@@ -511,7 +511,7 @@ Le moteur de thèmes est un système de tokens basé sur des propriétés CSS pe
 
 ## 📖 Docs & liens
 
-[Guide de contribution](CONTRIBUTING.md) · [Politique de sécurité](SECURITY.md) · [Journal des modifications](CHANGELOG.md) · [Dépannage](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Décisions d'architecture](docs/adr/) · [Référence de configuration](.env.example)
+[Guide de contribution](../../.github/CONTRIBUTING.md) · [Politique de sécurité](../../.github/SECURITY.md) · [Journal des modifications](../../CHANGELOG.md) · [Dépannage](../TROUBLESHOOTING.md) · [Custom Domains](../custom-domains.md) · [Décisions d'architecture](../adr) · [Référence de configuration](../../.env.example)
 
 Source : [GitHub](https://github.com/OmniRise/LinkBreeze) (canonique) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (miroir public de tirage, synchronisé automatiquement) · Image : [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -519,11 +519,11 @@ Les issues et PRs sont les bienvenues sur l'un ou l'autre forge.
 
 ## 🤝 Contribuer
 
-Les contributions sont les bienvenues ! Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour les directives.
+Les contributions sont les bienvenues ! Consultez [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md) pour les directives.
 
 ## 📜 Licence
 
-MIT - faites-en ce que vous voulez. Voir [LICENSE](LICENSE).
+MIT - faites-en ce que vous voulez. Voir [LICENSE](../../LICENSE).
 
 ## 🏢 À propos
 
