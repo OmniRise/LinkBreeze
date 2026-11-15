@@ -30,6 +30,11 @@ vi.mock("@/server/queries", () => ({
   isSlugTaken: vi.fn(async () => false),
   updateSetting: mocks.updateSetting,
   getSetting: vi.fn(async () => null),
+  // setAbAutoPromote is instance-admin-gated (GHSA-954q-vph2-prc8
+  // follow-up) — the access layer resolves caps through this query.
+  getCapabilitiesForUser: vi.fn(async () => ({
+    caps: { manageAccounts: true, manageInstance: true },
+  })),
 }));
 
 import {

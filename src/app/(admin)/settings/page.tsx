@@ -254,7 +254,9 @@ export default async function SettingsPage({
             <div className="flex flex-col gap-4">
               <ChangePasswordForm />
               <TwoFactorCard enabled={await getTotpEnabled()} />
-              <ApiKeyCard record={apiKeyRecord} usage={getApiUsage()} />
+              {canManageInstance && (
+                <ApiKeyCard record={apiKeyRecord} usage={getApiUsage()} />
+              )}
               {canManageInstance && (
                 <SessionLimitsCard
                   globalIdleMinutes={sessionIdleRaw ?? ""}

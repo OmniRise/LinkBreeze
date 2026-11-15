@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getSession } from "@/lib/auth";
+import { requireInstanceAdmin } from "@/server/access";
 import { demoGuard } from "@/lib/demo-guard";
 import { isAllowedLinkUrl, buildMapsUrl, isMapsShortLink } from "@/lib/link-url";
 import { z } from "zod";
@@ -884,6 +885,10 @@ export async function removeAbTest(formData: FormData): Promise<ActionResult> {
 export async function setAbAutoPromote(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
+  // Instance-wide setting (Settings → Data), not a per-link action —
+  // admin-only like every other settings toggle (#124).
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
   if (!(await getSession())) return unauthorizedError();
 
   const enabled = formData.get(AB_AUTO_PROMOTE_SETTING) === "on";

@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { writeFile, unlink } from "node:fs/promises";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { requireInstanceAdmin } from "@/server/access";
 import { demoGuard } from "@/lib/demo-guard";
 import {
   validationError,
@@ -239,6 +240,9 @@ export type CustomFontUploadResult =
 export async function uploadCustomFont(formData: FormData): Promise<CustomFontUploadResult> {
   const blocked = demoGuard();
   if (blocked) return { success: false, error: blocked.error, errorCode: blocked.errorCode };
+  // Instance-wide: fonts are selectable by every theme/page. Admin-only.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
   if (!(await getSession())) return unauthorizedError();
 
   const file = formData.get("file");
@@ -320,6 +324,9 @@ export type CustomFontDeleteResult =
 export async function deleteCustomFontAction(id: number): Promise<CustomFontDeleteResult> {
   const blocked = demoGuard();
   if (blocked) return { success: false, error: blocked.error, errorCode: blocked.errorCode };
+  // Instance-wide: deletion force-resets every theme using the font.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
   if (!(await getSession())) return unauthorizedError();
   if (!Number.isInteger(id) || id <= 0) return validationError("Invalid font id");
 
