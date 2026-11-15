@@ -12,7 +12,7 @@ one-click catalog listings.
 
 Policy: these three catalogs are maintained by the project. Any other platform
 or hosting-provider deploy integration is community-PR territory (see
-CONTRIBUTING.md).
+../.github/CONTRIBUTING.md).
 
 ## Release bump checklist
 

@@ -4,7 +4,7 @@
 
 ---
 
-**English** · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
+**English** · [العربية](docs/readme/README.ar.md) · [中文](docs/readme/README.zh.md) · [Français](docs/readme/README.fr.md) · [Deutsch](docs/readme/README.de.md) · [Italiano](docs/readme/README.it.md) · [日本語](docs/readme/README.ja.md) · [Português (Brasil)](docs/readme/README.pt-BR.md) · [Русский](docs/readme/README.ru.md) · [Español](docs/readme/README.es.md) · [Türkçe](docs/readme/README.tr.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
@@ -511,7 +511,7 @@ The theme engine is a CSS custom property (`--lb-*`) token system - every color,
 
 ## 📖 Docs & Links
 
-[Contributing](CONTRIBUTING.md) · [Security Policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Architecture Decisions](docs/adr/) · [Configuration reference](.env.example)
+[Contributing](.github/CONTRIBUTING.md) · [Security Policy](.github/SECURITY.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Architecture Decisions](docs/adr/) · [Configuration reference](.env.example)
 
 Source: [GitHub](https://github.com/OmniRise/LinkBreeze) (canonical) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (public pull mirror, synced automatically) · Image: [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -519,7 +519,7 @@ Issues and PRs are welcome on either forge.
 
 ## 🤝 Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! See [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
 
 ## 📜 License
 

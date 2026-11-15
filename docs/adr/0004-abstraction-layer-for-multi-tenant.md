@@ -45,5 +45,5 @@ const result = await db.select().from(links);
 
 ## Enforcement
 
-This is documented in CONTRIBUTING.md and checked in PR reviews. A future
+This is documented in ../../.github/CONTRIBUTING.md and checked in PR reviews. A future
 ESLint rule could enforce this automatically.

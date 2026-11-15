@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · **Español** · [Türkçe](README.tr.md)
+[English](../../README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · **Español** · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ Miniaturas de enlaces** - Añade imágenes a tus enlaces para crear tarjetas de vista previa visuales
 - **⏰ Programación de enlaces** - Programa que los enlaces aparezcan o desaparezcan automáticamente con controles de fecha y hora
 - **🏷️ Slugs de redirección personalizados** - Enlaces cortos `/go/tu-nombre` estables y compartibles que sobreviven a borrarlos y recrearlos
-- **🧪 Pruebas A/B** - Divide el tráfico de un enlace entre dos destinos con asignación por visitante que se mantiene entre visitas, analítica por variante, porcentaje de lift y promoción del ganador con un clic ([guía](docs/ab-testing.md))
+- **🧪 Pruebas A/B** - Divide el tráfico de un enlace entre dos destinos con asignación por visitante que se mantiene entre visitas, analítica por variante, porcentaje de lift y promoción del ganador con un clic ([guía](../ab-testing.md))
 - **📈 Estadísticas externas** - Integra Plausible, Umami, Matomo o Google Analytics con un simple pegado
 - **🖼️ Imágenes de vista previa (OG)** - Tarjetas para compartir generadas automáticamente a partir del tema de tu página, o sube la tuya con control de ajuste, posición y zoom
 - **✏️ CSS personalizado** - Ajusta tu página al detalle mediante inyección de CSS sin procesar
@@ -236,7 +236,7 @@ Una vez desplegada, tu página estará en `https://tu-dominio.com/tu-slug`.
 2. Expón el puerto 3000 o pon un proxy inverso delante
 3. Listo
 
-**Archivos compose listos para usar** disponibles en [`examples/`](examples/) - un archivo autocontenido por escenario:
+**Archivos compose listos para usar** disponibles en [`examples/`](../../examples) - un archivo autocontenido por escenario:
 
 | Lo que quieres | Usa este archivo |
 |---------------|------------------|
@@ -363,7 +363,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ Configuración
 
-Toda la configuración se realiza mediante variables de entorno. **[`.env.example`](.env.example) es la referencia canónica** - cópialo y cada variable está documentada en línea, incluidos los bloques de wallet.
+Toda la configuración se realiza mediante variables de entorno. **[`.env.example`](../../.env.example) es la referencia canónica** - cópialo y cada variable está documentada en línea, incluidos los bloques de wallet.
 
 | Variable | Valor predeterminado | Descripción |
 |----------|----------------------|-------------|
@@ -404,7 +404,7 @@ Los ajustes en tiempo de ejecución (slug de la página, título, SEO, tema) se 
 
 Apunta tus propios dominios a tus páginas - una instancia, muchas identidades. Los visitantes llegan a `https://jane.com/` y ven la página de Jane directamente, con redirecciones canónicas automáticas, sitemaps listos para SEO y un bloqueo de admin estricto por host. Las vinculaciones se activan en su primera visita real (DNS autoverificado), y el alcance por página decide si un dominio ES la página (exclusivo) o un hub para todos los slugs.
 
-Configuración completa - DNS, TLS comodín y configuraciones de proxy inverso listas para copiar para Caddy, nginx y Traefik - en **[docs/custom-domains.md](docs/custom-domains.md)**.
+Configuración completa - DNS, TLS comodín y configuraciones de proxy inverso listas para copiar para Caddy, nginx y Traefik - en **[docs/custom-domains.md](../custom-domains.md)**.
 
 ## 🔌 API REST
 
@@ -511,7 +511,7 @@ El motor de temas es un sistema de tokens basado en propiedades CSS personalizad
 
 ## 📖 Documentación y enlaces
 
-[Guía de contribución](CONTRIBUTING.md) · [Política de seguridad](SECURITY.md) · [Registro de cambios](CHANGELOG.md) · [Solución de problemas](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [Decisiones de arquitectura](docs/adr/) · [Referencia de configuración](.env.example)
+[Guía de contribución](../../.github/CONTRIBUTING.md) · [Política de seguridad](../../.github/SECURITY.md) · [Registro de cambios](../../CHANGELOG.md) · [Solución de problemas](../TROUBLESHOOTING.md) · [Custom Domains](../custom-domains.md) · [Decisiones de arquitectura](../adr) · [Referencia de configuración](../../.env.example)
 
 Fuente: [GitHub](https://github.com/OmniRise/LinkBreeze) (canónico) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (espejo público de solo lectura, sincronizado automáticamente) · Imagen: [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -519,11 +519,11 @@ Issues y PRs son bienvenidos en cualquiera de los dos forges.
 
 ## 🤝 Contribuir
 
-¡Las contribuciones son bienvenidas! Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para conocer las directrices.
+¡Las contribuciones son bienvenidas! Consulta [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md) para conocer las directrices.
 
 ## 📜 Licencia
 
-MIT - haz con él lo que quieras. Consulta [LICENSE](LICENSE).
+MIT - haz con él lo que quieras. Consulta [LICENSE](../../LICENSE).
 
 ## 🏢 Acerca del proyecto
 

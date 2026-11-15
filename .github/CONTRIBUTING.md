@@ -149,7 +149,7 @@ Use the [Feature Request template](https://github.com/OmniRise/LinkBreeze/issues
 
 ## 🏗️ Architecture Notes
 
-See [`docs/adr/`](docs/adr/) for detailed reasoning behind technology choices.
+See [`docs/adr/`](../docs/adr/) for detailed reasoning behind technology choices.
 Key principle: **all database access is abstracted** through `src/server/queries/`
 to enable future multi-tenant support without rewriting the app.
 

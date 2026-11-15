@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · **العربية** · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
+[English](../../README.md) · **العربية** · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ صور مصغّرة للروابط** - أضف صورًا إلى روابطك للحصول على بطاقات معاينة بصرية
 - **⏰ جدولة الروابط** - جدوِل ظهور الروابط أو اختفائها تلقائيًا مع تحكم بالتاريخ والوقت
 - **🏷️ أسماء مخصصة لإعادة التوجيه** - روابط قصيرة ثابتة وقابلة للمشاركة بصيغة `/go/اسمك` تبقى صالحة بعد الحذف وإعادة الإنشاء
-- **🧪 اختبارات A/B** - تقسيم حركة انتقال رابط بين وجهتين مع تعيين زائر ثابر عبر الزيارات، وتحليلات لكل متغيّر، ونسبة تحسّن، وترقية الفائز بنقرة واحدة ([دليل](docs/ab-testing.md))
+- **🧪 اختبارات A/B** - تقسيم حركة انتقال رابط بين وجهتين مع تعيين زائر ثابر عبر الزيارات، وتحليلات لكل متغيّر، ونسبة تحسّن، وترقية الفائز بنقرة واحدة ([دليل](../ab-testing.md))
 - **📈 إحصائيات خارجية** - أضف Plausible أو Umami أو Matomo أو Google Analytics بلصقة واحدة
 - **🖼️ صور المعاينة الاجتماعية (OG)** - بطاقات مشاركة تُصيَّر تلقائيًا من ثيم صفحتك، أو ارفع صورتك الخاصة مع التحكم في الملاءمة والموضع والتكبير
 - **✏️ CSS مخصص** - اضبط صفحتك بدقة عبر حقن CSS خام
@@ -236,7 +236,7 @@ npm run dev
 2. اكشف المنفذ 3000 أو ضع وكيلًا عكسيًا أمامه
 3. انتهى
 
-**ملفات compose جاهزة** موجودة في [`examples/`](examples/) - ملف واحد مستقل بذاته لكل سيناريو:
+**ملفات compose جاهزة** موجودة في [`examples/`](../../examples) - ملف واحد مستقل بذاته لكل سيناريو:
 
 | ما تريده | استخدم هذا الملف |
 |---------------|---------------|
@@ -363,7 +363,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ الإعدادات
 
-كل الإعدادات تتم عبر متغيرات البيئة. **[`.env.example`](.env.example) هو المرجع الأساسي** - انسخه وستجد كل متغير موثَّقًا داخليًا، بما في ذلك كتل المحفظة.
+كل الإعدادات تتم عبر متغيرات البيئة. **[`.env.example`](../../.env.example) هو المرجع الأساسي** - انسخه وستجد كل متغير موثَّقًا داخليًا، بما في ذلك كتل المحفظة.
 
 | المتغير | الافتراضي | الوصف |
 |----------|---------|-------------|
@@ -404,7 +404,7 @@ cloudflared tunnel --url http://localhost:3000
 
 وجّه نطاقاتك الخاصة إلى الصفحات - نسخة واحدة، هويات متعددة. يصل الزوار إلى `https://jane.com/` فيرون صفحة Jane مباشرة، مع تحويلات canonical تلقائية وخرائط مواقع صديقة لمحركات البحث وقفل إدارة صارم حسب المستضيف. تتفعّل الروابط عند أول زيارة حقيقية (DNS ذاتي التحقق)، ويحدد نطاق كل صفحة ما إن كان النطاق هو الصفحة نفسها (حصري) أم مركزًا لجميع المعرّفات.
 
-الإعداد الكامل - DNS وTLS wildcard وتكوينات وكيل عكسي جاهزة للنسخ لـ Caddy وnginx وTraefik - في **[docs/custom-domains.md](docs/custom-domains.md)**.
+الإعداد الكامل - DNS وTLS wildcard وتكوينات وكيل عكسي جاهزة للنسخ لـ Caddy وnginx وTraefik - في **[docs/custom-domains.md](../custom-domains.md)**.
 
 ## 🔌 واجهة REST
 
@@ -511,7 +511,7 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 
 ## 📖 الوثائق والروابط
 
-[دليل المساهمة](CONTRIBUTING.md) · [سياسة الأمان](SECURITY.md) · [سجل التغييرات](CHANGELOG.md) · [حل المشكلات](TROUBLESHOOTING.md) · [Custom Domains](docs/custom-domains.md) · [قرارات المعمارية](docs/adr/) · [مرجع الإعدادات](.env.example)
+[دليل المساهمة](../../.github/CONTRIBUTING.md) · [سياسة الأمان](../../.github/SECURITY.md) · [سجل التغييرات](../../CHANGELOG.md) · [حل المشكلات](../TROUBLESHOOTING.md) · [Custom Domains](../custom-domains.md) · [قرارات المعمارية](../adr) · [مرجع الإعدادات](../../.env.example)
 
 المصدر: [GitHub](https://github.com/OmniRise/LinkBreeze) (المرجع) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (نسخة عامة للسحب فقط، تُزامَن تلقائيًا) · الصورة: [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -519,11 +519,11 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 
 ## 🤝 المساهمة
 
-المساهمات مرحّب بها! طالع [CONTRIBUTING.md](CONTRIBUTING.md) للإرشادات.
+المساهمات مرحّب بها! طالع [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md) للإرشادات.
 
 ## 📜 الترخيص
 
-MIT - افعل ما تشاء. طالع [LICENSE](LICENSE).
+MIT - افعل ما تشاء. طالع [LICENSE](../../LICENSE).
 
 ## 🏢 حول
 

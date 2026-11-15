@@ -6,7 +6,7 @@
  *
  * 1. SECRET_KEY bootstrap. If the operator didn't set SECRET_KEY (very common
  *    with bare `docker run` — the docker-compose.yml sets it, but the
- *    TROUBLESHOOTING.md `docker run` examples don't), generate a random key,
+ *    ../docs/TROUBLESHOOTING.md `docker run` examples don't), generate a random key,
  *    persist it next to the SQLite database, and inject it into the process
  *    environment so every request that follows sees a stable secret. Without
  *    this, the very first login/setup crashes with a 500 because getSecret()

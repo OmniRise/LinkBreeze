@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · **日本語** · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
+[English](../../README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · **日本語** · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ リンクサムネイル** - リンクに画像を追加して視覚的なプレビューカードに
 - **⏰ リンクの公開予約** - 日時指定でリンクの表示/非表示を自動切り替え
 - **🏷️ カスタムリダイレクトスラッグ** - 削除して再作成してもリンク切れにならない、安定した共有向け`/go/your-name`ショートリンク
-- **🧪 A/Bテスト** - リンクのトラフィックを2つの行き先に分割。訪問者ごとに固定された割り当て、バリアント別の分析、リフト率、ワンクリックで勝ちバリアントを確定 ([ガイド](docs/ab-testing.md))
+- **🧪 A/Bテスト** - リンクのトラフィックを2つの行き先に分割。訪問者ごとに固定された割り当て、バリアント別の分析、リフト率、ワンクリックで勝ちバリアントを確定 ([ガイド](../ab-testing.md))
 - **📈 外部アナリティクス** - Plausible、Umami、Matomo、Google Analyticsを貼り付け1つで注入
 - **🖼️ ソーシャルプレビュー(OG)画像** - ページのテーマから自動レンダリングされるシェアカード。フィット、位置、ズームを制御してオリジナル画像をアップロードすることも可能
 - **✏️ カスタムCSS** - 生CSSの注入でページを微調整
@@ -236,7 +236,7 @@ npm run dev
 2. ポート3000を公開するか、手前にリバースプロキシを置く
 3. 完了
 
-**すぐ使えるcomposeファイル**は[`examples/`](examples/)にあります - シナリオごとに1つの自己完結ファイル:
+**すぐ使えるcomposeファイル**は[`examples/`](../../examples)にあります - シナリオごとに1つの自己完結ファイル:
 
 | 目的 | 使用するファイル |
 |---------------|---------------|
@@ -363,7 +363,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ 設定
 
-すべての設定は環境変数で行います。**[`.env.example`](.env.example)が正式なリファレンスです** - コピーすれば、ウォレット関連のブロックを含む全変数の説明がインラインで書かれています。
+すべての設定は環境変数で行います。**[`.env.example`](../../.env.example)が正式なリファレンスです** - コピーすれば、ウォレット関連のブロックを含む全変数の説明がインラインで書かれています。
 
 | 変数 | デフォルト | 説明 |
 |----------|---------|-------------|
@@ -404,7 +404,7 @@ cloudflared tunnel --url http://localhost:3000
 
 自分のドメインをページに紐付けましょう - 1つのインスタンスで複数のアイデンティティを持てます。訪問者は`https://jane.com/`にアクセスするだけでJaneのページを直接見られ、正規リダイレクトの自動化、SEO対応のサイトマップ、厳格な管理ホストロックを備えています。バインディングは最初の実アクセスで有効化され(セルフ検証DNS)、ページごとのスコープで、そのドメインがページそのものになるか(排他)、全スラッグのハブになるかを決めます。
 
-DNS、ワイルドカードTLS、Caddy・nginx・Traefik向けのコピペリバースプロキシ設定まで、セットアップの詳細は**[docs/custom-domains.md](docs/custom-domains.md)**をご覧ください。
+DNS、ワイルドカードTLS、Caddy・nginx・Traefik向けのコピペリバースプロキシ設定まで、セットアップの詳細は**[docs/custom-domains.md](../custom-domains.md)**をご覧ください。
 
 ## 🔌 REST API
 
@@ -511,7 +511,7 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 
 ## 📖 ドキュメントとリンク
 
-[コントリビューション](CONTRIBUTING.md) · [セキュリティポリシー](SECURITY.md) · [変更履歴](CHANGELOG.md) · [トラブルシューティング](TROUBLESHOOTING.md) · [カスタムドメイン](docs/custom-domains.md) · [アーキテクチャ決定記録](docs/adr/) · [設定リファレンス](.env.example)
+[コントリビューション](../../.github/CONTRIBUTING.md) · [セキュリティポリシー](../../.github/SECURITY.md) · [変更履歴](../../CHANGELOG.md) · [トラブルシューティング](../TROUBLESHOOTING.md) · [カスタムドメイン](../custom-domains.md) · [アーキテクチャ決定記録](../adr) · [設定リファレンス](../../.env.example)
 
 ソース:[GitHub](https://github.com/OmniRise/LinkBreeze)(正規)· [GitLab](https://gitlab.com/omnirise00/linkbreeze)(公開プルミラー、自動同期)· イメージ:[`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -519,11 +519,11 @@ IssueとPRはどちらのフォージでも歓迎します。
 
 ## 🤝 コントリビューション
 
-貢献は大歓迎です!ガイドラインは[CONTRIBUTING.md](CONTRIBUTING.md)をご覧ください。
+貢献は大歓迎です!ガイドラインは[../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md)をご覧ください。
 
 ## 📜 ライセンス
 
-MIT - ご自由にお使いください。詳細は[LICENSE](LICENSE)をご覧ください。
+MIT - ご自由にお使いください。詳細は[LICENSE](../../LICENSE)をご覧ください。
 
 ## 🏢 このプロジェクトについて
 
