@@ -24,34 +24,20 @@ function esc(s: string): string {
 }
 
 /**
- * Inline markers, link-first so `[text](url)` wins over the plain markers
- * inside it. URLs must contain no whitespace or closing paren (controlled
- * subset — same constraint as the React renderer).
+ * Single-pass recursive inline parser. Link-first so `[text](url)` wins over
+ * the plain markers inside it, and bold/italic re-parse their inner content —
+ * so emphasis wrapping (or containing) a link composes correctly
+ * (`*see [this](url) now*` keeps the link clickable) instead of emitting the
+ * inner markdown as literal text. Recursion is naturally bounded: each level
+ * consumes its own delimiters. URLs must contain no whitespace or closing
+ * paren (controlled subset — same constraint as the React renderer).
+ * Code spans stay literal (no recursion inside `code`).
  */
 const INLINE_RE = /(\[[^\]]+\]\([^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
 
 /** Only http(s) hrefs are emitted; anything else renders as plain text. */
 function isSafeHref(url: string): boolean {
   return /^https?:\/\/\S+$/i.test(url);
-}
-
-function renderMarkers(text: string): string {
-  return text
-    .split(INLINE_RE)
-    .filter(Boolean)
-    .map((part) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return `<strong>${part.slice(2, -2)}</strong>`;
-      }
-      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
-        return `<em>${part.slice(1, -1)}</em>`;
-      }
-      if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
-        return `<code>${part.slice(1, -1)}</code>`;
-      }
-      return part;
-    })
-    .join("");
 }
 
 function renderInline(text: string): string {
@@ -65,11 +51,20 @@ function renderInline(text: string): string {
         // Already HTML-escaped upstream, so an http(s) URL is safe verbatim;
         // non-http(s) "URLs" fall back to the literal bracket text.
         if (isSafeHref(rawUrl)) {
-          return `<a class="lb-md-link" href="${rawUrl}" target="_blank" rel="noopener noreferrer nofollow">${renderMarkers(label)}</a>`;
+          return `<a class="lb-md-link" href="${rawUrl}" target="_blank" rel="noopener noreferrer nofollow">${renderInline(label)}</a>`;
         }
         return part;
       }
-      return renderMarkers(part);
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return `<strong>${renderInline(part.slice(2, -2))}</strong>`;
+      }
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        return `<em>${renderInline(part.slice(1, -1))}</em>`;
+      }
+      if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+        return `<code>${part.slice(1, -1)}</code>`;
+      }
+      return part;
     })
     .join("");
 }

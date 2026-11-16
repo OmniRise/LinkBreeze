@@ -26,22 +26,43 @@ function isSafeHref(url: string): boolean {
   return /^https?:\/\/\S+$/i.test(url);
 }
 
-function renderMarkers(text: string): React.ReactNode[] {
+/**
+ * Single-pass recursive inline parser. Link-first so `[text](url)` wins over
+ * the plain markers inside it, and bold/italic re-parse their inner content —
+ * emphasis wrapping (or containing) a link composes correctly instead of
+ * emitting the inner markdown as literal text. Recursion is naturally
+ * bounded: each level consumes its own delimiters. Code spans stay literal.
+ */
+function renderInline(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
-  // Split on **bold**, *italic*, and `code` while keeping delimiters.
-  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+  // Split on [text](url) links, **bold**, *italic*, and `code`.
+  const regex = /(\[[^\]]+\]\([^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
   const parts = text.split(regex).filter(Boolean);
 
   parts.forEach((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
+    const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
+    if (link && isSafeHref(link[2])) {
+      nodes.push(
+        <a
+          key={i}
+          href={link[2]}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="lb-md-link"
+          style={{ color: "var(--lb-accent)", textDecoration: "underline" }}
+        >
+          {renderInline(link[1])}
+        </a>,
+      );
+    } else if (part.startsWith("**") && part.endsWith("**")) {
       nodes.push(
         <strong key={i} style={{ fontWeight: 700 }}>
-          {part.slice(2, -2)}
+          {renderInline(part.slice(2, -2))}
         </strong>,
       );
     } else if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
-      nodes.push(<em key={i}>{part.slice(1, -1)}</em>);
-    } else if (part.startsWith("`") && part.endsWith("`")) {
+      nodes.push(<em key={i}>{renderInline(part.slice(1, -1))}</em>);
+    } else if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
       nodes.push(
         <code
           key={i}
@@ -58,35 +79,6 @@ function renderMarkers(text: string): React.ReactNode[] {
       );
     } else {
       nodes.push(part);
-    }
-  });
-
-  return nodes;
-}
-
-function renderInline(text: string): React.ReactNode[] {
-  const nodes: React.ReactNode[] = [];
-  // Link-first split so [text](url) wins over the plain markers inside it.
-  const regex = /(\[[^\]]+\]\([^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
-  const parts = text.split(regex).filter(Boolean);
-
-  parts.forEach((part, i) => {
-    const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
-    if (link && isSafeHref(link[2])) {
-      nodes.push(
-        <a
-          key={i}
-          href={link[2]}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="lb-md-link"
-          style={{ color: "var(--lb-accent)", textDecoration: "underline" }}
-        >
-          {renderMarkers(link[1])}
-        </a>,
-      );
-    } else {
-      nodes.push(...renderMarkers(part));
     }
   });
 

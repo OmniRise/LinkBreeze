@@ -91,4 +91,41 @@ describe("renderMarkdownLiteString (#93 popup bodies)", () => {
     expect(out).not.toContain("<b>");
     expect(out).toContain("&lt;b&gt;");
   });
+
+  it("composes italic wrapping a link (reported by @stuff-by-rene)", () => {
+    // A flat marker parser emitted the inner [text](url) as dead literal
+    // text whenever emphasis was the outermost marker.
+    const out = renderMarkdownLiteString("*see [this](https://x.com) now*");
+    expect(out).toContain("<em>see <a");
+    expect(out).toContain('href="https://x.com"');
+    expect(out).toContain("</a> now</em>");
+    expect(out).not.toContain("[this]");
+  });
+
+  it("composes bold wrapping a link", () => {
+    const out = renderMarkdownLiteString("**bold [link](https://x.com)**");
+    expect(out).toContain("<strong>bold <a");
+    expect(out).toContain("</a></strong>");
+    expect(out).not.toContain("[link]");
+  });
+
+  it("composes an italic link alone inside emphasis", () => {
+    const out = renderMarkdownLiteString("*[Link](https://x.com)*");
+    expect(out).toContain("<em><a");
+    expect(out).toContain("</a></em>");
+    expect(out).not.toContain("[Link]");
+  });
+
+  it("keeps label markers composing inside links", () => {
+    const out = renderMarkdownLiteString("[*cursive label*](https://x.com)");
+    expect(out).toContain('<a class="lb-md-link" href="https://x.com"');
+    expect(out).toContain("<em>cursive label</em>");
+  });
+
+  it("keeps code spans literal (no recursion inside code)", () => {
+    const out = renderMarkdownLiteString("`*text* [x](https://x.com)`");
+    expect(out).toContain("<code>*text* [x](https://x.com)</code>");
+    expect(out).not.toContain("<a ");
+    expect(out).not.toContain("<em>");
+  });
 });
