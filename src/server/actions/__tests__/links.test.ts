@@ -460,6 +460,39 @@ describe("createDivider (#87)", () => {
   });
 });
 
+describe("custom URI links (#129)", () => {
+  it("stores a non-web URI verbatim (no scheme rewriting)", async () => {
+    const res = await createLink(makeFormData({
+      title: "Chat with us", url: "xmpp:user@example.com?message", type: "custom",
+      isActive: "true", isHighlighted: "false",
+    }));
+    expect(res.success).toBe(true);
+    const call = (mocks.createLink.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]![0];
+    expect(call.type).toBe("custom");
+    expect(call.url).toBe("xmpp:user@example.com?message");
+  });
+
+  it("rejects browser-executable schemes on custom links (no XSS smuggling)", async () => {
+    for (const url of ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "data:text/html,x"]) {
+      const res = await createLink(makeFormData({
+        title: "Evil", url, type: "custom",
+        isActive: "true", isHighlighted: "false",
+      }));
+      expect(res.success).toBe(false);
+    }
+    expect(mocks.createLink).not.toHaveBeenCalled();
+  });
+
+  it("rejects a scheme-only custom URI", async () => {
+    const res = await createLink(makeFormData({
+      title: "Bare", url: "xmpp:", type: "custom",
+      isActive: "true", isHighlighted: "false",
+    }));
+    expect(res.success).toBe(false);
+    expect(mocks.createLink).not.toHaveBeenCalled();
+  });
+});
+
 describe("redirect slugs (#96)", () => {
   beforeEach(() => {
     mocks.isSlugTaken.mockResolvedValue(false);

@@ -7,6 +7,45 @@ describe("isAllowedLinkUrl", () => {
     expect(isAllowedLinkUrl("url", "http://example.com")).toBe(true);
   });
 
+  // #129 custom URI links: any RFC 3986 non-web scheme EXCEPT the
+  // browser-executable denylist.
+  it("accepts real-world non-web schemes as custom links", () => {
+    expect(isAllowedLinkUrl("custom", "xmpp:user@example.com?message")).toBe(true);
+    expect(isAllowedLinkUrl("custom", "matrix:r/example.org")).toBe(true);
+    expect(isAllowedLinkUrl("custom", "nostr:npub1abc")).toBe(true);
+    expect(isAllowedLinkUrl("custom", "bitcoin:1AbC?amount=1")).toBe(true);
+    expect(isAllowedLinkUrl("custom", "xmpp:user@example.com")).toBe(true);
+  });
+
+  it("normalizes scheme casing before the custom denylist compare", () => {
+    expect(isAllowedLinkUrl("custom", "JaVaScRiPt:alert(1)")).toBe(false);
+    expect(isAllowedLinkUrl("custom", "XMPP:user@example.com")).toBe(true);
+  });
+
+  it("rejects browser-executable and local-resource schemes as custom links", () => {
+    for (const uri of [
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "vbscript:msgbox(1)",
+      "blob:https://example.com/abc",
+      "file:///etc/passwd",
+      "about:blank",
+      "view-source:https://example.com",
+    ]) {
+      expect(isAllowedLinkUrl("custom", uri)).toBe(false);
+    }
+  });
+
+  it("rejects malformed custom URIs", () => {
+    expect(isAllowedLinkUrl("custom", "")).toBe(false);
+    expect(isAllowedLinkUrl("custom", "xmpp:")).toBe(false);
+    expect(isAllowedLinkUrl("custom", "xmpp:   ")).toBe(false);
+    expect(isAllowedLinkUrl("custom", "no scheme at all")).toBe(false);
+    expect(isAllowedLinkUrl("custom", "1abc:x")).toBe(false);
+    expect(isAllowedLinkUrl("custom", "a b:x")).toBe(false);
+    expect(isAllowedLinkUrl("custom", "not a url")).toBe(false);
+  });
+
   it("blocks executable schemes for regular links", () => {
     expect(isAllowedLinkUrl("url", "javascript:alert(1)")).toBe(false);
     expect(isAllowedLinkUrl("url", "data:text/html,<script>alert(1)</script>")).toBe(false);

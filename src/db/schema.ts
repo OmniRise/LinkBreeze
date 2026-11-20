@@ -249,7 +249,7 @@ export const links = sqliteTable("links", {
   pageId: integer("page_id").notNull().default(1),
   sectionId: integer("section_id"), // FK to link_sections.id (enforced in 0013 migration SQL)
   orderIndex: integer("order_index").notNull().default(0),
-  type: text("type").notNull().default("url"), // url, email, phone, whatsapp, sms, vcard, file, embed, text, location, divider
+  type: text("type").notNull().default("url"), // url, email, phone, whatsapp, sms, vcard, file, embed, text, location, custom, divider
   title: text("title").notNull(),
   description: text("description"),
   url: text("url").notNull(),

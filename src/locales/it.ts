@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: ba7c181f2405 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 43d6bc964cfa ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -260,6 +260,10 @@ const it: Messages = {
     ltEmbed: "Embed (YouTube, Spotify, ecc.)",
     ltText: "Popup di testo",
     ltLocation: "Posizione",
+    ltCustom: "URI personalizzato",
+    ltCustomLabel: "URI",
+    phCustom: "xmpp:user@example.com",
+    customHint: "Qualsiasi schema non web funziona (xmpp:, matrix:, nostr:, bitcoin:, …). Gli schemi eseguibili dal browser come javascript: o data: vengono rifiutati.",
     addDivider: "Aggiungi separatore",
     dividerRow: "Separatore",
     dividerHint: "Un'interruzione tematica tra i link. Il suo stile (linea, colore, spessore, larghezza) si imposta per tema in Tema → Link.",

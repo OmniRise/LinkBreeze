@@ -39,6 +39,25 @@ describe("buildLinkCardHtml", () => {
     expect(mail).not.toContain('target="_blank"');
   });
 
+  it("#129 custom URIs render as direct hrefs with escaped scheme parts", () => {
+    const html = buildLinkCardHtml({
+      link: { ...baseLink, type: "custom", url: "xmpp:user@example.com?message" } as LinkRow,
+      theme,
+      index: 0,
+    });
+    // Direct href (no /go/:id — an http redirect cannot serve a URI scheme)
+    // and no new-tab attrs; the beacon click tracker rides along like mailto.
+    expect(html).toContain('href="xmpp:user@example.com?message"');
+    expect(html).not.toContain('target="_blank"');
+    expect(html).toContain("sendBeacon");
+    const evil = buildLinkCardHtml({
+      link: { ...baseLink, type: "custom", url: "x:y\" onmouseover=\"alert(1)" } as LinkRow,
+      theme,
+      index: 0,
+    });
+    expect(evil).not.toContain('onmouseover="alert(1)"');
+  });
+
   it("adds the featured badge + accent border/background only when highlighted", () => {
     const plain = buildLinkCardHtml({ link: baseLink, theme, index: 0 });
     expect(plain).not.toContain("Featured");

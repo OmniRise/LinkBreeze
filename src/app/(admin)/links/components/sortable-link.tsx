@@ -13,6 +13,7 @@ import {
   BarChart3,
   Clock,
   Mail,
+  Link2,
   Phone,
   Image as ImageIcon,
   Code2,
@@ -70,6 +71,9 @@ export function SortableLink({ link, onEdit, onDelete }: SortableLinkProps) {
       return { displayIcon: null, displaySrc: link.customIconUrl, letter: null };
     }
     if (link.type === "embed") return { displayIcon: Code2, displaySrc: null, letter: null };
+    // #129 custom URI links: no favicon source exists for xmpp:/matrix:-style
+    // URIs — show the generic link glyph instead of the image fallback.
+    if (link.type === "custom") return { displayIcon: Link2, displaySrc: null, letter: null };
     if (link.url.startsWith("mailto:")) return { displayIcon: Mail, displaySrc: null, letter: null };
     if (link.url.startsWith("tel:")) return { displayIcon: Phone, displaySrc: null, letter: null };
 
