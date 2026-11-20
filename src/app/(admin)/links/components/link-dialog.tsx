@@ -960,7 +960,12 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
                   )}
                 </>
               ) : (
-              <FormField label={urlLabel} htmlFor="url" required={!isTextPopup}>
+              <FormField
+                label={urlLabel}
+                htmlFor="url"
+                required={!isTextPopup}
+                hint={type === "custom" ? t("customHint") : undefined}
+              >
                 <Input
                   id="url"
                   name="url"

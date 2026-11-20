@@ -7,7 +7,8 @@
 
 export type LinkTypeKey =
   | "ltUrl" | "ltEmail" | "ltPhone" | "ltWhatsapp" | "ltSms"
-  | "ltVcard" | "ltFile" | "ltEmbed" | "ltText" | "ltLocation" | "ltDivider";
+  | "ltVcard" | "ltFile" | "ltEmbed" | "ltText" | "ltLocation"
+  | "ltCustom" | "ltDivider";
 
 export const LINK_TYPES = [
   { value: "url", label: "ltUrl" },
@@ -20,6 +21,7 @@ export const LINK_TYPES = [
   { value: "embed", label: "ltEmbed" },
   { value: "text", label: "ltText" },
   { value: "location", label: "ltLocation" },
+  { value: "custom", label: "ltCustom" },
   { value: "divider", label: "ltDivider" },
 ] as const;
 
@@ -28,6 +30,7 @@ const LINK_LABELS: Record<string, LinkLabelKey> = {
   phone: "ltPhoneLabel",
   whatsapp: "ltWhatsappLabel",
   sms: "ltPhoneLabel",
+  custom: "ltCustomLabel",
 };
 
 const LINK_PLACEHOLDERS: Record<string, LinkPhKey> = {
@@ -35,10 +38,11 @@ const LINK_PLACEHOLDERS: Record<string, LinkPhKey> = {
   phone: "phPhone",
   whatsapp: "phPhone",
   sms: "phPhone",
+  custom: "phCustom",
 };
 
-export type LinkLabelKey = "ltEmailLabel" | "ltPhoneLabel" | "ltWhatsappLabel" | "ltUrl";
-export type LinkPhKey = "phEmail" | "phPhone" | "phUrl";
+export type LinkLabelKey = "ltEmailLabel" | "ltPhoneLabel" | "ltWhatsappLabel" | "ltUrl" | "ltCustomLabel";
+export type LinkPhKey = "phEmail" | "phPhone" | "phUrl" | "phCustom";
 
 export function getUrlLabel(type: string): LinkLabelKey {
   return LINK_LABELS[type] ?? "ltUrl";

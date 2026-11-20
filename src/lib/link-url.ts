@@ -13,7 +13,29 @@ const ALLOWED_SCHEMES_BY_TYPE: Record<string, Set<string>> = {
   // legacy value from a converted link). Only the empty string is valid so
   // a restored backup can never smuggle a live URL in through a divider.
   divider: new Set<string>([]),
+  // #129 custom URI links validate through the dedicated branch below (any
+  // RFC 3986 scheme minus the blocked set) — the set stays empty so the
+  // generic scheme compare can never run for this type.
+  custom: new Set<string>([]),
 };
+
+/**
+ * #129 custom URI links: schemes a browser can EXECUTE (or that resolve to
+ * something dangerous without an application handler) never pass custom-link
+ * validation, regardless of how the operator spells them — the URL parser
+ * lowercases the scheme before this check. Everything RFC-3986-shaped that
+ * is NOT listed here is allowed; a non-web scheme needs a real handler on
+ * the visitor's device to do anything at all.
+ */
+export const BLOCKED_CUSTOM_SCHEMES: ReadonlySet<string> = new Set([
+  "javascript",
+  "data",
+  "vbscript",
+  "blob",
+  "file",
+  "about",
+  "view-source",
+]);
 
 /** Hosts that serve genuine Google Maps pages (any path under /maps). */
 const GOOGLE_MAPS_HOSTS = new Set([
@@ -133,6 +155,27 @@ export function isAllowedLinkUrl(type: string, value: string): boolean {
   // #87 divider elements carry no URL at all — an empty string is the only
   // valid value (the "divider" allowlist is empty by design).
   if (type === "divider") return trimmed === "";
+
+  // #129 custom URI links: any RFC 3986 scheme an operator may reasonably
+  // link to (xmpp:, matrix:, nostr:, bitcoin:, …) EXCEPT the schemes a
+  // browser executes or a page can abuse — those stay hard-blocked no
+  // matter what the operator types. The full URI is stored in the same
+  // `url` column, so backups, REST v1 and the QR ride along unchanged.
+  if (type === "custom") {
+    if (!trimmed) return false;
+    let schemeName: string;
+    try {
+      // WHATWG URL lowercases the protocol, so `JaVaScRiPt:` normalizes
+      // before the denylist compare — no case games can slip through.
+      schemeName = new URL(trimmed).protocol.slice(0, -1);
+    } catch {
+      return false;
+    }
+    if (!/^[a-z][a-z0-9+.-]*$/.test(schemeName)) return false;
+    if (BLOCKED_CUSTOM_SCHEMES.has(schemeName)) return false;
+    // A scheme alone (e.g. bare "xmpp:") is not a usable link target.
+    return trimmed.slice(trimmed.indexOf(":") + 1).trim().length > 0;
+  }
 
   if (trimmed.startsWith("/")) {
     return allowedSchemes.has("/") && !trimmed.startsWith("//");

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Custom URI links (#129, reported by @thehecki)** — a new "Custom URI" link type accepts any non-web URI scheme (`xmpp:`, `matrix:`, `nostr:`, `bitcoin:`, …), so self-hosters coming from Linktree/Linkstack can link out to chat protocols and wallets without waiting for each scheme to be wired in one by one. The URI is stored in the same url column (no migration; backups, REST v1 and the QR ride along unchanged) and is validated at the single scheme boundary every write path shares: the scheme must be RFC-3986-shaped, is lowercased before comparison (so `JaVaScRiPt:` cannot slip past), and browser-executable schemes (`javascript`, `data`, `vbscript`, `blob`, `file`, `about`, `view-source`) are hard-blocked regardless of spelling; a bare scheme with no target is rejected too. The public page renders custom links as direct hrefs with best-effort beacon click tracking (an http redirect cannot serve a URI scheme), and the admin row shows a link glyph instead of a favicon fetch that could never resolve. Verified by boundary unit tests (accept matrix:/nostr:/bitcoin:, reject every denylist spelling plus malformed URIs), action-level tests (verbatim storage, XSS-smuggling rejection, scheme-only rejection), a public-render test (direct href, escaped attribute injection), and live in a real browser (Custom chip in the dialog, xmpp placeholder and hint, save, public xmpp: href, javascript: rejected with an inline error).
+
 ### Changed
 
 - **Dependency updates (#139)** — merged the Dependabot minor-and-patch group: `next` + `eslint-config-next` 16.4.5 → 16.4.6, `lucide-react` 1.70.0 → 1.72.0, `better-sqlite3` 13.0.3 → 13.1.1, `next-intl` 4.14.9 → 4.15.1, and `sql.js` 1.15.2 → 1.16.0 (the remaining two count entries are the `@next/swc-*` platform binaries riding the `next` bump). All CI build and Lighthouse jobs green.
