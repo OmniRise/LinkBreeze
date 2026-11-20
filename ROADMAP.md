@@ -26,4 +26,6 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 Recent highlights - the full history lives in [CHANGELOG.md](CHANGELOG.md):
 
+- **v1.6.1** - security hardening (instance-admin gates on API keys, backups and exports; username-probing endpoints closed), Custom URI links for any non-web scheme like xmpp:, a live Rich-preview thumbnail in the link dialog, and markdown bold/italic that compose with links.
+
 - **v1.6.0** - multi-user accounts with customizable roles and an audit log, generic OIDC/OAuth2 SSO, a public REST API v1 with OpenAPI docs, A/B testing for links, Add-link drafts, markdown popup cards, native vCard contact cards customizable per link, and the November Next.js security release.

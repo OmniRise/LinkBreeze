@@ -1,6 +1,6 @@
 {
-  "version": "1.6.0",
-  "releasedAt": "2026-11-11",
-  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.6.0",
-  "notes": "Multi-user accounts with customizable roles, generic OIDC/OAuth2 single sign-on, a public REST API v1 with OpenAPI docs, and A/B testing for links headline the largest release yet, alongside Add-link drafts that survive closing the sheet, markdown popup cards, and native vCard contact cards now customizable per link. Multi-user and SSO ship with an append-only audit log, invitations, and session lifetime controls, while the REST API covers links, sections, profile, analytics and bulk import with rate limiting, ETags and cursor pagination. Dependency updates close every open Dependabot alert with an available fix, including the November Next.js security release."
+  "version": "1.6.1",
+  "releasedAt": "2026-11-20",
+  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.6.1",
+  "notes": "A security-hardening patch: API-key management, the migration wizard, subscriber exports and backup downloads are now instance-admin-only, and username-probing endpoints are closed. It also introduces Custom URI links (#129) so any non-web scheme like xmpp:, matrix: or nostr: can be linked safely, alongside a live Rich-preview thumbnail in the link dialog, markdown bold/italic that compose with links, and a group of dependency updates."
 }
