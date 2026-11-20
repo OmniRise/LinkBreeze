@@ -48,6 +48,7 @@ import {
   setAbTest,
 } from "@/server/actions/links";
 import { useSavedAction } from "@/hooks/use-saved-action";
+import { previewOgData } from "@/server/actions/og-preview";
 import { AbTestEditor } from "./ab-test-editor";
 import { CardPreview, PopupBodyPreview } from "./card-preview";
 import {
@@ -99,7 +100,16 @@ function SectionSelect({
     <FormField label={t("section")}>
       <Select value={value} onValueChange={onValueChange}>
         <SelectTrigger className="w-full">
-          <SelectValue />
+          {/* Base UI's Value renders the RAW value string in the closed trigger
+              unless given a formatter — and our value is String(section.id), so
+              without this the trigger showed the id ("3") while the open list
+              showed names. Render the section title instead. */}
+          <SelectValue>
+            {(v: string | null) => {
+              if (v == null || v === "none") return t("noSection");
+              return sections.find((s) => String(s.id) === v)?.title ?? v;
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="none">{t("noSection")}</SelectItem>
@@ -564,6 +574,63 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
     }
   }, [iconMode, editing?.iconUrl, type, urlValue]);
 
+  // Rich-preview live OG resolution: once the card style is rich and a
+  // url is typed, debounce a session-gated previewOgData round-trip and
+  // feed the resolved image + description into the synthetic preview row —
+  // the exact fields the save-time fetch will store (same og-fetcher, same
+  // local cache), so the preview shows the rich layout BEFORE saving
+  // instead of silently rendering the compact fallback. Failure degrades
+  // to null fields = compact preview, same as the public page.
+  //
+  // Derived-state pattern: the fetch result is stored WITH the url that
+  // produced it, and `ogPreview` only exposes it while the CURRENT form
+  // state still derives that same url — so every disabled path (dialog
+  // closed, compact style, non-url type, cleared/invalid/non-http url)
+  // degrades to null WITHOUT any setState-in-effect (no cascading renders).
+  const [ogPreviewState, setOgPreviewState] = React.useState<{
+    url: string;
+    imageUrl: string;
+    description: string;
+  } | null>(null);
+  const ogPreviewSeq = React.useRef(0);
+  const richPreviewUrl = React.useMemo(() => {
+    if (!open || cardStyle !== "rich" || !isUrlType || !urlValue.trim()) return null;
+    const fullUrl = prefixLinkUrl(type, urlValue);
+    try {
+      const protocol = new URL(fullUrl).protocol;
+      if (protocol !== "http:" && protocol !== "https:") return null;
+    } catch {
+      return null;
+    }
+    return fullUrl;
+  }, [open, cardStyle, isUrlType, type, urlValue]);
+  const ogPreview =
+    ogPreviewState && ogPreviewState.url === richPreviewUrl ? ogPreviewState : null;
+  React.useEffect(() => {
+    if (!richPreviewUrl) return;
+    const url = richPreviewUrl;
+    const seq = ++ogPreviewSeq.current;
+    const timer = setTimeout(() => {
+      previewOgData(url)
+        .then((og) => {
+          if (ogPreviewSeq.current !== seq) return; // a newer keystroke won
+          if (og.imageUrl || og.description) {
+            setOgPreviewState({
+              url,
+              imageUrl: og.imageUrl ?? "",
+              description: og.description ?? "",
+            });
+          } else {
+            setOgPreviewState(null);
+          }
+        })
+        .catch(() => {
+          // keep whatever an earlier url resolved — derivation handles staleness
+        });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [richPreviewUrl]);
+
   // Synthetic row for the live card preview: the exact buildLinkCardHtml input
   // the public page would receive for this form state. Kept in sync with every
   // keystroke via the mirrors above.
@@ -576,14 +643,14 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
       type,
       title: type === "divider" ? "—" : titleValue,
       url: prefixLinkUrl(type, urlValue),
-      description: descValue || null,
+      description: descValue || ogPreview?.description || null,
       icon: iconMode === "lucide" && lucidePick ? lucidePick : null,
       // Preview autofetch: cached favicon when editing a saved row, otherwise
       // the DuckDuckGo upstream resolved live from the typed URL (same
       // fallback source the server's favicon chain uses).
       iconUrl: editing?.iconUrl ?? autoIconUrl,
       autoIcon: iconMode === "auto",
-      imageUrl: imageValue || null,
+      imageUrl: imageValue || ogPreview?.imageUrl || null,
       // A freshly-picked file has no URL yet — the preview falls back to the
       // letter avatar until save (same as the public page pre-upload).
       customIconUrl:
@@ -604,7 +671,7 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [],
     }),
     [editing, pageId, type, titleValue, urlValue, descValue, iconMode, lucidePick,
       customIconUrl, hasNewIconFile, imageValue, active, cardStyle, popupText, highlighted,
-      autoIconUrl, ctaLabelValue],
+      autoIconUrl, ctaLabelValue, ogPreview],
   );
 
   // Peer fields that share a two-column row on wide panels (stack on mobile).
