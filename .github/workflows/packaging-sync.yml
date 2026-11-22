@@ -38,6 +38,8 @@ env:
   UNRAID_REPO: OmniRise/LinkBreeze-Unraid-Templates
   CASAOS_REPO: OmniRise/LinkBreeze-CasaOS-AppStore
   CASAOS_BRANCH: add-linkbreeze
+  TRUENAS_REPO: OmniRise/LinkBreeze-TrueNAS-App
+  TRUENAS_BRANCH: feat/linkbreeze-app
 
 jobs:
   sync:
@@ -59,8 +61,10 @@ jobs:
           V="${{ steps.ver.outputs.version }}"
           grep -q "linkbreeze:v${V}" packaging/casaos/Apps/LinkBreeze/docker-compose.yml
           grep -q "linkbreeze:v${V}" packaging/runtipi/apps/linkbreeze/docker-compose.yml
+          grep -q "v${V}@sha256:" packaging/truenas/ix-dev/community/linkbreeze/ix_values.yaml
+          grep -q "^app_version: ${V}$" packaging/truenas/ix-dev/community/linkbreeze/app.yaml
           grep -q "<Tag>v${V}</Tag>" packaging/unraid/linkbreeze.xml
-          echo "All three manifests pin v${V}. OK."
+          echo "All four manifests pin v${V}. OK."
 
       - name: Plan
         if: ${{ inputs.dry_run }}
@@ -71,6 +75,7 @@ jobs:
             echo "- ${{ env.RUNTIPI_REPO }} (main)"
             echo "- ${{ env.UNRAID_REPO }} (main)"
             echo "- ${{ env.CASAOS_REPO }} (${{ env.CASAOS_BRANCH }})"
+            echo "- ${{ env.TRUENAS_REPO }} (${{ env.TRUENAS_BRANCH }})"
             echo "Publishing skipped (dry_run)."
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -139,3 +144,25 @@ jobs:
           git commit -m "chore: sync LinkBreeze ${{ steps.ver.outputs.vversion }}"
           git push origin "$CASAOS_BRANCH"
           echo "CasaOS branch: pushed (upstream PR updates automatically)." >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- TrueNAS catalog fork branch (updates the open upstream PR) ----
+      - name: Sync TrueNAS app
+        if: ${{ !inputs.dry_run }}
+        env:
+          TOKEN: ${{ secrets.PACKAGING_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git clone --depth 1 --branch "$TRUENAS_BRANCH" \
+            "https://x-access-token:${TOKEN}@github.com/${TRUENAS_REPO}.git" truenas
+          cp -a packaging/truenas/ix-dev/. truenas/ix-dev/
+          cd truenas
+          if git diff --quiet; then
+            echo "TrueNAS app already in sync." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git add -A
+          git commit -m "chore: sync LinkBreeze ${{ steps.ver.outputs.vversion }}"
+          git push origin "$TRUENAS_BRANCH"
+          echo "TrueNAS branch: pushed (upstream PR updates automatically)." >> "$GITHUB_STEP_SUMMARY"

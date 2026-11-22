@@ -187,6 +187,18 @@ Veriler, imaj güncellemeleri boyunca volume'da korunur.
 </details>
 
 <details>
+<summary>🧰 &nbsp;Uygulama katalogları</summary>
+
+Platformunuzun uygulama mağazasından tek tıkla kurulum. Güncellemeler aynı mağazadan gelir.
+
+- **Runtipi** (v4+): Ayarlar → App Stores → `https://github.com/OmniRise/LinkBreeze-Runtipi-Store` ekleyin, sonra **LinkBreeze** yükleyin
+- **Unraid**: **Apps** sekmesi → **LinkBreeze** arayın → **Yükle**
+- **CasaOS / ZimaOS**: inceleniyor, App Store PR [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
+- **TrueNAS** (24.10+): resmi katalogda inceleniyor, PR [#6617](https://github.com/truenas/apps/pull/6617)
+
+</details>
+
+<details>
 <summary>🔧 &nbsp;Podman</summary>
 
 ```bash

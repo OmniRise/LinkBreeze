@@ -187,6 +187,18 @@ Los datos persisten en el volumen entre actualizaciones de la imagen.
 </details>
 
 <details>
+<summary>🧰 &nbsp;Catálogos de apps</summary>
+
+Instalación en un clic desde la tienda de apps de tu plataforma. Las actualizaciones llegan por la misma tienda.
+
+- **Runtipi** (v4+): Ajustes → App Stores → añade `https://github.com/OmniRise/LinkBreeze-Runtipi-Store` y instala **LinkBreeze**
+- **Unraid**: Pestaña **Apps** → busca **LinkBreeze** → **Instalar**
+- **CasaOS / ZimaOS**: en revisión, PR de la App Store [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
+- **TrueNAS** (24.10+): en revisión en el catálogo oficial, PR [#6617](https://github.com/truenas/apps/pull/6617)
+
+</details>
+
+<details>
 <summary>🔧 &nbsp;Podman</summary>
 
 ```bash
