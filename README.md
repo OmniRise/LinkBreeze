@@ -187,6 +187,18 @@ Data persists in the volume across image updates.
 </details>
 
 <details>
+<summary>🧰 &nbsp;App catalogs</summary>
+
+One-click installs from your platform's app store. Updates arrive through the same store.
+
+- **Runtipi** (v4+): Settings → App Stores → add `https://github.com/OmniRise/LinkBreeze-Runtipi-Store`, then install **LinkBreeze**
+- **Unraid**: **Apps** tab → search **LinkBreeze** → **Install**
+- **CasaOS / ZimaOS**: in review, App Store PR [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
+- **TrueNAS** (24.10+): in review on the official catalog, PR [#6617](https://github.com/truenas/apps/pull/6617)
+
+</details>
+
+<details>
 <summary>🔧 &nbsp;Podman</summary>
 
 ```bash

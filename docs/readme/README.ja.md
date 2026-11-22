@@ -187,6 +187,18 @@ Container Manager(DSM 7.2以降):
 </details>
 
 <details>
+<summary>🧰 &nbsp;アプリカタログ</summary>
+
+プラットフォームのアプリストアからワンクリックでインストール。アップデートも同じストアから届きます。
+
+- **Runtipi** (v4+): 設定 → App Stores → `https://github.com/OmniRise/LinkBreeze-Runtipi-Store` を追加して **LinkBreeze** をインストール
+- **Unraid**: **Apps** タブ → **LinkBreeze** を検索 → **Install**
+- **CasaOS / ZimaOS**: 審査中、App Store PR [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
+- **TrueNAS** (24.10+): 公式カタログで審査中、PR [#6617](https://github.com/truenas/apps/pull/6617)
+
+</details>
+
+<details>
 <summary>🔧 &nbsp;Podman</summary>
 
 ```bash
