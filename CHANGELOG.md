@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Rich-preview Open Graph data no longer truncates at apostrophes** — the regex-based og-fetcher stopped a double-quoted `content` value at the first `'`, so `content="It's here"` saved the title "It". The page fetch and tag extraction now go through `linkpeek`, which also decodes every HTML entity (titles and meta descriptions included, not just five), honors the page charset instead of assuming UTF-8, and resolves relative `og:image` paths like `img/cover.png`. The page fetch now refuses private/internal hosts on the first request and every redirect, and the og:image download re-checks each redirect hop the same way. `fetchOgData()` keeps its signature and return shape; the og-fetcher test now drives the real function instead of a copy of its regexes.
+- **Rich-preview Open Graph data no longer truncates at apostrophes (#140, contributed by @thegruber)** — the regex-based og-fetcher stopped a double-quoted `content` value at the first `'`, so `content="It's here"` saved the title "It". The page fetch and tag extraction now go through `linkpeek`, which also decodes every HTML entity (titles and meta descriptions included, not just five), honors the page charset instead of assuming UTF-8, and resolves relative `og:image` paths like `img/cover.png`. The page fetch now refuses private/internal hosts on the first request and every redirect, and the og:image download re-checks each redirect hop the same way. `fetchOgData()` keeps its signature and return shape; the og-fetcher test now drives the real function instead of a copy of its regexes.
 
 ## [1.6.1] - 2026-11-20
 
