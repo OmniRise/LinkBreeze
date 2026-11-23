@@ -1,0 +1,27 @@
+name: Notify website repo
+
+# The website repo derives its roadmap, changelog and theme presets from this
+# repo's main branch (pinned submodule). On every push to main, ping the
+# website repo so its sync workflow moves the pin and redeploys. Failure here
+# is logged but never blocks the app: the website also runs a daily safety-net
+# sync.
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send repository_dispatch to LinkBreeze-Website
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+        run: |
+          gh api repos/OmniRise/LinkBreeze-Website/dispatches \
+            -f event_type=app-main-update \
+            -F 'client_payload[sha]=${
+              github.sha
+            }' && echo "Website notified about ${{ github.sha }}"
