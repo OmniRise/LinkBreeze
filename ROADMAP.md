@@ -10,6 +10,8 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 - **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord-style and Telegram-compatible payloads.
 
+- **More embed providers** - grow the embed widget beyond YouTube, Spotify, Vimeo, SoundCloud and Bandcamp: TikTok, Twitch, Dailymotion, Odysee, Rumble, GitHub repo cards, Google Forms, Tally, Cal.com, Google Maps, and generic Open Graph previews for any other URL. X and Instagram follow if their embed APIs permit. Discord and Slack integrations ride the shared notification layer (#13).
+
 ## Next
 
 - **Link guardian** - scheduled broken-link checking (off / daily / weekly, owner's choice) with a manual "check now" button and per-link health status. Bot-wall responses are reported as unknown, never as broken. 
