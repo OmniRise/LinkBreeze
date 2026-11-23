@@ -82,6 +82,8 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 Recent highlights - the full history lives in [CHANGELOG.md](CHANGELOG.md):
 
+- **v1.6.2** - OIDC SSO flows are now bound to the starting browser (GHSA-5gx8-3hch-6m2f): an account-linking CSRF in the SSO callback could bind an attacker's IdP identity to a logged-in victim's account and hand over the session, admin included. Fixed with a per-flow nonce mirrored in an httpOnly cookie, verified by attack-driven route tests.
+
 - **v1.6.1** - security hardening (instance-admin gates on API keys, backups and exports; username-probing endpoints closed), Custom URI links for any non-web scheme like xmpp:, a live Rich-preview thumbnail in the link dialog, and markdown bold/italic that compose with links.
 
 - **v1.6.0** - multi-user accounts with customizable roles and an audit log, generic OIDC/OAuth2 SSO, a public REST API v1 with OpenAPI docs, A/B testing for links, Add-link drafts, markdown popup cards, native vCard contact cards customizable per link, and the November Next.js security release.
