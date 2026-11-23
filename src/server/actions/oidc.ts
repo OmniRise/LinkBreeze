@@ -9,7 +9,7 @@ import {
   notFoundError,
   rateLimitError,
 } from "@/lib/errors";
-import { safeRedirectTo, isValidIssuerUrl } from "@/lib/oidc";
+import { safeRedirectTo, isValidIssuerUrl, OIDC_FLOW_COOKIE, STATE_TTL_MS } from "@/lib/oidc";
 import { createOidcState, getOidcConfig, updateSetting } from "@/server/queries";
 import { requireInstanceAdmin } from "@/server/access";
 import { recordAudit } from "@/server/audit";
@@ -76,12 +76,32 @@ async function startOidcFlow(
 
   const { verifier, challenge } = createPkce();
   const state = randomState();
+  // GHSA-5gx8-3hch-6m2f fix: bind the state row to THIS browser. The nonce is
+  // stored with the state and mirrored in an httpOnly cookie; the callback
+  // requires both to match before linking or logging in. Without this, an
+  // attacker can start their own flow and present its callback URL to a
+  // logged-in victim — the victim's session cookie (top-level GET, SameSite=Lax
+  // lets it through) would bind the ATTACKER's IdP identity to the VICTIM's
+  // account (full takeover via SSO).
+  const flowNonce = randomState();
   const target = safeRedirectTo(redirectTo);
+
+  const { cookies } = await import("next/headers");
+  (await cookies()).set({
+    name: OIDC_FLOW_COOKIE,
+    value: flowNonce,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction(),
+    path: "/",
+    maxAge: Math.floor(STATE_TTL_MS / 1000),
+  });
 
   await createOidcState({
     state,
     codeVerifier: verifier,
     redirectTo: target,
+    flowNonce,
     expiresAt: stateExpiry(),
   });
 

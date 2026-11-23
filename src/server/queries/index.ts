@@ -1052,11 +1052,14 @@ export type OidcStateRow = typeof oidcStates.$inferSelect;
 export type OidcIdentityRow = typeof oidcIdentities.$inferSelect;
 
 /** Persist one in-flight login attempt. Consumed exactly once, or expires.
- *  Lazily clears expired rows so the table cannot grow unbounded. */
+ *  Lazily clears expired rows so the table cannot grow unbounded.
+ *  flowNonce (GHSA-5gx8-3hch-6m2f fix): must match the httpOnly flow cookie
+ *  presented by the same browser that started the flow. */
 export async function createOidcState(input: {
   state: string;
   codeVerifier: string;
   redirectTo: string;
+  flowNonce: string;
   expiresAt: string;
 }): Promise<void> {
   await db.delete(oidcStates).where(lt(oidcStates.expiresAt, new Date().toISOString()));
