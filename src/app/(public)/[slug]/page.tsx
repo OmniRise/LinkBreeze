@@ -2,6 +2,8 @@ import * as React from "react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { LucideIcon } from "@/components/public/LucideIcon";
+import { countTitle, formatCount, isSocialProofMode, isSocialProofPlacement, shouldShowBadge } from "@/lib/social-proof";
 import {
   getPageBySlug,
   getActiveLinks,
@@ -219,6 +221,22 @@ export default async function PublicPage({ params }: PageProps) {
   const activeLinks = await getActiveLinks(page.id);
   const sections = await getSectionsByPage(page.id);
 
+  // Social proof (opt-in public badges): real numbers only, hidden below the
+  // page's configured minimum. Views come from the retention-proof
+  // pages.views_count counter; clicks are the same links.clicks_count the
+  // dashboard shows (outbound clicks, popup opens excluded).
+  const spMode = isSocialProofMode(page.socialProofMode) ? page.socialProofMode : "off";
+  const spPlacement = isSocialProofPlacement(page.socialProofPlacement)
+    ? page.socialProofPlacement
+    : "header";
+  const spMin = page.socialProofMin;
+  const spShowLinks = spMode === "links" || spMode === "both";
+  const pageViews = page.viewsCount;
+  const pageClicks = activeLinks.reduce((sum, l) => sum + (l.clicksCount ?? 0), 0);
+  const spShowViews = spMode === "page" || spMode === "both" ? shouldShowBadge(pageViews, spMin) : false;
+  const spShowClicks = spMode === "page" || spMode === "both" ? shouldShowBadge(pageClicks, spMin) : false;
+  const spSocialProofForCards = { showLinks: spShowLinks, min: spMin };
+
   // Group links: uncategorized first, then each section in order. Empty
   // sections are dropped so no orphan headers render.
   const groups = groupLinksBySection(activeLinks, sections);
@@ -400,6 +418,28 @@ export default async function PublicPage({ params }: PageProps) {
       >
         <ProfileHeader profile={profileCompat as never} theme={themeInput} />
 
+        {/* Social proof page-level stats row (header placement) */}
+        {spPlacement === "header" && (spShowViews || spShowClicks) ? (
+        <div
+          className="lb-social-proof-row"
+          style={socialsReveal as React.CSSProperties}
+          aria-label="Page statistics"
+        >
+          {spShowViews ? (
+          <span className="lb-sp-chip" title={countTitle(pageViews)}>
+            <LucideIcon name="eye" size={14} />
+            {formatCount(pageViews)}
+          </span>
+          ) : null}
+          {spShowClicks ? (
+          <span className="lb-sp-chip" title={countTitle(pageClicks)}>
+            <LucideIcon name="mouse-pointer-click" size={14} />
+            {formatCount(pageClicks)}
+          </span>
+          ) : null}
+        </div>
+        ) : null}
+
         {socialLinks.length > 0 ? (
           <div className="mb-8 mt-6" style={socialsReveal as React.CSSProperties}>
             <SocialIcons socialLinks={socialLinks} theme={themeInput} />
@@ -447,6 +487,7 @@ export default async function PublicPage({ params }: PageProps) {
                       baseDelayMs={delays[gi]?.links[li] ?? 0}
                       theme={themeInput}
                       pageSlug={slug}
+                      socialProof={spSocialProofForCards}
                     />
                   ),
                 )}
@@ -482,6 +523,26 @@ export default async function PublicPage({ params }: PageProps) {
         <footer
           className="lb-footer"
         >
+          {spPlacement === "footer" && (spShowViews || spShowClicks) ? (
+            <div
+              className="lb-social-proof-row"
+              style={{ marginTop: "calc(var(--lb-spacing) * 1.5)" }}
+              aria-label="Page statistics"
+            >
+              {spShowViews ? (
+              <span className="lb-sp-chip" title={countTitle(pageViews)}>
+                <LucideIcon name="eye" size={14} />
+                {formatCount(pageViews)}
+              </span>
+              ) : null}
+              {spShowClicks ? (
+              <span className="lb-sp-chip" title={countTitle(pageClicks)}>
+                <LucideIcon name="mouse-pointer-click" size={14} />
+                {formatCount(pageClicks)}
+              </span>
+              ) : null}
+            </div>
+          ) : null}
           {page.footerText ? <p className="lb-footer-text">{page.footerText}</p> : null}
           <a
             href={`/${page.slug}/privacy`}

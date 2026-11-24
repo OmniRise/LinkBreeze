@@ -19,8 +19,15 @@ interface LinkCardProps {
  * static HTML untouched. This keeps the public page 100% client-JS-free while
  * still tracking outbound clicks.
  */
-export function LinkCard({ link, index, theme, baseDelayMs = 0, pageSlug }: LinkCardProps) {
-  const html = buildLinkCardHtml({ link, theme, index, baseDelayMs, pageSlug });
+export function LinkCard({
+  link,
+  index,
+  theme,
+  baseDelayMs = 0,
+  pageSlug,
+  socialProof,
+}: LinkCardProps & { socialProof?: { showLinks: boolean; min: number } }) {
+  const html = buildLinkCardHtml({ link, theme, index, baseDelayMs, pageSlug, socialProof });
 
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }

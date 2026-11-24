@@ -1,6 +1,7 @@
 import type { LinkRow } from "@/server/queries";
 import { revealAnimation, type ThemeInput } from "@/lib/theme-tokens";
 import { resolveIcon } from "@/lib/icon-registry";
+import { countTitle, formatCount, shouldShowBadge } from "@/lib/social-proof";
 import {
   isPopupType,
   popupOpenHandler,
@@ -154,7 +155,7 @@ function resolveLinkUrl(link: LinkRow, pageSlug?: string | null): {
  * Popup cards (#93) swap the ↗ navigation arrow for a › chevron — the card
  * opens a dialog, it doesn't navigate, and the glyph shouldn't promise that.
  */
-function buildContentRow(link: LinkRow): string {
+function buildContentRow(link: LinkRow, countHtml: string | null): string {
   const icon = buildIcon(link);
   const featured = link.isHighlighted;
 
@@ -183,6 +184,7 @@ function buildContentRow(link: LinkRow): string {
       <span style="display:flex;align-items:center;font-weight:${fontWeight};font-size:${fontSize};letter-spacing:var(--lb-letter-spacing)">${title}</span>
       ${description}
     </span>
+    ${countHtml ?? ""}
     ${icon}
     <span aria-hidden="true" style="margin-left:10px;opacity:.6;font-size:18px;color:var(--lb-accent)">${isPopupType(link.type) ? "&#8250;" : "&#8599;"}</span>`;
 }
@@ -204,8 +206,10 @@ export function buildLinkCardHtml(options: {
   baseDelayMs?: number;
   /** Page slug — resolves native vCard links to /api/vcard/<slug>. */
   pageSlug?: string | null;
+  /** Social proof (opt-in): show this link's click count in the content row. */
+  socialProof?: { showLinks: boolean; min: number };
 }): string {
-  const { link, theme, index, staggerMs = 60, baseDelayMs = 0, pageSlug } = options;
+  const { link, theme, index, staggerMs = 60, baseDelayMs = 0, pageSlug, socialProof } = options;
 
   const linkStyle = theme.linkStyle || "glass";
   const hoverEffect = theme.hoverEffect || theme.animationType || "lift";
@@ -242,6 +246,20 @@ export function buildLinkCardHtml(options: {
       : revealAnimation(theme.animationType, baseDelayMs + index * staggerMs);
 
   const { href, targetAttr, onclickAttr } = resolveLinkUrl(link, pageSlug);
+
+  // Social proof: quiet click counter, right-aligned before the arrow glyph.
+  // Numeric-only (no locale strings), full number in the hover title, and
+  // hidden entirely below the page's configured minimum (or on popup cards,
+  // which have no outbound clicks to count). Real numbers only — the value
+  // is the same links.clicks_count the dashboard shows; no overrides.
+  let countHtml: string | null = null;
+  if (socialProof?.showLinks && !isPopupType(link.type)) {
+    const clicks = link.clicksCount ?? 0;
+    if (shouldShowBadge(clicks, socialProof.min)) {
+      const iconSvg = lucideIconSvg("mouse-pointer-click", 12);
+      countHtml = `<span title="${esc(countTitle(clicks))}" style="margin-left:6px;opacity:.7;font-size:calc(var(--lb-font-size) - 2px);display:inline-flex;align-items:center;gap:3px;color:var(--lb-text-muted);white-space:nowrap">${iconSvg ?? ""}<span>${esc(formatCount(clicks))}</span></span>`;
+    }
+  }
 
   // CSS-based hover effects (class + data attributes) — replaces inline
   // onmouseover/onmouseout so prefers-reduced-motion can gate them.
@@ -284,7 +302,7 @@ export function buildLinkCardHtml(options: {
     ? ""
     : "padding:var(--lb-btn-padding-y) var(--lb-btn-padding-x);";
 
-  const contentRow = buildContentRow(link);
+  const contentRow = buildContentRow(link, countHtml);
   const innerContent = hasImage
     ? `${image}\n  <div style="display:flex;align-items:center;padding:var(--lb-btn-padding-y) var(--lb-btn-padding-x)">\n    ${contentRow}\n  </div>`
     : contentRow;

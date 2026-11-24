@@ -427,6 +427,29 @@ a.lb-share-link:hover { color: var(--lb-text); }
   overscroll-behavior: contain;
 }
 .lb-embed-frame { border-radius: min(var(--lb-card-radius), 12px); }
+
+/* Social proof stats row (opt-in): numeric chips, icon + compact count.
+   Token-driven like every other public surface; centered to match the
+   page's column rhythm in both header and footer placements. */
+.lb-social-proof-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lb-sp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  border: var(--lb-border-width) solid var(--lb-card-border);
+  background: color-mix(in srgb, var(--lb-card-bg) 70%, transparent);
+  color: var(--lb-text-muted);
+  font-size: calc(var(--lb-font-size) - 1px);
+  font-family: var(--lb-font);
+}
 .lb-popup-body .lb-md-list li { margin: 3px 0; }
 .lb-popup-body ol.lb-md-ol { list-style: decimal; }
 .lb-popup-body .lb-md-hr { border: none; border-top: 1px solid var(--lb-card-border); margin: 14px 0; }

@@ -102,6 +102,9 @@ interface GeneralTabProps {
   footerText: string;
   privacyPolicy: string;
   searchEngineHidden: boolean;
+  socialProofMode?: string;
+  socialProofPlacement?: string;
+  socialProofMin?: number;
   vcard: {
     organization: string;
     jobTitle: string;
@@ -119,6 +122,9 @@ export function GeneralTab({
   footerText,
   privacyPolicy,
   searchEngineHidden,
+  socialProofMode = "off",
+  socialProofPlacement = "header",
+  socialProofMin = 100,
   vcard,
 }: GeneralTabProps) {
   const t = useTranslations("settings.general");
@@ -257,10 +263,150 @@ export function GeneralTab({
         </CardContent>
       </form>
     </Card>
+    {pageId ? <SocialProofCard pageId={pageId} mode={socialProofMode} placement={socialProofPlacement} min={socialProofMin} /> : null}
     {pageId ? <ContactCardCard pageId={pageId} values={vcard} /> : null}
     <SearchVisibilityCard initialHidden={searchEngineHidden} slug={slug} />
     <LanguageCard />
     </div>
+  );
+}
+
+// ── Social proof counters (opt-in public badges) ─────────────────────────
+
+const SP_SELECT_CLASSES =
+  "h-9 rounded-lg border border-input bg-transparent px-2 text-sm text-foreground outline-none transition-colors [color-scheme:light] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 dark:[color-scheme:dark]";
+const SP_INPUT_CLASSES =
+  "h-9 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+
+const SP_MODES = ["off", "links", "page", "both"] as const;
+const SP_PLACEMENTS = ["header", "footer"] as const;
+
+function SocialProofCard({
+  pageId,
+  mode,
+  placement,
+  min,
+}: {
+  pageId: number;
+  mode: string;
+  placement: string;
+  min: number;
+}) {
+  const t = useTranslations("settings.general");
+  const tErr = useTranslations("errors");
+  const savedAction = useSavedAction();
+  const [spMode, setSpMode] = React.useState(mode);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+
+  const submit = React.useCallback(
+    (fd: FormData) => {
+      setSaveError(null);
+      void savedAction.run(updatePageAction, fd).then((res) => {
+        if (!res.success) setSaveError(localizeActionError(tErr, res.error));
+      });
+    },
+    [savedAction, tErr],
+  );
+
+  const { formRef, schedule, status } = useAutosavedForm(submit);
+
+  const showPlacement = spMode === "page" || spMode === "both";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("socialProofTitle")}</CardTitle>
+        <CardDescription>{t("socialProofDescription")}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <form
+          ref={formRef}
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(new FormData(e.currentTarget));
+          }}
+          className="flex flex-col gap-4"
+        >
+          <input type="hidden" name="pageId" value={pageId} />
+          <input type="hidden" name="socialProofMode" value={spMode} />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="lb-sp-mode" className="text-sm font-medium">
+                {t("spModeLabel")}
+              </label>
+              <select
+                id="lb-sp-mode"
+                name="spMode"
+                defaultValue={spMode}
+                className={SP_SELECT_CLASSES}
+                onChange={(e) => {
+                  setSpMode(e.target.value);
+                  // spMode rides as the hidden socialProofMode field.
+                  const hidden = e.currentTarget.form?.elements.namedItem("socialProofMode");
+                  if (hidden instanceof HTMLInputElement) hidden.value = e.target.value;
+                  schedule();
+                }}
+              >
+                {SP_MODES.map((m) => (
+                  <option key={m} value={m} className="bg-background text-foreground">
+                    {t(`spMode_${m}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {showPlacement ? (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="lb-sp-placement" className="text-sm font-medium">
+                  {t("spPlacementLabel")}
+                </label>
+                <select
+                  id="lb-sp-placement"
+                  name="socialProofPlacement"
+                  defaultValue={placement}
+                  className={SP_SELECT_CLASSES}
+                  onChange={() => schedule()}
+                >
+                  {SP_PLACEMENTS.map((p) => (
+                    <option key={p} value={p} className="bg-background text-foreground">
+                      {t(`spPlacement_${p}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="lb-sp-min" className="text-sm font-medium">
+              {t("spMinLabel")}
+            </label>
+            <input
+              id="lb-sp-min"
+              name="socialProofMin"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={min}
+              placeholder="100"
+              className={SP_INPUT_CLASSES}
+              onChange={() => schedule()}
+            />
+            <p className="text-xs text-muted-foreground">{t("spMinHint")}</p>
+          </div>
+
+          {saveError ? (
+            <span className="text-xs text-destructive" role="alert">
+              {saveError}
+            </span>
+          ) : null}
+          <p aria-live="polite" className="h-4 text-xs text-muted-foreground">
+            {status === "saving" ? t("saving") : status === "saved" ? t("saved") : ""}
+          </p>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

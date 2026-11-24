@@ -130,6 +130,16 @@ export const pages = sqliteTable("pages", {
   qrSettings: text("qr_settings"),
   // Share & wallet exports block on the public page. NULL = off (opt-in).
   shareEnabled: integer("share_enabled", { mode: "boolean" }),
+  // ─── Social proof counters (roadmap: opt-in public badges) ───
+  // What the public page shows: 'off' | 'links' | 'page' | 'both'. Counts
+  // are real only (links.clicks_count / views_count) — no manual overrides.
+  socialProofMode: text("social_proof_mode").notNull().default("off"),
+  /** 'header' (stats row under the bio) | 'footer' (above footer text). */
+  socialProofPlacement: text("social_proof_placement").notNull().default("header"),
+  /** Badges whose count is below this stay hidden (0 = always show). */
+  socialProofMin: integer("social_proof_min").notNull().default(100),
+  /** Retention-proof all-time pageviews (raw analytics rows are pruned). */
+  viewsCount: integer("views_count").notNull().default(0),
   // ─── Image adjustments (per-upload metadata, Spec: Image-Positioning) ───
   // All nullable; NULL = current rendering (object-fit cover, centered, no
   // zoom). Belongs to the UPLOAD, not theme knobs. avatar/banner: focus

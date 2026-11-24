@@ -176,6 +176,9 @@ export default async function SettingsPage({
               footerText={activePage?.footerText || ""}
               privacyPolicy={activePage?.privacyPolicy || ""}
               searchEngineHidden={searchEngineHidden === "true"}
+              socialProofMode={activePage?.socialProofMode || "off"}
+              socialProofPlacement={activePage?.socialProofPlacement || "header"}
+              socialProofMin={activePage?.socialProofMin ?? 100}
               vcard={{
                 organization: activePage?.vcardOrganization || "",
                 jobTitle: activePage?.vcardJobTitle || "",

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **More embed providers and click-to-open embeds** — Odysee joins the inline players (16:9, same themed frame), while TikTok, Cal.com, Google Forms and Tally render as a themed preview tile that opens a native popup on tap: TikTok's 9:16 portrait video fits the dialog cleanly, and booking calendars and long forms get their own scrollable panel instead of stretching the page. The iframe loads only after the visitor taps, so no third-party contact happens before intent. Google Maps embeds work keylessly in two ways: paste the `/maps/embed?pb=` link from Google's "Embed a map" dialog, or paste a `maps.app.goo.gl` short link and the instance resolves it at save time to a real maps page. Everything inherits the page theme (glass, gel, pixel) and the privacy policy template lists the new platforms.
+- **Social proof counters** — optional, real-numbers-only badges on the public page: a compact click count inside each link card and/or a page stats row (views and clicks) placed under the bio or above the footer, admin's choice in Settings. Counts are the same ones the dashboard shows — no overrides, nothing fabricated — and any counter below a configurable minimum stays hidden, so fresh pages and links never display near-zero numbers. Page views come from a retention-proof counter that survives analytics pruning. Numeric-only badges, no extra client JS.
 
 ## [1.6.2] - 2026-11-24
 

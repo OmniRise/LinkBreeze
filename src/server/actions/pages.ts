@@ -150,6 +150,10 @@ const updatePageSchema = z.object({
   customCss: z.string().max(10000).optional(),
   emailCapture: z.boolean().optional(),
   shareEnabled: z.boolean().optional(),
+  // Social proof counters (opt-in public badges).
+  socialProofMode: z.enum(["off", "links", "page", "both"]).optional(),
+  socialProofPlacement: z.enum(["header", "footer"]).optional(),
+  socialProofMin: z.coerce.number().int().min(0).max(10_000_000).optional(),
   faviconUrl: safeMediaUrl.max(500).optional().nullable(),
   privacyPolicy: z.string().max(20000).optional(),
   qrSettings: z.string().max(500).optional(),
@@ -324,6 +328,20 @@ export async function updatePageAction(formData: FormData): Promise<ActionResult
   const emailCapture = formData.get("emailCapture");
   if (emailCapture !== null) {
     data.emailCapture = emailCapture === "on";
+  }
+
+  // Social proof: dropdowns/threshold follow the same present = explicit
+  // contract — forms without the fields must not reset them.
+  for (const key of ["socialProofMode", "socialProofPlacement"] as const) {
+    if (formData.has(key)) {
+      const raw = String(formData.get(key) ?? "").trim();
+      if (raw) data[key] = raw;
+    }
+  }
+  const socialProofMin = formData.get("socialProofMin");
+  if (socialProofMin !== null && String(socialProofMin).trim() !== "") {
+    const n = Number(socialProofMin);
+    if (Number.isFinite(n)) data.socialProofMin = Math.max(0, Math.min(10_000_000, Math.floor(n)));
   }
 
   // Remove undefined keys — undefined is the "absent from form, leave

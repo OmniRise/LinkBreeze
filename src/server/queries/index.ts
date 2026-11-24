@@ -1329,12 +1329,24 @@ export async function recordPageview(
   country: string | null,
   pageId?: number,
 ): Promise<void> {
-  await db.insert(analyticsPageviews).values({
-    visitorHash,
-    referrer: referrer ?? null,
-    deviceType: deviceType ?? null,
-    country: country ?? null,
-    pageId: pageId ?? null,
+  // Transaction so the analytics insert and the retention-proof views
+  // counter can't drift apart if one fails (mirrors recordClick).
+  db.transaction((tx) => {
+    tx.insert(analyticsPageviews).values({
+      visitorHash,
+      referrer: referrer ?? null,
+      deviceType: deviceType ?? null,
+      country: country ?? null,
+      pageId: pageId ?? null,
+    }).run();
+    // Social proof: pages.views_count is the retention-proof all-time
+    // counter (the raw rows above are pruned after the retention window).
+    if (pageId !== undefined) {
+      tx.update(pages)
+        .set({ viewsCount: sql`${pages.viewsCount} + 1` })
+        .where(eq(pages.id, pageId))
+        .run();
+    }
   });
   await pruneAnalyticsIfDue();
 }

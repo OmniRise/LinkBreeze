@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 43d6bc964cfa ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 9401e84a3d8a ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -749,7 +749,20 @@ const it: Messages = {
     general: {
       privacyPlaceholder: "# Informativa sulla privacy\\n\\nQuesta pagina utilizza analitiche che rispettano la privacy...",
       saving: "Salvataggio…",
-      saveGeneral: "Salva impostazioni generali",
+      saved: "Salvato",
+            socialProofTitle: "Prova sociale",
+      socialProofDescription: "Mostra numeri reali sulla tua pagina pubblica: visualizzazioni della pagina e clic sui link. Non viene mostrato nulla finché non scegli una modalità.",
+      spModeLabel: "Mostra",
+      spMode_off: "Disattivato",
+      spMode_links: "Contatori dei link",
+      spMode_page: "Statistiche della pagina",
+      spMode_both: "Entrambi",
+      spPlacementLabel: "Posizione delle statistiche",
+      spPlacement_header: "In alto (sotto la bio)",
+      spPlacement_footer: "In fondo alla pagina",
+      spMinLabel: "Valore minimo",
+      spMinHint: "Nasconde qualsiasi contatore sotto questo valore (0 = mostra sempre).",
+saveGeneral: "Salva impostazioni generali",
     footerPlaceholder: "© 2026 Jane Doe",
       title: "Generale",
       description: "Slug della pagina, titolo, metadati SEO, footer e informativa sulla privacy.",
