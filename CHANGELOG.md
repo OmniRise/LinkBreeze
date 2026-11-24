@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **More embed providers: Dailymotion, Twitch, Rumble and GitHub repo cards** — the embed widget grows beyond YouTube, Spotify, Vimeo, SoundCloud and Bandcamp. Dailymotion covers `/video/`, `dai.ly/` short links and pasted `/embed/` URLs; Twitch covers VODs, channels and clips — the player's mandatory `parent` parameter is resolved per request from the visitor-visible host, so it works unchanged on custom domains; Rumble embed URLs pass through directly. `github.com/<owner>/<repo>` links (deep paths included) render a server-side repo card — avatar, description, stars, forks, language — fetched from the GitHub REST API with an hour-long positive cache and a ten-minute negative cache, so the unauthenticated 60-requests-per-hour budget stays well ahead of real traffic and a rate-limited instance degrades to the plain card instead of hammering the API. Provider matching moved out of the widget into a pure module (`src/lib/embed-providers.ts`) with a full unit matrix, and three render paths now share one themed frame (glass, gel and pixel) so new providers inherit every theme automatically. Two behavior polishes ride along: an embed URL the registry does not recognize renders a plain clickable card instead of silently vanishing, and iframe sizing uses CSS `aspect-ratio` instead of the hardcoded 56.25% padding hack. The privacy-policy template's embed disclosure lists the new platforms. Verified by 31 new tests (provider matrix, GitHub fetch + cache behavior) and a server-render smoke check of all three paths against the live GitHub API.
+
 ### Changed
 
 - **Dependency updates (#141)** — merged the Dependabot minor-and-patch group: `better-sqlite3` 13.1.1 → 13.2.0, `lucide-react` 1.72.0 → 1.77.0, `next-intl` 4.15.1 → 4.15.3, `recharts` 3.10.1 → 3.11.0, `sql.js` 1.16.0 → 1.17.0 (with `@types/sql.js` 1.4.11 → 1.16.0), `tailwind-merge` 3.7.0 → 3.7.1, `vitest` 5.1.0 → 5.1.1, `@playwright/test` + `playwright-core` 1.65.0 → 1.65.1, and `axe-core` 4.14.0 → 4.14.1.

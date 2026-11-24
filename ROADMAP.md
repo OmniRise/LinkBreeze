@@ -38,6 +38,8 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 - **Async messaging inbox** - optional message form element on public pages (progressive-enhancement server action, same pattern as email capture), with an inbox in the admin dashboard and replies sent by email. No client-side JavaScript, no realtime infrastructure.
 
+- **Outbound email layer** (#130) - a shared SMTP sending primitive (admin-configured credentials, send-test button) that the shared notification layer (#13), async messaging inbox replies and email capture v2 forwarding all ride. No third-party email API by default; the instance owner brings their own SMTP server.
+
 - **Email capture v2** - forward subscriptions to an external provider through a generic webhook or the Listmonk API, with double opt-in respected. The local SQLite copy always stays; CSV export remains the privacy-preserving default. MailerLite, Brevo and Buttondown follow on demand.
 
 - **One-click update** - admin-panel update action on top of the existing update script, version notifications and backup-before-update flow, with confirmation and rollback surfaced in the UI.
