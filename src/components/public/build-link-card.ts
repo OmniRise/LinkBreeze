@@ -257,7 +257,7 @@ export function buildLinkCardHtml(options: {
     const clicks = link.clicksCount ?? 0;
     if (shouldShowBadge(clicks, socialProof.min)) {
       const iconSvg = lucideIconSvg("mouse-pointer-click", 12);
-      countHtml = `<span title="${esc(countTitle(clicks))}" style="margin-left:6px;opacity:.7;font-size:calc(var(--lb-font-size) - 2px);display:inline-flex;align-items:center;gap:3px;color:var(--lb-text-muted);white-space:nowrap">${iconSvg ?? ""}<span>${esc(formatCount(clicks))}</span></span>`;
+      countHtml = `<span title="${esc(countTitle(clicks))}" style="margin-left:10px;opacity:.7;font-size:calc(var(--lb-font-size) - 2px);display:inline-flex;align-items:center;gap:4px;color:var(--lb-text-muted);white-space:nowrap">${iconSvg ?? ""}<span>${esc(formatCount(clicks))}</span></span>`;
     }
   }
 

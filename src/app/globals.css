@@ -442,7 +442,7 @@ a.lb-share-link:hover { color: var(--lb-text); }
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 12px;
+  padding: 5px 14px;
   border-radius: 9999px;
   border: var(--lb-border-width) solid var(--lb-card-border);
   background: color-mix(in srgb, var(--lb-card-bg) 70%, transparent);

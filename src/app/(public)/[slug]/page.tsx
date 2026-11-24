@@ -422,7 +422,10 @@ export default async function PublicPage({ params }: PageProps) {
         {spPlacement === "header" && (spShowViews || spShowClicks) ? (
         <div
           className="lb-social-proof-row"
-          style={socialsReveal as React.CSSProperties}
+          style={{
+            margin: "calc(var(--lb-spacing) * 1.25) 0 calc(var(--lb-spacing))",
+            ...(socialsReveal as React.CSSProperties),
+          }}
           aria-label="Page statistics"
         >
           {spShowViews ? (
@@ -526,7 +529,7 @@ export default async function PublicPage({ params }: PageProps) {
           {spPlacement === "footer" && (spShowViews || spShowClicks) ? (
             <div
               className="lb-social-proof-row"
-              style={{ marginTop: "calc(var(--lb-spacing) * 1.5)" }}
+              style={{ margin: "0 0 calc(var(--lb-spacing))" }}
               aria-label="Page statistics"
             >
               {spShowViews ? (
