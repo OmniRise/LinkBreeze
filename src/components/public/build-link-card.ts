@@ -119,9 +119,13 @@ function resolveLinkUrl(link: LinkRow, pageSlug?: string | null): {
 } {
   // Native vCard links always point at the page's own /api/vcard/<slug>
   // route (Content-Disposition: attachment downloads without navigating).
+  // A custom per-link card selects itself via ?link=<id> — the route
+  // re-verifies ownership, so a stale/guessed id just serves the default.
   if (link.type === "vcard" && pageSlug) {
+    const suffix =
+      link.vcardConfig && link.id ? `?link=${encodeURIComponent(String(link.id))}` : "";
     return {
-      href: `/api/vcard/${esc(pageSlug)}`,
+      href: `/api/vcard/${esc(pageSlug)}${suffix}`,
       targetAttr: "",
       onclickAttr: "",
     };

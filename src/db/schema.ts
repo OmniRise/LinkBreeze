@@ -205,6 +205,11 @@ export const oidcStates = sqliteTable("oidc_states", {
   state: text("state").primaryKey(),
   codeVerifier: text("code_verifier").notNull(),
   redirectTo: text("redirect_to").notNull().default("/"),
+  // GHSA-5gx8-3hch-6m2f fix: random nonce generated at flow start, mirrored in
+  // an httpOnly cookie on the SAME browser that started the flow. The callback
+  // requires cookie === row before linking/logging in, so a state row created
+  // by ANOTHER browser (attacker-initiated CSRF callback) never binds.
+  flowNonce: text("flow_nonce").notNull().default(""),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   expiresAt: text("expires_at").notNull(),
 });
@@ -249,7 +254,7 @@ export const links = sqliteTable("links", {
   pageId: integer("page_id").notNull().default(1),
   sectionId: integer("section_id"), // FK to link_sections.id (enforced in 0013 migration SQL)
   orderIndex: integer("order_index").notNull().default(0),
-  type: text("type").notNull().default("url"), // url, email, phone, whatsapp, sms, vcard, file, embed, text, location, divider
+  type: text("type").notNull().default("url"), // url, email, phone, whatsapp, sms, vcard, file, embed, text, location, custom, divider
   title: text("title").notNull(),
   description: text("description"),
   url: text("url").notNull(),
@@ -280,6 +285,10 @@ export const links = sqliteTable("links", {
   // carries variant B's destination, labels, integer weights (sum 100),
   // lifecycle status (running | paused | archived) and the promoted winner.
   abConfig: text("ab_config"),
+  // Custom vCard: JSON config (see src/lib/vcard-link.ts for the shape +
+  // zod schema). NULL = the page's default contact card (Settings → Contact
+  // card); set = a full-replace custom card served by /api/vcard/<slug>?link=<id>.
+  vcardConfig: text("vcard_config"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 

@@ -20,6 +20,8 @@ import { createHash, randomBytes } from "node:crypto";
 
 /** How long a stored login state may live. */
 export const STATE_TTL_MS = 10 * 60 * 1000;
+/** httpOnly cookie carrying the per-flow nonce (GHSA-5gx8-3hch-6m2f fix). */
+export const OIDC_FLOW_COOKIE = "lb_oidc_flow";
 
 function isLocalHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";

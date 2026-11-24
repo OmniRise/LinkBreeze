@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { recordAudit } from "@/server/audit";
 import { getUserById, consumeOidcState, getOidcConfig, getOidcSettingsRaw, updateSetting, findUserIdByOidcIdentity, linkOidcIdentity } from "@/server/queries";
-import { safeRedirectTo } from "@/lib/oidc";
+import { safeRedirectTo, OIDC_FLOW_COOKIE } from "@/lib/oidc";
 import { DEFAULT_OIDC_CLAIMS, type OidcClaimNames } from "@/server/oidc-flow";
 import {
   applyGroupRoleResync,
@@ -24,6 +24,9 @@ export const dynamic = "force-dynamic";
  * Contract:
  *  - state is consumed SINGLE-USE (deleted in the same statement that reads
  *    it) and expires; replays and stale states land on /login?sso=invalid.
+ *  - The state row must match the browser's lb_oidc_flow httpOnly cookie
+ *    (GHSA-5gx8-3hch-6m2f fix): a state initiated by ANOTHER browser never
+ *    links or logs in, killing account-linking CSRF → account takeover.
  *  - The id token is NEVER trusted: the userinfo endpoint is the identity
  *    source (no signature verification surface to get wrong).
  *  - An AUTHENTICATED callback links the identity to the current account
@@ -71,6 +74,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!stored) return fail("invalid"); // unknown/replayed/already-used
   // 30s leeway absorbs minor clock drift between app instances sharing the DB.
   if (new Date(stored.expiresAt).getTime() + 30_000 < Date.now()) return fail("expired");
+
+  // GHSA-5gx8-3hch-6m2f fix — flow-nonce binding: the state row must belong to
+  // THIS browser. A row created by another browser (attacker-initiated flow)
+  // fails the cookie match, killing account-linking CSRF → account takeover
+  // AND its unauthenticated sibling (login CSRF). Checked BEFORE the token
+  // exchange so a rejected callback never touches the IdP.
+  const { cookies } = await import("next/headers");
+  const flowCookie = (await cookies()).get(OIDC_FLOW_COOKIE)?.value;
+  if (!stored.flowNonce || !flowCookie || flowCookie !== stored.flowNonce) {
+    await recordAudit("sso.flow_mismatch", undefined, { issuer: config.issuer });
+    return fail("invalid");
+  }
 
   const endpoints = await fetchDiscovery(config.issuer);
   if (!endpoints) return fail("discovery");

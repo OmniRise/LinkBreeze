@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getSession } from "@/lib/auth";
+import { requireInstanceAdmin } from "@/server/access";
 import { demoGuard } from "@/lib/demo-guard";
 import { isAllowedLinkUrl, buildMapsUrl, isMapsShortLink } from "@/lib/link-url";
 import { z } from "zod";
@@ -11,6 +12,7 @@ import { LOCALE_COOKIE } from "@/i18n/config";
 import { fetchAndCacheFavicon, extractDomain } from "@/lib/favicon";
 import { saveIconUpload, isLucideName, type IconMode } from "@/lib/link-icons";
 import { fetchOgData } from "@/lib/og-fetcher";
+import { encodeVCardLinkConfig } from "@/lib/vcard-link";
 import {
   createLink as createLinkQuery,
   updateLink as updateLinkQuery,
@@ -268,6 +270,12 @@ export async function createLink(formData: FormData): Promise<ActionResult> {
     icon: formData.get("icon") || undefined,
     popupText: formData.get("popupText") || undefined,
     ctaLabel: formData.get("ctaLabel") || undefined,
+    // Custom vCard raw fields — encoded canonically below (create path).
+    vcardOrganization: formData.get("vcardOrganization") || undefined,
+    vcardJobTitle: formData.get("vcardJobTitle") || undefined,
+    vcardEmail: formData.get("vcardEmail") || undefined,
+    vcardPhone: formData.get("vcardPhone") || undefined,
+    vcardAddress: formData.get("vcardAddress") || undefined,
     redirectSlug: formData.has("redirectSlug") ? String(formData.get("redirectSlug")) : undefined,
     sectionId: formData.get("sectionId") !== null ? formData.get("sectionId") : undefined,
   });
@@ -305,6 +313,18 @@ export async function createLink(formData: FormData): Promise<ActionResult> {
     // #93 popup cards: per-type URL + CTA label normalization.
     const popup = await resolvePopupFields(d);
 
+    // Custom vCard: the dialog always submits vcardMode on vcard links.
+    // Default mode (or a non-vcard type) stores NULL = page contact card.
+    const vcardConfig = d.type === "vcard" && formData.get("vcardMode") === "custom"
+      ? encodeVCardLinkConfig({
+          organization: d.vcardOrganization ?? null,
+          jobTitle: d.vcardJobTitle ?? null,
+          email: d.vcardEmail ?? null,
+          phone: d.vcardPhone ?? null,
+          address: d.vcardAddress ?? null,
+        })
+      : null;
+
     await createLinkQuery({
       title: d.title,
       url: popup.url,
@@ -327,6 +347,7 @@ export async function createLink(formData: FormData): Promise<ActionResult> {
       popupText: d.type === "text" || d.type === "location" ? (d.popupText || null) : null,
       ctaLabel: popup.ctaLabel,
       redirectSlug: slug.slug,
+      vcardConfig,
     });
 
     revalidatePath("/links");
@@ -364,6 +385,12 @@ export async function updateLink(formData: FormData): Promise<ActionResult> {
     icon: formData.get("icon") || undefined,
     popupText: formData.get("popupText") || undefined,
     ctaLabel: formData.get("ctaLabel") || undefined,
+    // Custom vCard raw fields (update path — encoded canonically below).
+    vcardOrganization: formData.get("vcardOrganization") || undefined,
+    vcardJobTitle: formData.get("vcardJobTitle") || undefined,
+    vcardEmail: formData.get("vcardEmail") || undefined,
+    vcardPhone: formData.get("vcardPhone") || undefined,
+    vcardAddress: formData.get("vcardAddress") || undefined,
     // #96 TRI-STATE: field present = write the slug (empty string clears it —
     // a deleted slug is a legitimate save); absent from the form = unchanged.
     redirectSlug: formData.has("redirectSlug") ? String(formData.get("redirectSlug")) : undefined,
@@ -411,6 +438,23 @@ export async function updateLink(formData: FormData): Promise<ActionResult> {
     // #93 popup cards: per-type URL + CTA label normalization.
     const popup = await resolvePopupFields(d);
 
+    // Custom vCard, TRI-STATE like the slug: the dialog submits vcardMode on
+    // every vcard save, so present = write (custom → canonical JSON; default
+    // → NULL = page contact card); absent (older clients, REST API partial
+    // forms) = unchanged.
+    const vcardModePresent = formData.has("vcardMode");
+    const vcardConfig = vcardModePresent
+      ? (d.type === "vcard" && formData.get("vcardMode") === "custom"
+          ? encodeVCardLinkConfig({
+              organization: d.vcardOrganization ?? null,
+              jobTitle: d.vcardJobTitle ?? null,
+              email: d.vcardEmail ?? null,
+              phone: d.vcardPhone ?? null,
+              address: d.vcardAddress ?? null,
+            })
+          : null)
+      : undefined;
+
     await updateLinkQuery(Number(d.id), {
       title: d.title,
       url: popup.url,
@@ -433,6 +477,7 @@ export async function updateLink(formData: FormData): Promise<ActionResult> {
       ctaLabel: popup.ctaLabel,
       // #96: only included when the form carried the field (tri-state).
       ...(redirectSlug !== undefined ? { redirectSlug } : {}),
+      ...(vcardConfig !== undefined ? { vcardConfig } : {}),
     });
 
     revalidatePath("/links");
@@ -840,6 +885,10 @@ export async function removeAbTest(formData: FormData): Promise<ActionResult> {
 export async function setAbAutoPromote(formData: FormData): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
+  // Instance-wide setting (Settings → Data), not a per-link action —
+  // admin-only like every other settings toggle (#124).
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
   if (!(await getSession())) return unauthorizedError();
 
   const enabled = formData.get(AB_AUTO_PROMOTE_SETTING) === "on";

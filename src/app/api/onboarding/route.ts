@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { RESERVED_SLUGS } from "@/lib/link-slug";
 import { getSession } from "@/lib/auth";
+import { demoBlock } from "@/lib/demo";
+import { requireInstanceAdminOrThrow } from "@/server/access";
 import {
   updateProfile as updateProfileQuery,
   updateSetting as updateSettingQuery,
@@ -59,6 +61,21 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  // #124: the active theme is instance-wide — switching it from onboarding
+  // is an instance change, so the gate is the role ROW, not the session.
+  const blocked = demoBlock();
+  if (blocked) {
+    return NextResponse.json({ success: false, error: blocked }, { status: 403 });
+  }
+  try {
+    await requireInstanceAdminOrThrow();
+  } catch (err) {
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : "Unauthorized" },
+      { status: err instanceof Error && err.message === "Forbidden" ? 403 : 401 },
+    );
+  }
+
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });

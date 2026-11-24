@@ -1,8 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 324c4d9bd80a ← rigenerato da `npm run i18n:check -- --update`
- * lastSyncedHash: 3c0456bad181 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: 43d6bc964cfa ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -165,6 +164,16 @@ const it: Messages = {
   },
 
   linksPage: {
+    vcardPageCard: "Card contatti della pagina",
+    vcardPageCardHint: "Generata dalla tua pagina e dalla sezione Impostazioni → Card contatti.",
+    vcardCustomCard: "Card personalizzata",
+    vcardCustomHint: "Solo i campi compilati appaiono sulla card. L'avatar e i link social della pagina sono sempre inclusi.",
+    vcardFieldOrg: "Organizzazione",
+    vcardFieldJob: "Ruolo",
+    vcardFieldEmail: "Email",
+    vcardFieldPhone: "Telefono",
+    vcardFieldAddress: "Indirizzo",
+    vcardFieldBlank: "Lascia vuoto",
     abTest: "Test A/B",
     abTestHint: "Dividi i clic tra questo URL e una seconda destinazione",
     abVariantBUrl: "URL della variante B",
@@ -251,6 +260,10 @@ const it: Messages = {
     ltEmbed: "Embed (YouTube, Spotify, ecc.)",
     ltText: "Popup di testo",
     ltLocation: "Posizione",
+    ltCustom: "URI personalizzato",
+    ltCustomLabel: "URI",
+    phCustom: "xmpp:user@example.com",
+    customHint: "Qualsiasi schema non web funziona (xmpp:, matrix:, nostr:, bitcoin:, …). Gli schemi eseguibili dal browser come javascript: o data: vengono rifiutati.",
     addDivider: "Aggiungi separatore",
     dividerRow: "Separatore",
     dividerHint: "Un'interruzione tematica tra i link. Il suo stile (linea, colore, spessore, larghezza) si imposta per tema in Tema → Link.",
@@ -266,9 +279,10 @@ const it: Messages = {
     ltDivider: "Separatore",
     ltLocationLabel: "Indirizzo, luogo o link di Google Maps",
     phLocation: "Moschea della Koutoubia, Marrakech",
-    phPopupText: "Testo più lungo mostrato nel popup quando si tocca la card.\\nSupporta **grassetto**, *corsivo*, `codice`, elenchi e titoli.",
+    phPopupText: "Testo più lungo mostrato nel popup quando si tocca la card.\\nSupporta **grassetto**, *corsivo*, `codice`, [collegamento](url), elenchi e titoli.",
     phCtaUrl: "https://example.com/cta (vuoto = nessun pulsante)",
     popupTextLabel: "Testo del popup",
+    popupPreview: "Anteprima in tempo reale",
     ctaLabel: "Etichetta del pulsante CTA (opzionale)",
     ctaUrlLabel: "URL CTA",
     phCtaLabel: "Prenota ora (vuoto = nessun pulsante)",
@@ -285,6 +299,11 @@ const it: Messages = {
     createDescription: "Crea un nuovo link per la tua pagina.",
     updateDescription: "Aggiorna i dettagli di questo link.",
     typeLabel: "Tipo",
+    draftRestored: "Bozza ripristinata",
+    draftDiscard: "Scarta bozza",
+    advanced: "Avanzate",
+    moreActions: "Altre azioni",
+    preview: "Anteprima",
     cardStyle: "Stile card",
     richHint: "Miniatura + anteprima automatica dai dati Open Graph del link. Se non trova immagini, ripiega sullo stile compatto.",
     sectionPlaceholder: "I miei progetti",

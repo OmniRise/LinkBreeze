@@ -1,170 +1,156 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
-// Test the parseOgTags logic by importing the module and testing
-// against known HTML strings. We test the exported fetchOgData behavior
-// is correct by testing the internal parsing indirectly through the
-// public API's HTML parsing.
-//
-// Since fetchOgData makes network calls, we test the parsing logic
-// by extracting and testing it directly.
+// Drives the real fetchOgData against a stubbed global fetch: the page URL
+// serves `html`, any other URL serves a tiny PNG (or whatever `routes` says).
 
-// Re-implement the parseOgTags logic for unit testing.
-// This mirrors the implementation in og-fetcher.ts
-function parseOgTags(html: string) {
-  const getMeta = (property: string): string | null => {
-    const regex = new RegExp(
-      `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']*)["']`,
-      "i",
-    );
-    const match = html.match(regex);
-    return match ? decodeEntities(match[1]).trim() : null;
-  };
+const PAGE = "https://example.com/blog/post";
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 
-  const getMetaReversed = (property: string): string | null => {
-    const regex = new RegExp(
-      `<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${property}["']`,
-      "i",
-    );
-    const match = html.match(regex);
-    return match ? decodeEntities(match[1]).trim() : null;
-  };
+let routes: Record<string, () => Response>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
-  const meta = (p: string): string | null => getMeta(p) ?? getMetaReversed(p);
-
-  const title = meta("og:title") || meta("twitter:title") || extractTag(html, "title") || null;
-  const description = meta("og:description") || meta("twitter:description") || getMetaContent(html, "description") || null;
-  const imageUrl = meta("og:image") || meta("og:image:url") || meta("twitter:image") || null;
-  const siteName = meta("og:site_name") || null;
-
-  return { title, description, imageUrl, siteName };
+function stubPage(html: string, contentType = "text/html; charset=utf-8"): void {
+  routes[PAGE] = () => new Response(html, { status: 200, headers: { "content-type": contentType } });
 }
 
-function getMetaContent(html: string, name: string): string | null {
-  const regex = new RegExp(
-    `<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']*)["']`,
-    "i",
-  );
-  const match = html.match(regex);
-  return match ? match[1].trim() : null;
+async function og(html: string) {
+  stubPage(html);
+  const { fetchOgData } = await import("@/lib/og-fetcher");
+  return fetchOgData(PAGE);
 }
 
-function extractTag(html: string, tag: string): string | null {
-  const regex = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i");
-  const match = html.match(regex);
-  return match ? match[1].trim() : null;
+function fetchedUrls(): string[] {
+  return fetchMock.mock.calls.map(([u]) => String(u));
 }
 
-function decodeEntities(s: string): string {
-  // Single pass — mirrors src/lib/og-fetcher.ts (no double-unescape).
-  return s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => {
-    switch (e) {
-      case "amp":
-        return "&";
-      case "lt":
-        return "<";
-      case "gt":
-        return ">";
-      case "quot":
-        return '"';
-      default:
-        return "'";
-    }
+describe("fetchOgData", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "lb-og-"));
+    process.env.UPLOAD_DIR = tmpDir;
+    vi.resetModules();
+    routes = {};
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const route = routes[url];
+      if (route) return route();
+      return new Response(PNG, { status: 200, headers: { "content-type": "image/png" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
   });
-}
 
-describe("OG tag parser", () => {
-  it("extracts standard og: tags", () => {
-    const html = `<html><head>
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    delete process.env.UPLOAD_DIR;
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  });
+
+  it("extracts standard og: tags and caches the image locally", async () => {
+    const result = await og(`<html><head>
       <meta property="og:title" content="My Awesome Page" />
       <meta property="og:description" content="This is a great page about things" />
-      <meta property="og:image" content="https://example.com/image.jpg" />
+      <meta property="og:image" content="https://cdn.example.com/image.jpg" />
       <meta property="og:site_name" content="Example Site" />
-    </head><body></body></html>`;
-
-    const result = parseOgTags(html);
+    </head><body></body></html>`);
     expect(result.title).toBe("My Awesome Page");
     expect(result.description).toBe("This is a great page about things");
-    expect(result.imageUrl).toBe("https://example.com/image.jpg");
     expect(result.siteName).toBe("Example Site");
+    expect(result.imageUrl).toMatch(/^\/api\/uploads\/og-[0-9a-f]{16}\.jpg$/);
+    expect(fetchedUrls()).toContain("https://cdn.example.com/image.jpg");
   });
 
-  it("extracts twitter: tags as fallback", () => {
-    const html = `<html><head>
+  it("falls back to twitter:, <title> and meta description", async () => {
+    const tw = await og(`<html><head>
       <meta name="twitter:title" content="Twitter Title" />
       <meta name="twitter:description" content="Twitter desc" />
-      <meta name="twitter:image" content="https://example.com/tw.jpg" />
-    </head></html>`;
+    </head></html>`);
+    expect(tw.title).toBe("Twitter Title");
+    expect(tw.description).toBe("Twitter desc");
 
-    const result = parseOgTags(html);
-    expect(result.title).toBe("Twitter Title");
-    expect(result.description).toBe("Twitter desc");
-    expect(result.imageUrl).toBe("https://example.com/tw.jpg");
-  });
-
-  it("falls back to <title> tag when no og: or twitter: title", () => {
-    const html = `<html><head><title>Page Title</title></head></html>`;
-    const result = parseOgTags(html);
-    expect(result.title).toBe("Page Title");
-  });
-
-  it("falls back to meta description when no og:description", () => {
-    const html = `<html><head>
+    const plain = await og(`<html><head><title>Page Title</title>
       <meta name="description" content="Standard meta description" />
-    </head></html>`;
-    const result = parseOgTags(html);
-    expect(result.description).toBe("Standard meta description");
+    </head></html>`);
+    expect(plain.title).toBe("Page Title");
+    expect(plain.description).toBe("Standard meta description");
   });
 
-  it("returns null for all fields when no meta tags present", () => {
-    const html = `<html><head></head></html>`;
-    const result = parseOgTags(html);
-    expect(result.title).toBeNull();
-    expect(result.description).toBeNull();
-    expect(result.imageUrl).toBeNull();
-    expect(result.siteName).toBeNull();
-  });
-
-  it("decodes HTML entities in content", () => {
-    const html = `<html><head>
-      <meta property="og:title" content="Tom &amp; Jerry &quot;The Show&quot;" />
-    </head></html>`;
-    const result = parseOgTags(html);
-    expect(result.title).toBe('Tom & Jerry "The Show"');
-  });
-
-  it("handles reversed attribute order (content before property)", () => {
-    const html = `<html><head>
-      <meta content="Reversed Order Title" property="og:title" />
-    </head></html>`;
-    const result = parseOgTags(html);
-    expect(result.title).toBe("Reversed Order Title");
-  });
-
-  it("handles og:image:url variant", () => {
-    const html = `<html><head>
-      <meta property="og:image:url" content="https://example.com/alt.jpg" />
-    </head></html>`;
-    const result = parseOgTags(html);
-    expect(result.imageUrl).toBe("https://example.com/alt.jpg");
-  });
-
-  it("prefers og: tags over twitter: tags", () => {
-    const html = `<html><head>
-      <meta property="og:title" content="OG Title" />
+  it("handles reversed attribute order and prefers og: over twitter:", async () => {
+    const result = await og(`<html><head>
+      <meta content="OG Title" property="og:title" />
       <meta name="twitter:title" content="Twitter Title" />
-    </head></html>`;
-    const result = parseOgTags(html);
+    </head></html>`);
     expect(result.title).toBe("OG Title");
   });
 
-  it("stops parsing at </head>", () => {
-    const html = `<html><head>
-      <meta property="og:title" content="In Head" />
-    </head><body>
-      <meta property="og:title" content="In Body" />
-    </body></html>`;
-    const result = parseOgTags(html);
-    // Both are in the HTML string but regex finds the first match
-    expect(result.title).toBe("In Head");
+  it("keeps apostrophes inside double-quoted content", async () => {
+    const result = await og(`<html><head>
+      <meta property="og:title" content="It's here" />
+      <meta property="og:description" content="Don't miss Sam's launch" />
+    </head></html>`);
+    expect(result.title).toBe("It's here");
+    expect(result.description).toBe("Don't miss Sam's launch");
+  });
+
+  it("decodes entities in og tags, <title> and meta description", async () => {
+    const tagged = await og(`<html><head>
+      <meta property="og:title" content="Tom &amp; Jerry &quot;The Show&quot; &mdash; &#8220;Live&#8221;" />
+    </head></html>`);
+    expect(tagged.title).toBe("Tom & Jerry \"The Show\" — “Live”");
+
+    const plain = await og(`<html><head><title>Fish &amp; Chips</title>
+      <meta name="description" content="Caf&eacute; &amp; bar" />
+    </head></html>`);
+    expect(plain.title).toBe("Fish & Chips");
+    expect(plain.description).toBe("Café & bar");
+  });
+
+  it("resolves a relative og:image without a leading slash against the page", async () => {
+    const result = await og(`<html><head>
+      <meta property="og:image" content="img/cover.png" />
+    </head></html>`);
+    expect(result.imageUrl).toMatch(/^\/api\/uploads\/og-[0-9a-f]{16}\.png$/);
+    expect(fetchedUrls()).toContain("https://example.com/blog/img/cover.png");
+  });
+
+  it("decodes non-UTF-8 pages using the declared charset", async () => {
+    // "Café" in windows-1252: é is the single byte 0xE9.
+    const bytes = new Uint8Array([
+      ...new TextEncoder().encode('<html><head><meta property="og:title" content="Caf'),
+      0xe9,
+      ...new TextEncoder().encode('"></head></html>'),
+    ]);
+    routes[PAGE] = () =>
+      new Response(bytes, { status: 200, headers: { "content-type": "text/html; charset=windows-1252" } });
+    const { fetchOgData } = await import("@/lib/og-fetcher");
+    expect((await fetchOgData(PAGE)).title).toBe("Café");
+  });
+
+  it("does not follow an og:image redirect to a private address", async () => {
+    routes["https://cdn.example.com/hop.jpg"] = () =>
+      new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data" } });
+    const result = await og(`<html><head>
+      <meta property="og:title" content="Redirecting image" />
+      <meta property="og:image" content="https://cdn.example.com/hop.jpg" />
+    </head></html>`);
+    expect(result.title).toBe("Redirecting image");
+    expect(result.imageUrl).toBeNull();
+    expect(fetchedUrls().some((u) => u.includes("169.254.169.254"))).toBe(false);
+  });
+
+  it("does not fetch private/internal pages", async () => {
+    const { fetchOgData } = await import("@/lib/og-fetcher");
+    const result = await fetchOgData("http://127.0.0.1/admin");
+    expect(result).toEqual({ title: null, description: null, imageUrl: null, siteName: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null for all fields on an error status", async () => {
+    routes[PAGE] = () => new Response("<title>Not Found</title>", { status: 404, headers: { "content-type": "text/html" } });
+    const { fetchOgData } = await import("@/lib/og-fetcher");
+    expect(await fetchOgData(PAGE)).toEqual({ title: null, description: null, imageUrl: null, siteName: null });
   });
 });

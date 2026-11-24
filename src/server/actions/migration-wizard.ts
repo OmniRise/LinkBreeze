@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { requireInstanceAdmin } from "@/server/access";
 import { demoBlock } from "@/lib/demo";
 import { getDefaultPage, getPageById, createLink, updatePage } from "@/server/queries";
 import {
@@ -31,6 +32,12 @@ export async function importPreviewUrl(
 ): Promise<ImportPreviewResult> {
   const demo = demoBlock();
   if (demo) return { success: false, error: demo };
+
+  // Instance-level: the wizard reads arbitrary source pages, fetches
+  // external URLs server-side and writes bulk links — admin-only, same
+  // gate class as restore/backup (#124).
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const session = await getSession();
   if (!session) return { success: false, error: "Unauthorized" };
@@ -68,6 +75,10 @@ export async function importPreviewFile(
 ): Promise<ImportPreviewResult> {
   const demo = demoBlock();
   if (demo) return { success: false, error: demo };
+
+  // Instance-level, same rationale as importPreviewUrl above.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const session = await getSession();
   if (!session) return { success: false, error: "Unauthorized" };
@@ -135,6 +146,13 @@ export async function confirmImport(
 ): Promise<ConfirmImportResult> {
   const demo = demoBlock();
   if (demo) return { success: false, error: demo };
+
+  // Instance-level: the wizard can target any page and merges social
+  // links straight into it (updatePage) — admin-only. GHSA-954q-vph2-prc8
+  // follow-up: createLink's own page-access check covered the links half,
+  // but the social merge wrote page.socialLinks unscoped.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   const session = await getSession();
   if (!session) return { success: false, error: "Unauthorized" };

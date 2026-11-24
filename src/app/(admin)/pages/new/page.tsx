@@ -54,7 +54,16 @@ export default function NewPageForm() {
         </p>
       </div>
 
-      <form action={handleSubmit} className="flex flex-col gap-6">
+      <form
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset of uncontrolled
+          // inputs: a failed create must keep the typed slug/title/bio.
+          // Native constraint validation still runs before the submit event.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
+        className="flex flex-col gap-6"
+      >
         <Card>
           <CardHeader>
             <CardTitle>{t("detailsTitle")}</CardTitle>

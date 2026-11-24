@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn<() => Promise<{ userId: number; username: string } | null>>(async () => null),
   demoGuard: vi.fn<() => { error: string; errorCode: number } | null>(() => null),
+  cookieSet: vi.fn(),
   getOidcIdentitiesForUser: vi.fn<() => Promise<unknown[]>>(async () => []),
   unlinkOidcIdentity: vi.fn(async () => undefined),
   recordAudit: vi.fn(async () => undefined),
@@ -27,6 +28,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-forwarded-for": "127.0.0.1" }),
+  cookies: vi.fn(async () => ({ set: mocks.cookieSet, get: vi.fn(() => undefined) })),
 }));
 vi.mock("@/server/oidc-flow", () => ({
   getOidcClientSecret: mocks.getOidcClientSecret,
@@ -130,5 +132,13 @@ describe("startOidcLinkAction", () => {
       expect(res.authorizeUrl).toContain("state=test-state-000");
     }
     expect(mocks.createOidcState).toHaveBeenCalledTimes(1);
+    // GHSA-5gx8-3hch-6m2f fix: the flow nonce is persisted with the state…
+    expect(mocks.createOidcState).toHaveBeenCalledWith(
+      expect.objectContaining({ flowNonce: "test-state-000" }),
+    );
+    // …and mirrored into the httpOnly flow cookie for callback binding.
+    expect(mocks.cookieSet).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "lb_oidc_flow", value: "test-state-000", httpOnly: true }),
+    );
   });
 });

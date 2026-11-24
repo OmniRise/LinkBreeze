@@ -54,6 +54,12 @@ export function LoginForm({
   const ssoReason = searchParams.get("sso");
   const [ssoPending, startSsoTransition] = React.useTransition();
   const [ssoError, setSsoError] = React.useState<string | null>(null);
+  // Focus after hydration — the SSR `autoFocus` attribute causes a
+  // server/client attribute diff (caret style) and a hydration warning.
+  const usernameRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    usernameRef.current?.focus();
+  }, []);
 
   const startSso = () => {
     setSsoError(null);
@@ -133,7 +139,14 @@ export function LoginForm({
             </Link>
           </CardContent>
         ) : (
-        <form action={formAction}>
+        <form
+          onSubmit={(e) => {
+            // Opt out of React 19's post-action auto-reset: a failed login
+            // must keep the typed username/password for correction.
+            e.preventDefault();
+            formAction(new FormData(e.currentTarget));
+          }}
+        >
           <CardContent className="flex flex-col gap-4">
             {ssoBlock}
             {ssoBlock && <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />{t("orDivider")}<span className="h-px flex-1 bg-border" /></div>}
@@ -141,11 +154,11 @@ export function LoginForm({
               <Label htmlFor="username">{t("username")}</Label>
               <Input
                 id="username"
+                ref={usernameRef}
                 name="username"
                 type="text"
                 autoComplete="username"
                 required
-                autoFocus
               />
             </div>
             <div className="flex flex-col gap-2 mb-4">

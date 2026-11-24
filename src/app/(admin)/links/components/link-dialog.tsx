@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   createLink,
   updateLink,
 } from "@/server/actions/links";
-import type { LinkRow, LinkSectionRow } from "@/server/queries";
+import type { LinkRow, LinkSectionRow, ThemeRow } from "@/server/queries";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -34,7 +34,7 @@ import {
   prefixLinkUrl,
 } from "../link-helpers";
 import { LucideIcon, isLucideIconName } from "@/components/public/LucideIcon";
-import { ImagePlus, Sparkles } from "lucide-react";
+import { ChevronDownIcon, EyeIcon, ImagePlus, Sparkles } from "lucide-react";
 import { IconPicker } from "./icon-picker";
 import type { IconMode } from "@/lib/link-icons";
 import {
@@ -42,12 +42,22 @@ import {
   slugError,
   MAX_SLUG_LENGTH,
 } from "@/lib/link-slug";
+import { parseVCardLinkConfig } from "@/lib/vcard-link";
 import {
   checkSlugAvailability,
   setAbTest,
 } from "@/server/actions/links";
 import { useSavedAction } from "@/hooks/use-saved-action";
+import { previewOgData } from "@/server/actions/og-preview";
 import { AbTestEditor } from "./ab-test-editor";
+import { CardPreview, PopupBodyPreview } from "./card-preview";
+import {
+  loadLinkDraft,
+  saveLinkDraft,
+  clearLinkDraft,
+  linkDraftHasContent,
+  type LinkDraft,
+} from "@/lib/link-drafts";
 
 /** Derive the dialog's initial icon mode from an editing row (#91). */
 function initialIconMode(editing?: LinkRow | null): IconMode {
@@ -70,24 +80,36 @@ export interface LinkDialogProps {
   editing?: LinkRow | null;
   pageId?: number;
   sections?: LinkSectionRow[];
+  /** Page's resolved theme row — drives the 1:1 live card preview. */
+  pageTheme?: ThemeRow | null;
+  pageSlug?: string | null;
 }
 
 function SectionSelect({
-  editing,
+  value,
+  onValueChange,
   sections,
 }: {
-  editing?: LinkRow | null;
+  value: string;
+  onValueChange: (v: string | null) => void;
   sections: LinkSectionRow[];
 }) {
   const t = useTranslations("linksPage");
-  // Initial value from `editing`; resets via key remount in the parent.
-  const [value, setValue] = React.useState(String(editing?.sectionId ?? "none"));
 
   return (
     <FormField label={t("section")}>
-      <Select value={value} onValueChange={(v) => setValue(v ?? "none")}>
+      <Select value={value} onValueChange={onValueChange}>
         <SelectTrigger className="w-full">
-          <SelectValue />
+          {/* Base UI's Value renders the RAW value string in the closed trigger
+              unless given a formatter — and our value is String(section.id), so
+              without this the trigger showed the id ("3") while the open list
+              showed names. Render the section title instead. */}
+          <SelectValue>
+            {(v: string | null) => {
+              if (v == null || v === "none") return t("noSection");
+              return sections.find((s) => String(s.id) === v)?.title ?? v;
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="none">{t("noSection")}</SelectItem>
@@ -125,10 +147,20 @@ const SLUG_ERROR_KEYS = {
   length: "slugErrLength",
 } as const;
 
-function SlugField({ editing }: { editing?: LinkRow | null }) {
+function SlugField({
+  editing,
+  initialSlug,
+  onSlugChange,
+}: {
+  editing?: LinkRow | null;
+  /** Draft-restored value — wins over the stored row (session remount). */
+  initialSlug?: string;
+  /** Mirror for the parent's draft persistence. */
+  onSlugChange?: (slug: string) => void;
+}) {
   const t = useTranslations("linksPage");
   const storedSlug = editing?.redirectSlug ?? "";
-  const [value, setValue] = React.useState(storedSlug);
+  const [value, setValue] = React.useState(initialSlug ?? storedSlug);
   // Set ONLY from the async check callback — render derives everything else
   // (react-hooks/set-state-in-effect forbids sync setState in effects).
   const [lastCheck, setLastCheck] = React.useState<{ slug: string; available: boolean } | null>(null);
@@ -167,7 +199,10 @@ function SlugField({ editing }: { editing?: LinkRow | null }) {
           id="redirectSlug"
           name="redirectSlug"
           value={display}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            onSlugChange?.(e.target.value);
+          }}
           maxLength={MAX_SLUG_LENGTH + 1}
           placeholder="my-consulting"
           autoComplete="off"
@@ -188,7 +223,7 @@ function SlugField({ editing }: { editing?: LinkRow | null }) {
   );
 }
 
-export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] }: LinkDialogProps) {
+export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [], pageTheme, pageSlug }: LinkDialogProps) {
   const t = useTranslations("linksPage");
   const tCommon = useTranslations("common");
   const [pending, startTransition] = React.useTransition();
@@ -214,6 +249,24 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
   const [cardStyle, setCardStyle] = React.useState<"compact" | "rich">(
     editing?.cardStyle === "rich" ? "rich" : "compact",
   );
+  // Live card preview pane (expandable sheet): open when editing, where the
+  // styling usually matters; collapsed for a quick add.
+  const [previewOpen, setPreviewOpen] = React.useState(!!editing);
+  // Controlled inputs — every keystroke updates these mirrors, which feed
+  // the live preview AND the debounced sessionStorage draft (link-drafts.ts).
+  const [titleValue, setTitleValue] = React.useState(editing?.title ?? "");
+  // Starts at the DISPLAY url (UTM stripped for edited url links) — the same
+  // value the old defaultValue showed; UTM params re-append on submit.
+  const [urlValue, setUrlValue] = React.useState(() =>
+    editing?.type === "url" && hasUTM(editing?.url ?? "")
+      ? stripUTM(editing.url)
+      : editing?.url ?? "",
+  );
+  const [descValue, setDescValue] = React.useState(editing?.description ?? "");
+  const [imageValue, setImageValue] = React.useState(editing?.imageUrl ?? "");
+  // Advanced disclosure (slug, icon, UTM, A/B, schedule): collapsed for a
+  // fresh link — title + URL + Save is the whole job — open when editing.
+  const [advancedOpen, setAdvancedOpen] = React.useState(!!editing);
 
   // UTM state — only relevant for type === "url"
   const isUrlType = type === "url";
@@ -234,29 +287,161 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
   const savedAction = useSavedAction();
   // Action error surfaced inline (upload too large, bad SVG, unknown icon…).
   const [actionError, setActionError] = React.useState<string | null>(null);
+  // Live-preview source for text popup bodies (mirror of the textarea).
+  const [popupText, setPopupText] = React.useState(editing?.popupText ?? "");
+  // Draft-persistence state: CTA label (lifted from an uncontrolled input),
+  // section choice (lifted from SectionSelect) and the slug mirror — all
+  // included in the sessionStorage draft (see link-drafts.ts).
+  const [ctaLabelValue, setCtaLabelValue] = React.useState(editing?.ctaLabel ?? "");
+  const [sectionValue, setSectionValue] = React.useState(
+    editing?.sectionId ? String(editing.sectionId) : "none",
+  );
+  const [slugValue, setSlugValue] = React.useState("");
+  // Custom vCard: mode + per-link contact fields. Custom cards are FULL
+  // REPLACE — blank fields stay blank on the downloaded card (avatar and
+  // social links still come from the page). Editing pre-fills from the
+  // stored config; a fresh link starts on the page's default card.
+  const storedVCard = parseVCardLinkConfig(editing?.vcardConfig ?? null);
+  const [vcardMode, setVcardMode] = React.useState<"page" | "custom">(
+    storedVCard ? "custom" : "page",
+  );
+  const [vcardOrg, setVcardOrg] = React.useState(storedVCard?.organization ?? "");
+  const [vcardJob, setVcardJob] = React.useState(storedVCard?.jobTitle ?? "");
+  const [vcardEmail, setVcardEmail] = React.useState(storedVCard?.email ?? "");
+  const [vcardPhone, setVcardPhone] = React.useState(storedVCard?.phone ?? "");
+  const [vcardAddress, setVcardAddress] = React.useState(storedVCard?.address ?? "");
+  // True when this dialog session restored a saved draft (drives the chip).
+  const [draftRestored, setDraftRestored] = React.useState(false);
 
   // Reset local form state whenever the dialog opens (or switches target).
+  // After the defaults, a persisted draft (link-drafts.ts) wins: the
+  // operator's half-typed entries survive closing and reopening the sheet,
+  // until a successful save, logout, or tab close clears them.
   const sessionKey = open ? `open:${editing?.id ?? "new"}` : "closed";
   const [lastSession, setLastSession] = React.useState(sessionKey);
+  const resetToDefaults = () => {
+    setType(editing?.type ?? "url");
+    setHighlighted(editing?.isHighlighted ?? false);
+    setActive(editing?.isActive ?? true);
+    setScheduled(!!editing?.scheduleStart || !!editing?.scheduleEnd);
+    setIconMode(initialIconMode(editing));
+    setLucidePick(editing?.iconMode === "lucide" ? editing.icon ?? "" : "");
+    setCustomIconUrl(editing?.iconMode === "custom" ? editing.customIconUrl ?? "" : "");
+    setIconFileName("");
+    setHasNewIconFile(false);
+    setActionError(null);
+    setPopupText(editing?.popupText ?? "");
+    setCardStyle(editing?.cardStyle === "rich" ? "rich" : "compact");
+    setPreviewOpen(!!editing);
+    setAdvancedOpen(!!editing);
+    setTitleValue(editing?.title ?? "");
+    setUrlValue(
+      editing?.type === "url" && hasUTM(editing?.url ?? "")
+        ? stripUTM(editing.url)
+        : editing?.url ?? "",
+    );
+    setDescValue(editing?.description ?? "");
+    setImageValue(editing?.imageUrl ?? "");
+    setCtaLabelValue(editing?.ctaLabel ?? "");
+    setSectionValue(editing?.sectionId ? String(editing.sectionId) : "none");
+    setSlugValue("");
+    setVcardMode(storedVCard ? "custom" : "page");
+    setVcardOrg(storedVCard?.organization ?? "");
+    setVcardJob(storedVCard?.jobTitle ?? "");
+    setVcardEmail(storedVCard?.email ?? "");
+    setVcardPhone(storedVCard?.phone ?? "");
+    setVcardAddress(storedVCard?.address ?? "");
+    setDraftRestored(false);
+
+    const had = editing?.type === "url" && hasUTM(editing?.url ?? "");
+    setShowUTM(had);
+  };
   if (sessionKey !== lastSession) {
     setLastSession(sessionKey);
     if (open) {
-      setType(editing?.type ?? "url");
-      setHighlighted(editing?.isHighlighted ?? false);
-      setActive(editing?.isActive ?? true);
-      setScheduled(!!editing?.scheduleStart || !!editing?.scheduleEnd);
-      setIconMode(initialIconMode(editing));
-      setLucidePick(editing?.iconMode === "lucide" ? editing.icon ?? "" : "");
-      setCustomIconUrl(editing?.iconMode === "custom" ? editing.customIconUrl ?? "" : "");
-      setIconFileName("");
-      setHasNewIconFile(false);
-      setActionError(null);
-      setCardStyle(editing?.cardStyle === "rich" ? "rich" : "compact");
-
-      const had = editing?.type === "url" && hasUTM(editing?.url ?? "");
-      setShowUTM(had);
+      resetToDefaults();
+      const draft = loadLinkDraft(pageId, editing?.id);
+      if (draft) {
+        if (draft.type) setType(draft.type as LinkRow["type"]);
+        if (typeof draft.highlighted === "boolean") setHighlighted(draft.highlighted);
+        if (typeof draft.active === "boolean") setActive(draft.active);
+        if (typeof draft.scheduled === "boolean") setScheduled(draft.scheduled);
+        if (draft.iconMode) setIconMode(draft.iconMode as IconMode);
+        if (typeof draft.lucidePick === "string") setLucidePick(draft.lucidePick);
+        if (typeof draft.customIconUrl === "string") setCustomIconUrl(draft.customIconUrl);
+        if (draft.cardStyle === "compact" || draft.cardStyle === "rich") setCardStyle(draft.cardStyle);
+        if (draft.vcardMode === "custom" || draft.vcardMode === "page") setVcardMode(draft.vcardMode);
+        if (typeof draft.vcardOrg === "string") setVcardOrg(draft.vcardOrg);
+        if (typeof draft.vcardJob === "string") setVcardJob(draft.vcardJob);
+        if (typeof draft.vcardEmail === "string") setVcardEmail(draft.vcardEmail);
+        if (typeof draft.vcardPhone === "string") setVcardPhone(draft.vcardPhone);
+        if (typeof draft.vcardAddress === "string") setVcardAddress(draft.vcardAddress);
+        if (typeof draft.advancedOpen === "boolean") setAdvancedOpen(draft.advancedOpen);
+        if (typeof draft.titleValue === "string") setTitleValue(draft.titleValue);
+        if (typeof draft.urlValue === "string") setUrlValue(draft.urlValue);
+        if (typeof draft.descValue === "string") setDescValue(draft.descValue);
+        if (typeof draft.imageValue === "string") setImageValue(draft.imageValue);
+        if (typeof draft.showUTM === "boolean") setShowUTM(draft.showUTM);
+        if (typeof draft.popupText === "string") setPopupText(draft.popupText);
+        if (typeof draft.ctaLabel === "string") setCtaLabelValue(draft.ctaLabel);
+        if (draft.sectionValue) setSectionValue(draft.sectionValue);
+        if (typeof draft.slug === "string") setSlugValue(draft.slug);
+        setDraftRestored(true);
+      }
     }
   }
+
+  // Discard the restored draft: drop storage AND fall back to the defaults.
+  const discardDraft = () => {
+    clearLinkDraft(pageId, editing?.id);
+    resetToDefaults();
+  };
+
+  // Debounced draft write (sessionStorage, see link-drafts.ts): fires while
+  // the sheet is open and any field changes; when nothing is typed it drops
+  // any stale draft instead, so an empty dialog never claims a restore.
+  React.useEffect(() => {
+    if (!open) return;
+    const snapshot: LinkDraft = {
+      v: 1,
+      type,
+      highlighted,
+      active,
+      scheduled,
+      iconMode,
+      lucidePick,
+      customIconUrl,
+      cardStyle,
+      advancedOpen,
+      titleValue,
+      urlValue,
+      descValue,
+      imageValue,
+      showUTM,
+      popupText,
+      ctaLabel: ctaLabelValue,
+      sectionValue,
+      slug: slugValue,
+      vcardMode,
+      vcardOrg,
+      vcardJob,
+      vcardEmail,
+      vcardPhone,
+      vcardAddress,
+    };
+    const timer = setTimeout(() => {
+      if (linkDraftHasContent(snapshot)) {
+        saveLinkDraft(pageId, editing?.id, snapshot);
+      } else {
+        clearLinkDraft(pageId, editing?.id);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [open, pageId, editing, type, highlighted, active, scheduled, iconMode,
+      lucidePick, customIconUrl, cardStyle, advancedOpen, titleValue, urlValue,
+      descValue, imageValue, showUTM, popupText, ctaLabelValue, sectionValue,
+      slugValue, vcardMode, vcardOrg, vcardJob, vcardEmail, vcardPhone,
+      vcardAddress]);
 
   // If user switches away from "url" type, collapse UTM (values preserved).
   const utmVisible = isUrlType && showUTM;
@@ -272,10 +457,6 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
       : t("phLocation")
     : t(getUrlPlaceholder(type));
 
-  // For the URL field default: show the clean URL (UTM stripped) so the
-  // user sees the base URL separately from the UTM builder.
-  const urlDefault = hadUTM ? stripUTM(storedUrl) : storedUrl;
-
   // Pre-compute default values for the UTM fields when editing.
   const utmDefaults: UTMParams = hadUTM ? parseUTM(storedUrl) : emptyUTM();
 
@@ -287,6 +468,15 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
     const rawUrl = (formData.get("url") as string) || "";
     let finalUrl = prefixLinkUrl(type, rawUrl);
     formData.set("type", type);
+
+    // Custom vCard: the mode flag drives the server's tri-state (present =
+    // write; absent for non-vcard types = untouched). The per-field inputs
+    // are unmounted when the type is not vcard, so they never ride along.
+    if (isVcard) {
+      formData.set("vcardMode", vcardMode);
+    } else {
+      formData.delete("vcardMode");
+    }
 
     // Append UTM params for URL-type links when the builder is open.
     // Read from form fields (uncontrolled inputs) — no React state needed.
@@ -363,371 +553,734 @@ export function LinkDialog({ open, onOpenChange, editing, pageId, sections = [] 
         }
       }
       setActionError(null);
+      // Saved — the draft has served its purpose.
+      clearLinkDraft(pageId, editing?.id);
       router.refresh();
       onOpenChange(false);
     });
   };
 
+
+  // Live favicon for auto mode: the cached copy exists only after save, so
+  // for the preview we resolve the same upstream the server's favicon chain
+  // falls back to (DuckDuckGo icons) directly from the typed URL's domain.
+  const autoIconUrl = React.useMemo(() => {
+    if (iconMode !== "auto" || editing?.iconUrl) return null;
+    try {
+      const host = new URL(prefixLinkUrl(type, urlValue)).hostname;
+      return host.includes(".") ? `https://icons.duckduckgo.com/ip3/${host}.ico` : null;
+    } catch {
+      return null;
+    }
+  }, [iconMode, editing?.iconUrl, type, urlValue]);
+
+  // Rich-preview live OG resolution: once the card style is rich and a
+  // url is typed, debounce a session-gated previewOgData round-trip and
+  // feed the resolved image + description into the synthetic preview row —
+  // the exact fields the save-time fetch will store (same og-fetcher, same
+  // local cache), so the preview shows the rich layout BEFORE saving
+  // instead of silently rendering the compact fallback. Failure degrades
+  // to null fields = compact preview, same as the public page.
+  //
+  // Derived-state pattern: the fetch result is stored WITH the url that
+  // produced it, and `ogPreview` only exposes it while the CURRENT form
+  // state still derives that same url — so every disabled path (dialog
+  // closed, compact style, non-url type, cleared/invalid/non-http url)
+  // degrades to null WITHOUT any setState-in-effect (no cascading renders).
+  const [ogPreviewState, setOgPreviewState] = React.useState<{
+    url: string;
+    imageUrl: string;
+    description: string;
+  } | null>(null);
+  const ogPreviewSeq = React.useRef(0);
+  const richPreviewUrl = React.useMemo(() => {
+    if (!open || cardStyle !== "rich" || !isUrlType || !urlValue.trim()) return null;
+    const fullUrl = prefixLinkUrl(type, urlValue);
+    try {
+      const protocol = new URL(fullUrl).protocol;
+      if (protocol !== "http:" && protocol !== "https:") return null;
+    } catch {
+      return null;
+    }
+    return fullUrl;
+  }, [open, cardStyle, isUrlType, type, urlValue]);
+  const ogPreview =
+    ogPreviewState && ogPreviewState.url === richPreviewUrl ? ogPreviewState : null;
+  React.useEffect(() => {
+    if (!richPreviewUrl) return;
+    const url = richPreviewUrl;
+    const seq = ++ogPreviewSeq.current;
+    const timer = setTimeout(() => {
+      previewOgData(url)
+        .then((og) => {
+          if (ogPreviewSeq.current !== seq) return; // a newer keystroke won
+          if (og.imageUrl || og.description) {
+            setOgPreviewState({
+              url,
+              imageUrl: og.imageUrl ?? "",
+              description: og.description ?? "",
+            });
+          } else {
+            setOgPreviewState(null);
+          }
+        })
+        .catch(() => {
+          // keep whatever an earlier url resolved — derivation handles staleness
+        });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [richPreviewUrl]);
+
+  // Synthetic row for the live card preview: the exact buildLinkCardHtml input
+  // the public page would receive for this form state. Kept in sync with every
+  // keystroke via the mirrors above.
+  const previewLink = React.useMemo<LinkRow>(
+    () => ({
+      id: editing?.id ?? -1,
+      pageId: pageId ?? 0,
+      sectionId: null,
+      orderIndex: 0,
+      type,
+      title: type === "divider" ? "—" : titleValue,
+      url: prefixLinkUrl(type, urlValue),
+      description: descValue || ogPreview?.description || null,
+      icon: iconMode === "lucide" && lucidePick ? lucidePick : null,
+      // Preview autofetch: cached favicon when editing a saved row, otherwise
+      // the DuckDuckGo upstream resolved live from the typed URL (same
+      // fallback source the server's favicon chain uses).
+      iconUrl: editing?.iconUrl ?? autoIconUrl,
+      autoIcon: iconMode === "auto",
+      imageUrl: imageValue || ogPreview?.imageUrl || null,
+      // A freshly-picked file has no URL yet — the preview falls back to the
+      // letter avatar until save (same as the public page pre-upload).
+      customIconUrl:
+        iconMode === "custom" && !hasNewIconFile ? customIconUrl || null : null,
+      iconMode,
+      isActive: active,
+      scheduleStart: editing?.scheduleStart ?? null,
+      scheduleEnd: editing?.scheduleEnd ?? null,
+      clicksCount: editing?.clicksCount ?? 0,
+      cardStyle,
+      popupText: popupText || null,
+      ctaLabel: ctaLabelValue || null,
+      redirectSlug: editing?.redirectSlug ?? null,
+      abConfig: editing?.abConfig ?? null,
+      vcardConfig: editing?.vcardConfig ?? null,
+      createdAt: editing?.createdAt ?? "2026-01-01 00:00:00",
+      isHighlighted: highlighted,
+    }),
+    [editing, pageId, type, titleValue, urlValue, descValue, iconMode, lucidePick,
+      customIconUrl, hasNewIconFile, imageValue, active, cardStyle, popupText, highlighted,
+      autoIconUrl, ctaLabelValue, ogPreview],
+  );
+
+  // Peer fields that share a two-column row on wide panels (stack on mobile).
+  const sectionField =
+    sections.length > 0 ? (
+      <SectionSelect
+        value={sectionValue}
+        onValueChange={(v) => setSectionValue(v ?? "none")}
+        sections={sections}
+      />
+    ) : null;
+  const cardStyleField = isUrlType ? (
+    <FormField label={t("cardStyle")} hint={cardStyle === "rich" ? t("richHint") : t("iconHint")}>
+      {/* Slim segmented control: mini glyphs stand in for the card
+          layouts so the choice reads at a glance without three rows
+          of description text. */}
+      <div
+        role="radiogroup"
+        aria-label={t("cardStyle")}
+        className="grid grid-cols-2 gap-2"
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={cardStyle === "compact"}
+          onClick={() => setCardStyle("compact")}
+          className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+            cardStyle === "compact"
+              ? "border-violet bg-violet/5 text-foreground"
+              : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+          }`}
+        >
+          {/* compact glyph: icon + text lines */}
+          <span aria-hidden className="flex size-7 items-center justify-center rounded-md border border-current/20 bg-background/60">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+              <rect x="0" y="4" width="4" height="4" rx="1" fill="currentColor" opacity="0.7" />
+              <rect x="5.5" y="4.9" width="7" height="1.4" rx="0.7" fill="currentColor" opacity="0.45" />
+              <rect x="5.5" y="7.7" width="5" height="1.4" rx="0.7" fill="currentColor" opacity="0.3" />
+            </svg>
+          </span>
+          <span className="font-medium">{t("compact")}</span>
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={cardStyle === "rich"}
+          onClick={() => setCardStyle("rich")}
+          className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+            cardStyle === "rich"
+              ? "border-violet bg-violet/5 text-foreground"
+              : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+          }`}
+        >
+          {/* rich glyph: image block + text lines */}
+          <span aria-hidden className="flex size-7 items-center justify-center rounded-md border border-current/20 bg-background/60">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+              <rect x="0" y="2" width="12.5" height="6" rx="1" fill="currentColor" opacity="0.25" />
+              <circle cx="3" cy="4" r="1" fill="currentColor" opacity="0.7" />
+              <path d="M1 7.4 L4.5 5 L7 7 L9.5 4.6 L12.5 8" stroke="currentColor" strokeWidth="1" fill="none" opacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="0" y="9.6" width="9" height="1.4" rx="0.7" fill="currentColor" opacity="0.45" />
+            </svg>
+          </span>
+          <span className="font-medium">{t("richPreview")}</span>
+        </button>
+      </div>
+    </FormField>
+  ) : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{editing ? t("editLink") : t("addLink")}</DialogTitle>
-          <DialogDescription>
-            {editing ? t("updateDescription") : t("createDescription")}
-          </DialogDescription>
-        </DialogHeader>
-        <form action={handleSubmit} className="flex flex-col gap-3.5">
-          {editing ? <input type="hidden" name="id" value={editing.id} /> : null}
-          {pageId ? <input type="hidden" name="pageId" value={pageId} /> : null}
-
-          <FormField label={t("title_field")} htmlFor="title" required>
-            <Input
-              id="title"
-              name="title"
-              defaultValue={editing?.title ?? ""}
-              required={!isDivider}
-              maxLength={120}
-              placeholder={t("titlePlaceholder")}
-            />
-          </FormField>
-
-          {isDivider ? (
-            <p className="rounded-lg border border-dashed border-border/70 px-3 py-2.5 text-xs text-muted-foreground">
-              {t("dividerHint")}
-            </p>
-          ) : isVcard ? null : (
-          <FormField label={urlLabel} htmlFor="url" required={!isTextPopup}>
-            <Input
-              id="url"
-              name="url"
-              defaultValue={urlDefault}
-              required={!isTextPopup}
-              maxLength={2048}
-              placeholder={urlPlaceholder}
-            />
-          </FormField>
-          )}
-
-          {/* #93 popup cards: body text (markdown subset) + optional CTA
-              label. The URL field above doubles as CTA target (text) or
-              place/address input (location) — labels swap per type. */}
-          {isPopupType ? (
-            <FormField label={t("popupTextLabel")} htmlFor="popupText" required={isTextPopup}>
-              <textarea
-                id="popupText"
-                name="popupText"
-                defaultValue={editing?.popupText ?? ""}
-                rows={6}
-                maxLength={5000}
-                placeholder={t("phPopupText")}
-                className="flex min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-violet focus-visible:ring-2 focus-visible:ring-violet/20 disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </FormField>
-          ) : null}
-          {isPopupType ? (
-            <FormField label={t("ctaLabel")} htmlFor="ctaLabel">
-              <Input
-                id="ctaLabel"
-                name="ctaLabel"
-                defaultValue={editing?.ctaLabel ?? ""}
-                maxLength={80}
-                placeholder={isTextPopup ? t("phCtaLabel") : t("phCtaLabelLocation")}
-              />
-            </FormField>
-          ) : null}
-
-          {/* Description + Thumbnail: both optional one-liners — natural peers
-              on a shared row (stacked on narrow screens). Hidden for dividers
-              (#87): they render nothing but the themed line. */}
-          {!isDivider ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr]">
-            <FormField label={t("description")} htmlFor="description">
-              <Input
-                id="description"
-                name="description"
-                defaultValue={editing?.description ?? ""}
-                maxLength={300}
-                placeholder={t("descriptionPlaceholder")}
-              />
-            </FormField>
-
-            <FormField label={t("thumbnail")} htmlFor="imageUrl">
-              <Input
-                id="imageUrl"
-                name="imageUrl"
-                defaultValue={editing?.imageUrl ?? ""}
-                maxLength={2048}
-                placeholder="https://example.com/image.jpg"
-              />
-            </FormField>
+      <DialogContent
+        side="left"
+        className={previewOpen ? "w-full md:w-[980px]" : "w-full md:w-[640px]"}
+      >
+        {/* Sheet header: the aurora logo mark carries over from the sidebar
+            rail so the panel reads as the sidebar expanding into the editor. */}
+        <DialogHeader className="relative shrink-0 flex-row items-center gap-3 border-b border-border px-5 py-4 pr-24">
+          <Image
+            src="/logo-mark.svg"
+            alt=""
+            aria-hidden
+            width={28}
+            height={28}
+            unoptimized
+            className="size-7 shrink-0"
+          />
+          <div className="min-w-0">
+            <DialogTitle>{editing ? t("editLink") : t("addLink")}</DialogTitle>
+            <DialogDescription className="text-xs">
+              {editing ? t("updateDescription") : t("createDescription")}
+            </DialogDescription>
           </div>
-          ) : null}
-
-          {/* #96 custom /go/ redirect slug — every non-divider link type can
-              carry one (popups route their CTA through /go/ too). Remounts
-              with the dialog session so state resets. */}
-          {!isDivider ? (
-            <SlugField key={editing?.id ?? "new"} editing={editing} />
-          ) : null}
-
-          {/* Type + Section share a row — both single-select metadata, natural
-              peers. Collapse to a column when the dialog is narrow (mobile). */}
-          {sections.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr]">
-              <FormField label={t("typeLabel")}>
-                <Select value={type} onValueChange={(v) => setType(v ?? "url")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LINK_TYPES.map((lt) => (
-                      <SelectItem key={lt.value} value={lt.value}>
-                        {t(lt.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-              <SectionSelect key={editing?.id ?? "new"} editing={editing} sections={sections} />
-            </div>
-          ) : (
-            <FormField label={t("typeLabel")}>
-              <Select value={type} onValueChange={(v) => setType(v ?? "url")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LINK_TYPES.map((lt) => (
-                    <SelectItem key={lt.value} value={lt.value}>
-                      {t(lt.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          )}
-
-          {isUrlType ? (
-            <FormField label={t("cardStyle")} hint={cardStyle === "rich" ? t("richHint") : t("iconHint")}>
-              {/* Slim segmented control: mini glyphs stand in for the card
-                  layouts so the choice reads at a glance without three rows
-                  of description text. */}
-              <div
-                role="radiogroup"
-                aria-label={t("cardStyle")}
-                className="grid grid-cols-2 gap-2"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={cardStyle === "compact"}
-                  onClick={() => setCardStyle("compact")}
-                  className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    cardStyle === "compact"
-                      ? "border-violet bg-violet/5 text-foreground"
-                      : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
-                  }`}
-                >
-                  {/* compact glyph: icon + text lines */}
-                  <span aria-hidden className="flex size-7 items-center justify-center rounded-md border border-current/20 bg-background/60">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                      <rect x="0" y="4" width="4" height="4" rx="1" fill="currentColor" opacity="0.7" />
-                      <rect x="5.5" y="4.9" width="7" height="1.4" rx="0.7" fill="currentColor" opacity="0.45" />
-                      <rect x="5.5" y="7.7" width="5" height="1.4" rx="0.7" fill="currentColor" opacity="0.3" />
-                    </svg>
-                  </span>
-                  <span className="font-medium">{t("compact")}</span>
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={cardStyle === "rich"}
-                  onClick={() => setCardStyle("rich")}
-                  className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    cardStyle === "rich"
-                      ? "border-violet bg-violet/5 text-foreground"
-                      : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
-                  }`}
-                >
-                  {/* rich glyph: image block + text lines */}
-                  <span aria-hidden className="flex size-7 items-center justify-center rounded-md border border-current/20 bg-background/60">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                      <rect x="0" y="2" width="12.5" height="6" rx="1" fill="currentColor" opacity="0.25" />
-                      <circle cx="3" cy="4" r="1" fill="currentColor" opacity="0.7" />
-                      <path d="M1 7.4 L4.5 5 L7 7 L9.5 4.6 L12.5 8" stroke="currentColor" strokeWidth="1" fill="none" opacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
-                      <rect x="0" y="9.6" width="9" height="1.4" rx="0.7" fill="currentColor" opacity="0.45" />
-                    </svg>
-                  </span>
-                  <span className="font-medium">{t("richPreview")}</span>
-                </button>
-              </div>
-            </FormField>
-          ) : null}
-
-          {/* Icon system (#91): auto favicon / lucide pick / upload.
-              One-line segmented control with a live preview chip — the chip
-              shows WHAT is selected (favicon sparkle, picked icon, uploaded
-              image) so the mode names don't carry the meaning alone.
-              Hidden for dividers (#87): they have no icon. */}
-          {!isDivider ? (
-          <FormField
-            label={t("iconSection")}
-            hint={iconMode === "auto" ? t("iconAutoHint") : undefined}
+          {/* Preview pane toggle — the sheet expands to the right border. */}
+          <button
+            type="button"
+            onClick={() => setPreviewOpen((o) => !o)}
+            aria-pressed={previewOpen}
+            aria-label={t("preview")}
+            title={t("preview")}
+            className={`hidden min-[980px]:absolute min-[980px]:right-12 min-[980px]:top-1/2 min-[980px]:-translate-y-1/2 min-[980px]:flex size-8 items-center justify-center rounded-lg border transition-colors ${
+              previewOpen
+                ? "border-violet/40 bg-violet/15 text-foreground"
+                : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+            }`}
           >
-            <div className="flex items-stretch gap-2">
-              {/* Preview chip: 32px square showing the current icon */}
-              <span
-                aria-hidden
-                className={`flex size-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
-                  iconMode === "auto"
-                    ? "border-border bg-muted/40 text-muted-foreground"
-                    : "border-violet/40 bg-violet/5 text-foreground"
-                }`}
-              >
-                {iconMode === "lucide" && lucidePick && isLucideIconName(lucidePick) ? (
-                  <LucideIcon name={lucidePick} size={18} />
-                ) : iconMode === "custom" && (customIconUrl && !hasNewIconFile) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={customIconUrl} alt="" className="size-5 rounded object-cover" />
-                ) : iconMode === "custom" && iconFileName ? (
-                  <ImagePlus size={18} className="text-muted-foreground" />
-                ) : (
-                  <Sparkles size={18} className="text-muted-foreground" />
-                )}
-              </span>
+            <EyeIcon className="size-4" />
+          </button>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            // React 19 auto-resets UNCONTROLLED inputs after a <form action>
+            // resolves — a failed save (server validation error) would wipe
+            // every field the operator typed (#Rene report: text popup with
+            // CTA label but no URL → error → all entries gone). Manual
+            // submit + preventDefault opts out of that reset; native
+            // constraint validation still runs BEFORE the submit event, so
+            // required/maxLength bubbles and Enter-key submit keep working.
+            e.preventDefault();
+            handleSubmit(new FormData(e.currentTarget));
+          }}
+          className="flex min-h-0 flex-1"
+        >
+          {/* Form pane: FIXED width, always — the same 600px whether the
+              preview is open or not; expanding only ADDS the preview pane
+              to the right of it. */}
+          <div className="flex w-full min-w-0 flex-col md:w-[600px] md:shrink-0">
+            {editing ? <input type="hidden" name="id" value={editing.id} /> : null}
+            {pageId ? <input type="hidden" name="pageId" value={pageId} /> : null}
 
-              {/* Segmented Auto / Pick / Upload */}
-              <div
-                role="radiogroup"
-                aria-label={t("iconSection")}
-                className="grid flex-1 grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1"
-              >
-                {(["auto", "lucide", "custom"] as const).map((mode) => (
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+              {/* Draft-restored chip: the sheet reopened with persisted
+                  entries; one click discards them back to defaults. */}
+              {draftRestored ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-violet/40 bg-violet/5 px-3 py-2 text-sm">
+                  <span className="text-foreground">{t("draftRestored")}</span>
                   <button
-                    key={mode}
                     type="button"
-                    role="radio"
-                    aria-checked={iconMode === mode}
-                    onClick={() => setIconMode(mode)}
-                    className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
-                      iconMode === mode
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
+                    onClick={discardDraft}
+                    className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   >
-                    {mode === "auto" ? t("iconModeAuto") : mode === "lucide" ? t("iconModeLucide") : t("iconModeCustom")}
+                    {t("draftDiscard")}
                   </button>
-                ))}
+                </div>
+              ) : null}
+              {/* Type first — it is a mode that re-lays-out the fields below
+                  (URL label, popup fields, thumbnail visibility), so it leads. */}
+              <FormField label={t("typeLabel")}>
+                <div
+                  role="radiogroup"
+                  aria-label={t("typeLabel")}
+                  className="flex flex-wrap gap-1.5"
+                >
+                  {LINK_TYPES.map((lt) => (
+                    <button
+                      key={lt.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={type === lt.value}
+                      onClick={() => setType(lt.value)}
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                        type === lt.value
+                          ? "border-violet-bright/60 bg-violet/15 text-foreground"
+                          : "border-border bg-accent/50 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {t(lt.label)}
+                    </button>
+                  ))}
+                </div>
+              </FormField>
+
+              <FormField label={t("title_field")} htmlFor="title" required>
+                <Input
+                  id="title"
+                  name="title"
+                  value={titleValue}
+                  onChange={(e) => setTitleValue(e.target.value)}
+                  required={!isDivider}
+                  maxLength={120}
+                  placeholder={t("titlePlaceholder")}
+                />
+              </FormField>
+
+              {isDivider ? (
+                <p className="rounded-lg border border-dashed border-border/70 px-3 py-2.5 text-xs text-muted-foreground">
+                  {t("dividerHint")}
+                </p>
+              ) : isVcard ? (
+                <>
+                  {/* Custom vCard: page card vs per-link custom (full
+                      replace — blank fields stay blank; the page's avatar
+                      and social links still ride on the downloaded card). */}
+                  <FormField label={t("ltVcard")}>
+                    <div
+                      role="radiogroup"
+                      aria-label={t("ltVcard")}
+                      className="grid grid-cols-2 gap-2"
+                    >
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={vcardMode === "page"}
+                        onClick={() => setVcardMode("page")}
+                        className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                          vcardMode === "page"
+                            ? "border-violet bg-violet/5 text-foreground"
+                            : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                        }`}
+                      >
+                        <span className="font-medium">{t("vcardPageCard")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={vcardMode === "custom"}
+                        onClick={() => setVcardMode("custom")}
+                        className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                          vcardMode === "custom"
+                            ? "border-violet bg-violet/5 text-foreground"
+                            : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                        }`}
+                      >
+                        <span className="font-medium">{t("vcardCustomCard")}</span>
+                      </button>
+                    </div>
+                    <input type="hidden" name="vcardMode" value={vcardMode} />
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {vcardMode === "page" ? t("vcardPageCardHint") : t("vcardCustomHint")}
+                    </p>
+                  </FormField>
+                  {vcardMode === "custom" && (
+                    <>
+                      <FormField label={t("vcardFieldOrg")} htmlFor="vcardOrganization">
+                        <Input
+                          id="vcardOrganization"
+                          name="vcardOrganization"
+                          value={vcardOrg}
+                          onChange={(e) => setVcardOrg(e.target.value)}
+                          maxLength={120}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldJob")} htmlFor="vcardJobTitle">
+                        <Input
+                          id="vcardJobTitle"
+                          name="vcardJobTitle"
+                          value={vcardJob}
+                          onChange={(e) => setVcardJob(e.target.value)}
+                          maxLength={120}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldEmail")} htmlFor="vcardEmail">
+                        <Input
+                          id="vcardEmail"
+                          name="vcardEmail"
+                          type="email"
+                          value={vcardEmail}
+                          onChange={(e) => setVcardEmail(e.target.value)}
+                          maxLength={200}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldPhone")} htmlFor="vcardPhone">
+                        <Input
+                          id="vcardPhone"
+                          name="vcardPhone"
+                          type="tel"
+                          value={vcardPhone}
+                          onChange={(e) => setVcardPhone(e.target.value)}
+                          maxLength={60}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                      <FormField label={t("vcardFieldAddress")} htmlFor="vcardAddress">
+                        <Input
+                          id="vcardAddress"
+                          name="vcardAddress"
+                          value={vcardAddress}
+                          onChange={(e) => setVcardAddress(e.target.value)}
+                          maxLength={300}
+                          placeholder={t("vcardFieldBlank")}
+                        />
+                      </FormField>
+                    </>
+                  )}
+                </>
+              ) : (
+              <FormField
+                label={urlLabel}
+                htmlFor="url"
+                required={!isTextPopup}
+                hint={type === "custom" ? t("customHint") : undefined}
+              >
+                <Input
+                  id="url"
+                  name="url"
+                  value={urlValue}
+                  onChange={(e) => setUrlValue(e.target.value)}
+                  required={!isTextPopup}
+                  maxLength={2048}
+                  placeholder={urlPlaceholder}
+                />
+              </FormField>
+              )}
+
+              {/* #93 popup cards: body text (markdown subset) + optional CTA
+                  label. The URL field above doubles as CTA target (text) or
+                  place/address input (location) — labels swap per type. The
+                  live popup-body rendering lives in the preview pane. */}
+              {isPopupType ? (
+                <FormField label={t("popupTextLabel")} htmlFor="popupText" required={isTextPopup}>
+                  <textarea
+                    id="popupText"
+                    name="popupText"
+                    value={isTextPopup ? popupText : undefined}
+                    defaultValue={isTextPopup ? undefined : editing?.popupText ?? ""}
+                    onChange={isTextPopup ? (e) => setPopupText(e.target.value) : undefined}
+                    rows={isTextPopup ? 8 : 6}
+                    maxLength={5000}
+                    placeholder={t("phPopupText")}
+                    className="flex min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-violet focus-visible:ring-2 focus-visible:ring-violet/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  {isTextPopup ? (
+                    /* Syntax hint (literal markdown tokens, no translation) + char counter. */
+                    <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                      <span className="truncate font-mono">
+                        **b** · *i* · `code` · [link](url) · # h · - list · 1. list · ---
+                      </span>
+                      <span className="shrink-0 tabular-nums">{popupText.length}/5000</span>
+                    </div>
+                  ) : null}
+                </FormField>
+              ) : null}
+              {isPopupType ? (
+                <FormField label={t("ctaLabel")} htmlFor="ctaLabel">
+                  <Input
+                    id="ctaLabel"
+                    name="ctaLabel"
+                    value={ctaLabelValue}
+                    onChange={(e) => setCtaLabelValue(e.target.value)}
+                    maxLength={80}
+                    placeholder={isTextPopup ? t("phCtaLabel") : t("phCtaLabelLocation")}
+                  />
+                </FormField>
+              ) : null}
+
+              {/* Description + Thumbnail: both optional one-liners — natural
+                  peers on a shared row (stacked on narrow screens). Hidden for
+                  dividers (#87): they render nothing but the themed line. */}
+              {!isDivider ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField label={t("description")} htmlFor="description">
+                  <Input
+                    id="description"
+                    name="description"
+                    value={descValue}
+                    onChange={(e) => setDescValue(e.target.value)}
+                    maxLength={300}
+                    placeholder={t("descriptionPlaceholder")}
+                  />
+                </FormField>
+
+                <FormField label={t("thumbnail")} htmlFor="imageUrl">
+                  <Input
+                    id="imageUrl"
+                    name="imageUrl"
+                    value={imageValue}
+                    onChange={(e) => setImageValue(e.target.value)}
+                    maxLength={2048}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </FormField>
               </div>
+              ) : null}
+
+              {/* Card style + Section: single-select peers on one row. */}
+              {cardStyleField && sectionField ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {cardStyleField}
+                  {sectionField}
+                </div>
+              ) : (
+                cardStyleField ?? sectionField
+              )}
+
+              {/* Advanced disclosure: slug, icon, UTM, A/B, schedule — the
+                  settings a simple link never touches. Collapsed by default
+                  when adding, open when editing. Hidden inputs inside still
+                  submit when collapsed. */}
+              <div className="rounded-xl border border-border">
+                <button
+                  type="button"
+                  onClick={() => setAdvancedOpen((o) => !o)}
+                  aria-expanded={advancedOpen}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl bg-accent/50 px-3.5 py-2.5 text-left text-sm font-medium transition-colors hover:bg-accent"
+                >
+                  {t("advanced")}
+                  <ChevronDownIcon
+                    aria-hidden
+                    className={`size-4 shrink-0 text-muted-foreground transition-transform ${advancedOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {advancedOpen ? (
+                  <div className="flex flex-col gap-4 border-t border-border px-3.5 py-3.5">
+                    {/* #96 custom /go/ redirect slug — every non-divider link
+                        type can carry one (popups route their CTA through /go/
+                        too). Remounts with the dialog session so state resets. */}
+                    {!isDivider ? (
+                      <SlugField
+                        key={sessionKey}
+                        editing={editing}
+                        initialSlug={draftRestored && slugValue ? slugValue : undefined}
+                        onSlugChange={setSlugValue}
+                      />
+                    ) : null}
+
+                    {/* Icon system (#91): auto favicon / lucide pick / upload.
+                        One-line segmented control with a live preview chip — the
+                        chip shows WHAT is selected (favicon sparkle, picked icon,
+                        uploaded image) so the mode names don't carry the meaning
+                        alone. Hidden for dividers (#87): they have no icon. */}
+                    {!isDivider ? (
+                    <FormField
+                      label={t("iconSection")}
+                      hint={iconMode === "auto" ? t("iconAutoHint") : undefined}
+                    >
+                      <div className="flex items-stretch gap-2">
+                        {/* Preview chip: 32px square showing the current icon */}
+                        <span
+                          aria-hidden
+                          className={`flex size-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                            iconMode === "auto"
+                              ? "border-border bg-muted/40 text-muted-foreground"
+                              : "border-violet/40 bg-violet/5 text-foreground"
+                          }`}
+                        >
+                          {iconMode === "lucide" && lucidePick && isLucideIconName(lucidePick) ? (
+                            <LucideIcon name={lucidePick} size={18} />
+                          ) : iconMode === "custom" && (customIconUrl && !hasNewIconFile) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={customIconUrl} alt="" className="size-5 rounded object-cover" />
+                          ) : iconMode === "custom" && iconFileName ? (
+                            <ImagePlus size={18} className="text-muted-foreground" />
+                          ) : (
+                            <Sparkles size={18} className="text-muted-foreground" />
+                          )}
+                        </span>
+
+                        {/* Segmented Auto / Pick / Upload */}
+                        <div
+                          role="radiogroup"
+                          aria-label={t("iconSection")}
+                          className="grid flex-1 grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1"
+                        >
+                          {(["auto", "lucide", "custom"] as const).map((mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              role="radio"
+                              aria-checked={iconMode === mode}
+                              onClick={() => setIconMode(mode)}
+                              className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                                iconMode === mode
+                                  ? "bg-background text-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {mode === "auto" ? t("iconModeAuto") : mode === "lucide" ? t("iconModeLucide") : t("iconModeCustom")}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Mode payloads */}
+                      {iconMode === "lucide" ? (
+                        <div className="mt-2">
+                          <IconPicker value={lucidePick} onChange={setLucidePick} />
+                        </div>
+                      ) : null}
+                      {iconMode === "custom" ? (
+                        <div className="mt-2 flex items-center gap-3">
+                          {customIconUrl && !hasNewIconFile ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={customIconUrl} alt="" className="size-8 rounded-md border border-border object-cover" />
+                          ) : null}
+                          <Input
+                            ref={iconFileRef}
+                            type="file"
+                            name="iconFile"
+                            accept=".png,.jpg,.jpeg,.webp,.gif,.ico,.svg"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              setIconFileName(f?.name ?? "");
+                              setHasNewIconFile(!!f);
+                            }}
+                            className="flex-1 text-xs"
+                          />
+                        </div>
+                      ) : null}
+                      {iconMode === "custom" && iconFileName ? (
+                        <p className="mt-1 text-xs text-muted-foreground">{t("iconUploadSelected", { name: iconFileName })}</p>
+                      ) : null}
+                    </FormField>
+                    ) : null}
+
+                    {/* UTM + schedule expand inline under their switches. */}
+                    {isUrlType ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch checked={showUTM} onCheckedChange={setShowUTM} />{t("utmParameters")}</label>
+                    ) : null}
+                    {utmVisible ? (
+                      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+                        <UTMField label={t("utmSource")} name="utm_source" placeholder="instagram" defaultValue={utmDefaults.source} />
+                        <UTMField label={t("utmMedium")} name="utm_medium" placeholder="social" defaultValue={utmDefaults.medium} />
+                        <UTMField label={t("utmCampaign")} name="utm_campaign" placeholder="spring_sale" defaultValue={utmDefaults.campaign} />
+                        <UTMField label={t("utmTerm")} name="utm_term" placeholder="running_shoes" defaultValue={utmDefaults.term} />
+                        <UTMField label={t("utmContent")} name="utm_content" placeholder="banner_ad_1" defaultValue={utmDefaults.content} />
+                      </div>
+                    ) : null}
+
+                    {/* #81 A/B test editor — URL links only, editing only
+                        (setAbTest needs a saved row). Lives with the other
+                        expandable builders in Advanced. */}
+                    {isUrlType && editing ? (
+                      <AbTestEditor storedConfig={editing.abConfig ?? null} urlA={editing.url} />
+                    ) : null}
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch checked={scheduled} onCheckedChange={setScheduled} />{t("schedule")}</label>
+                    {scheduled ? (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-muted-foreground">{t("showFrom")}</span>
+                          <Input
+                            type="datetime-local"
+                            name="scheduleStart"
+                            defaultValue={
+                              editing?.scheduleStart
+                                ? editing.scheduleStart.replace(" ", "T").slice(0, 16)
+                                : ""
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-muted-foreground">{t("hideAfter")}</span>
+                          <Input
+                            type="datetime-local"
+                            name="scheduleEnd"
+                            defaultValue={
+                              editing?.scheduleEnd
+                                ? editing.scheduleEnd.replace(" ", "T").slice(0, 16)
+                                : ""
+                            }
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              {actionError ? (
+                <p role="alert" className="text-sm text-destructive">{actionError}</p>
+              ) : null}
             </div>
 
-            {/* Mode payloads */}
-            {iconMode === "lucide" ? (
-              <div className="mt-2">
-                <IconPicker value={lucidePick} onChange={setLucidePick} />
+            {/* Sticky footer: always-visible actions + the two booleans people
+                actually flip while adding a link. */}
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border bg-muted/50 px-5 py-3">
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Switch checked={highlighted} onCheckedChange={setHighlighted} />{t("featured")}</label>
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Switch checked={active} onCheckedChange={setActive} />{t("active")}</label>
               </div>
-            ) : null}
-            {iconMode === "custom" ? (
-              <div className="mt-2 flex items-center gap-3">
-                {customIconUrl && !hasNewIconFile ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={customIconUrl} alt="" className="size-8 rounded-md border border-border object-cover" />
-                ) : null}
-                <Input
-                  ref={iconFileRef}
-                  type="file"
-                  name="iconFile"
-                  accept=".png,.jpg,.jpeg,.webp,.gif,.ico,.svg"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    setIconFileName(f?.name ?? "");
-                    setHasNewIconFile(!!f);
-                  }}
-                  className="flex-1 text-xs"
-                />
+              <div className="ms-auto flex gap-2">
+                <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
+                  {tCommon("cancel")}
+                </Button>
+                <Button type="submit" disabled={pending}>
+                  {pending ? tCommon("saving") : tCommon("save")}
+                </Button>
               </div>
-            ) : null}
-            {iconMode === "custom" && iconFileName ? (
-              <p className="mt-1 text-xs text-muted-foreground">{t("iconUploadSelected", { name: iconFileName })}</p>
-            ) : null}
-          </FormField>
-          ) : null}
-
-          {/* Toggle strip: boolean-ish options in one 2-col grid — peers, not
-              a vertical list. UTM only exists for URL-type links. */}
-          <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={highlighted} onCheckedChange={setHighlighted} />{t("featured")}</label>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={active} onCheckedChange={setActive} />{t("active")}</label>
-            {isUrlType ? (
-              <label className="flex items-center gap-2 text-sm">
-                <Switch checked={showUTM} onCheckedChange={setShowUTM} />{t("utmParameters")}</label>
-            ) : null}
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={scheduled} onCheckedChange={setScheduled} />{t("schedule")}</label>
+            </div>
           </div>
 
-          {/* UTM builder — expands under the toggle strip (URL links only) */}
-          {utmVisible ? (
-            <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-              <UTMField label={t("utmSource")} name="utm_source" placeholder="instagram" defaultValue={utmDefaults.source} />
-              <UTMField label={t("utmMedium")} name="utm_medium" placeholder="social" defaultValue={utmDefaults.medium} />
-              <UTMField label={t("utmCampaign")} name="utm_campaign" placeholder="spring_sale" defaultValue={utmDefaults.campaign} />
-              <UTMField label={t("utmTerm")} name="utm_term" placeholder="running_shoes" defaultValue={utmDefaults.term} />
-              <UTMField label={t("utmContent")} name="utm_content" placeholder="banner_ad_1" defaultValue={utmDefaults.content} />
+          {/* Preview pane — added to the RIGHT border of the form pane (the
+              sheet widens; the form never reflows). 1:1: the same
+              buildLinkCardHtml the public page runs, with the page's real
+              resolved theme tokens. Inert (no navigation). */}
+          {previewOpen ? (
+            <div className="hidden min-h-0 min-w-[280px] flex-1 flex-col items-center justify-center gap-3 overflow-y-auto border-l border-border bg-violet/10 px-5 py-5 min-[980px]:flex">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {t("preview")}
+              </span>
+              {isDivider ? null : (
+                <CardPreview link={previewLink} theme={pageTheme} pageSlug={pageSlug} />
+              )}
+              {isTextPopup ? (
+                <>
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {t("popupTextLabel")}
+                  </span>
+                  <PopupBodyPreview content={popupText} theme={pageTheme} />
+                </>
+              ) : null}
             </div>
           ) : null}
-
-          {/* #81 A/B test editor — URL links only, editing only (setAbTest
-              needs a saved row). Sits with the other expandable builders. */}
-          {isUrlType && editing ? (
-            <AbTestEditor storedConfig={editing.abConfig ?? null} urlA={editing.url} />
-          ) : null}
-
-          {/* Schedule builder — expands under the toggle strip */}
-          {scheduled ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">{t("showFrom")}</span>
-                <Input
-                  type="datetime-local"
-                  name="scheduleStart"
-                  defaultValue={
-                    editing?.scheduleStart
-                      ? editing.scheduleStart.replace(" ", "T").slice(0, 16)
-                      : ""
-                  }
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">{t("hideAfter")}</span>
-                <Input
-                  type="datetime-local"
-                  name="scheduleEnd"
-                  defaultValue={
-                    editing?.scheduleEnd
-                      ? editing.scheduleEnd.replace(" ", "T").slice(0, 16)
-                      : ""
-                  }
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {actionError ? (
-            <p role="alert" className="text-sm text-destructive">{actionError}</p>
-          ) : null}
-
-          <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
-              {tCommon("cancel")}
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? tCommon("saving") : tCommon("save")}
-            </Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

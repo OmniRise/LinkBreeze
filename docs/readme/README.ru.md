@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · **Русский** · [Español](README.es.md) · [Türkçe](README.tr.md)
+[English](../../README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · **Русский** · [Español](README.es.md) · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ Миниатюры ссылок** - Добавляйте изображения к ссылкам для наглядных карточек предпросмотра
 - **⏰ Показ ссылок по расписанию** - Настраивайте автоматическое появление или исчезновение ссылок с помощью даты и времени
 - **🏷️ Собственные slug для перенаправлений** - Стабильные короткие ссылки вида `/go/vashe-imya`, которыми удобно делиться и которые переживают удаление и повторное создание
-- **🧪 A/B-тесты** - Распределение трафика ссылки между двумя назначениями с маршрутизацией, закреплённой за посетителем между визитами, аналитикой по вариантам, приростом и назначением победителя в один клик ([руководство](docs/ab-testing.md))
+- **🧪 A/B-тесты** - Распределение трафика ссылки между двумя назначениями с маршрутизацией, закреплённой за посетителем между визитами, аналитикой по вариантам, приростом и назначением победителя в один клик ([руководство](../ab-testing.md))
 - **📈 Внешняя аналитика** - Подключите Plausible, Umami, Matomo или Google Analytics одной вставкой
 - **🖼️ Социальные превью (OG-изображения)** - Карточки для шаринга автоматически рендерятся из темы вашей страницы, либо загрузите свою с контролем подгонки, позиции и масштаба
 - **✏️ Собственный CSS** - Тонкая настройка страницы вставкой чистого CSS
@@ -188,6 +188,18 @@ Container Manager (DSM 7.2+):
 </details>
 
 <details>
+<summary>🧰 &nbsp;Каталоги приложений</summary>
+
+Установка в один клик из магазина приложений вашей платформы. Обновления приходят из того же магазина.
+
+- **Runtipi** (v4+): Настройки → App Stores → добавьте `https://github.com/OmniRise/LinkBreeze-Runtipi-Store`, затем установите **LinkBreeze**
+- **Unraid**: Вкладка **Apps** → найдите **LinkBreeze** → **Установить**
+- **CasaOS / ZimaOS**: на рассмотрении, PR App Store [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
+- **TrueNAS** (24.10+): на рассмотрении в официальном каталоге, PR [#6617](https://github.com/truenas/apps/pull/6617)
+
+</details>
+
+<details>
 <summary>🔧 &nbsp;Podman</summary>
 
 ```bash
@@ -237,7 +249,7 @@ npm run dev
 2. Откройте порт 3000 или поставьте обратный прокси перед приложением
 3. Готово
 
-**Готовые compose-файлы** лежат в [`examples/`](examples/) - по одному самодостаточному файлу на каждый сценарий:
+**Готовые compose-файлы** лежат в [`examples/`](../../examples) - по одному самодостаточному файлу на каждый сценарий:
 
 | Что вы хотите | Какой файл использовать |
 |---------------|---------------|
@@ -364,7 +376,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ Конфигурация
 
-Вся конфигурация - через переменные окружения. **[`.env.example`](.env.example) - канонический справочник** - скопируйте его, и каждая переменная будет задокументирована прямо в файле, включая блоки кошельков.
+Вся конфигурация - через переменные окружения. **[`.env.example`](../../.env.example) - канонический справочник** - скопируйте его, и каждая переменная будет задокументирована прямо в файле, включая блоки кошельков.
 
 | Переменная | По умолчанию | Описание |
 |----------|---------|-------------|
@@ -405,7 +417,7 @@ cloudflared tunnel --url http://localhost:3000
 
 Направьте свои домены на страницы - один инстанс, множество идентичностей. Посетители попадают на `https://jane.com/` и сразу видят страницу Джейн, с автоматическими каноническими перенаправлениями, SEO-готовыми sitemap и строгой блокировкой хоста админки. Привязки активируются при первом реальном визите (DNS проверяется автоматически), а режим на уровне страницы определяет, является ли домен САМОЙ страницей (эксклюзивный) или хабом для всех slug.
 
-Полная настройка - DNS, wildcard TLS и готовые конфигурации обратного прокси для Caddy, nginx и Traefik - в **[docs/custom-domains.md](docs/custom-domains.md)**.
+Полная настройка - DNS, wildcard TLS и готовые конфигурации обратного прокси для Caddy, nginx и Traefik - в **[docs/custom-domains.md](../custom-domains.md)**.
 
 ## 🔌 REST API
 
@@ -543,7 +555,7 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 </details>
 ## 📖 Документация и ссылки
 
-[Внесение вклада](CONTRIBUTING.md) · [Политика безопасности](SECURITY.md) · [Список изменений](CHANGELOG.md) · [Устранение неполадок](TROUBLESHOOTING.md) · [Собственные домены](docs/custom-domains.md) · [Архитектурные решения](docs/adr/) · [Справочник по конфигурации](.env.example)
+[Внесение вклада](../../.github/CONTRIBUTING.md) · [Политика безопасности](../../.github/SECURITY.md) · [Список изменений](../../CHANGELOG.md) · [Устранение неполадок](../TROUBLESHOOTING.md) · [Собственные домены](../custom-domains.md) · [Архитектурные решения](../adr) · [Справочник по конфигурации](../../.env.example)
 
 Исходники: [GitHub](https://github.com/OmniRise/LinkBreeze) (канонический репозиторий) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (публичное pull-зеркало, синхронизируется автоматически) · Образ: [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -551,11 +563,11 @@ curl -s -o /dev/null -w '%{http_code}\n' --oauth2-bearer "$LB_API_KEY" -H "If-No
 
 ## 🤝 Внесение вклада
 
-Любой вклад приветствуется! Рекомендации см. в [CONTRIBUTING.md](CONTRIBUTING.md).
+Любой вклад приветствуется! Рекомендации см. в [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md).
 
 ## 📜 Лицензия
 
-MIT - делайте что хотите. Подробности в [LICENSE](LICENSE).
+MIT - делайте что хотите. Подробности в [LICENSE](../../LICENSE).
 
 ## 🏢 О проекте
 

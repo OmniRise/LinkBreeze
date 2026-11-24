@@ -357,6 +357,7 @@ export async function createLink(
         | "popupText"
         | "ctaLabel"
         | "redirectSlug"
+        | "vcardConfig"
       >
     >,
 ): Promise<LinkRow> {
@@ -390,6 +391,7 @@ export async function createLink(
       popupText: data.popupText ?? null,
       ctaLabel: data.ctaLabel ?? null,
       redirectSlug: data.redirectSlug ?? null,
+      vcardConfig: data.vcardConfig ?? null,
       orderIndex: nextOrder,
     })
     .returning();
@@ -421,6 +423,7 @@ export async function updateLink(
       | "ctaLabel"
       | "redirectSlug"
       | "abConfig"
+      | "vcardConfig"
     >
   >,
 ): Promise<void> {
@@ -1050,11 +1053,14 @@ export type OidcStateRow = typeof oidcStates.$inferSelect;
 export type OidcIdentityRow = typeof oidcIdentities.$inferSelect;
 
 /** Persist one in-flight login attempt. Consumed exactly once, or expires.
- *  Lazily clears expired rows so the table cannot grow unbounded. */
+ *  Lazily clears expired rows so the table cannot grow unbounded.
+ *  flowNonce (GHSA-5gx8-3hch-6m2f fix): must match the httpOnly flow cookie
+ *  presented by the same browser that started the flow. */
 export async function createOidcState(input: {
   state: string;
   codeVerifier: string;
   redirectTo: string;
+  flowNonce: string;
   expiresAt: string;
 }): Promise<void> {
   await db.delete(oidcStates).where(lt(oidcStates.expiresAt, new Date().toISOString()));

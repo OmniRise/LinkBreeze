@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · **Türkçe**
+[English](../../README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · **Türkçe**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ Bağlantı Küçük Resimleri** - Görsel önizleme kartları için bağlantılarına resim ekle
 - **⏰ Bağlantı Zamanlama** - Bağlantıları tarih/saat kontrolleriyle otomatik olarak görünür veya görünmez yap
 - **🏷️ Özel Yönlendirme Slug'ları** - Silip yeniden oluşturulsa bile bozulmayan, paylaşılabilir sabit `/go/adiniz` kısa bağlantıları
-- **🧪 A/B Testleri** - Bir bağlantının trafiğini iki hedef arasında, ziyaretler boyunca aynı kalan ziyaretçi atamasıyla paylaşın; varyant başına analitik, lift yüzdesi ve tek tıkla kazananı belirleme ([kılavuz](docs/ab-testing.md))
+- **🧪 A/B Testleri** - Bir bağlantının trafiğini iki hedef arasında, ziyaretler boyunca aynı kalan ziyaretçi atamasıyla paylaşın; varyant başına analitik, lift yüzdesi ve tek tıkla kazananı belirleme ([kılavuz](../ab-testing.md))
 - **📈 Harici Analitik** - Plausible, Umami, Matomo veya Google Analytics'i tek yapıştırmayla ekle
 - **🖼️ Sosyal Önizleme (OG) Görselleri** - Sayfanın temasından otomatik oluşturulan paylaşım kartları ya da ölçek, konum ve yakınlaştırma kontrolüyle kendi görselini yükle
 - **✏️ Özel CSS** - Sayfanı ham CSS enjeksiyonuyla ince ayarla
@@ -188,6 +188,18 @@ Veriler, imaj güncellemeleri boyunca volume'da korunur.
 </details>
 
 <details>
+<summary>🧰 &nbsp;Uygulama katalogları</summary>
+
+Platformunuzun uygulama mağazasından tek tıkla kurulum. Güncellemeler aynı mağazadan gelir.
+
+- **Runtipi** (v4+): Ayarlar → App Stores → `https://github.com/OmniRise/LinkBreeze-Runtipi-Store` ekleyin, sonra **LinkBreeze** yükleyin
+- **Unraid**: **Apps** sekmesi → **LinkBreeze** arayın → **Yükle**
+- **CasaOS / ZimaOS**: inceleniyor, App Store PR [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
+- **TrueNAS** (24.10+): resmi katalogda inceleniyor, PR [#6617](https://github.com/truenas/apps/pull/6617)
+
+</details>
+
+<details>
 <summary>🔧 &nbsp;Podman</summary>
 
 ```bash
@@ -237,7 +249,7 @@ Dağıtım tamamlandığında sayfan `https://alan-adin.com/slug-in` adresinde o
 2. 3000 portunu dışarı aç ya da önüne bir reverse proxy koy
 3. Bitti
 
-**Hazır compose dosyaları** [`examples/`](examples/) içinde - her senaryo için kendi başına yeten bir dosya:
+**Hazır compose dosyaları** [`examples/`](../../examples) içinde - her senaryo için kendi başına yeten bir dosya:
 
 | Ne istiyorsun | Bu dosyayı kullan |
 |---------------|-------------------|
@@ -364,7 +376,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ Yapılandırma
 
-Tüm yapılandırma ortam değişkenleri üzerinden yapılır. **[`.env.example`](.env.example) yetkili başvuru kaynağıdır** - kopyala; cüzdan değişkenleri dahil her değişken satır içi açıklamalıdır.
+Tüm yapılandırma ortam değişkenleri üzerinden yapılır. **[`.env.example`](../../.env.example) yetkili başvuru kaynağıdır** - kopyala; cüzdan değişkenleri dahil her değişken satır içi açıklamalıdır.
 
 | Değişken | Varsayılan | Açıklama |
 |----------|---------|-------------|
@@ -405,7 +417,7 @@ Her herkese açık sayfa, "Kişiyi kaydet" düğmeli bir paylaşım bloğu oluş
 
 Kendi alan adlarını sayfalara yönlendir - tek kurulum, çok kimlik. Ziyaretçiler `https://jane.com/` adresine gelir ve doğrudan Jane'in sayfasını görür; üstelik otomatik canonical yönlendirmeler, SEO'ya hazır site haritaları ve sıkı bir yönetici host kilidiyle. Bağlamalar ilk gerçek ziyarette etkinleşir (kendi kendini doğrulayan DNS) ve sayfa başına kapsam, alan adının sayfanın KENDİSİ mi (münhasır) yoksa tüm slug'lar için bir hub mı olduğunu belirler.
 
-Eksiksiz kurulum - DNS, wildcard TLS ve Caddy, nginx ve Traefik için kopyala-yapıştır reverse proxy yapılandırmaları - **[docs/custom-domains.md](docs/custom-domains.md)** içinde.
+Eksiksiz kurulum - DNS, wildcard TLS ve Caddy, nginx ve Traefik için kopyala-yapıştır reverse proxy yapılandırmaları - **[docs/custom-domains.md](../custom-domains.md)** içinde.
 
 ## 🔌 REST API
 
@@ -543,7 +555,7 @@ Bildirim yalnızca eşiğin tam katlarında tetiklenir (100, 200, 300...), eşik
 </details>
 ## 📖 Belgeler ve Bağlantılar
 
-[Katkıda Bulunma](CONTRIBUTING.md) · [Güvenlik Politikası](SECURITY.md) · [Değişiklik Günlüğü](CHANGELOG.md) · [Sorun Giderme](TROUBLESHOOTING.md) · [Özel Alan Adları](docs/custom-domains.md) · [Mimari Kararlar](docs/adr/) · [Yapılandırma başvurusu](.env.example)
+[Katkıda Bulunma](../../.github/CONTRIBUTING.md) · [Güvenlik Politikası](../../.github/SECURITY.md) · [Değişiklik Günlüğü](../../CHANGELOG.md) · [Sorun Giderme](../TROUBLESHOOTING.md) · [Özel Alan Adları](../custom-domains.md) · [Mimari Kararlar](../adr) · [Yapılandırma başvurusu](../../.env.example)
 
 Kaynak: [GitHub](https://github.com/OmniRise/LinkBreeze) (birincil) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (herkese açık pull aynası, otomatik senkronize edilir) · İmaj: [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -551,11 +563,11 @@ Sorunlar ve PR'ler her iki platformda da memnuniyetle karşılanır.
 
 ## 🤝 Katkıda Bulunma
 
-Katkılar memnuniyetle karşılanır! Yönergeler için [CONTRIBUTING.md](CONTRIBUTING.md) dosyasına bak.
+Katkılar memnuniyetle karşılanır! Yönergeler için [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md) dosyasına bak.
 
 ## 📜 Lisans
 
-MIT - ne istersen onu yap. Ayrıntılar için [LICENSE](LICENSE) dosyasına bak.
+MIT - ne istersen onu yap. Ayrıntılar için [LICENSE](../../LICENSE) dosyasına bak.
 
 ## 🏢 Hakkında
 

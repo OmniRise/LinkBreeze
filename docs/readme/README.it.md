@@ -4,9 +4,9 @@
 
 ---
 
-[English](README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · **Italiano** · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
+[English](../../README.md) · [العربية](README.ar.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · **Italiano** · [日本語](README.ja.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Türkçe](README.tr.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](../../LICENSE)
 [![Docker](https://img.shields.io/badge/omnirise%2Flinkbreeze-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://hub.docker.com/r/omnirise/linkbreeze)
 
 [![Website](https://img.shields.io/badge/linkbreeze-533fd6?style=for-the-badge&logo=googlechrome&logoColor=white)](https://linkbreeze.omnirise.dev/)
@@ -71,7 +71,7 @@
 - **🖼️ Anteprime dei Link** - Aggiungi immagini ai tuoi link per schede di anteprima visive
 - **⏰ Programmazione dei Link** - Pianifica l'apparizione o la scomparsa automatica dei link con controlli data/ora
 - **🏷️ Slug di Reindirizzamento Personalizzati** - Short link stabili e condivisibili tipo `/go/tuo-nome` che sopravvivono a eliminazioni e ricreazioni
-- **🧪 Test A/B** - Dividi il traffico di un link tra due destinazioni con assegnazione per visitatore stabile tra le visite, analitica per variante, percentuale di lift e promozione del vincitore con un clic ([guida](docs/ab-testing.md))
+- **🧪 Test A/B** - Dividi il traffico di un link tra due destinazioni con assegnazione per visitatore stabile tra le visite, analitica per variante, percentuale di lift e promozione del vincitore con un clic ([guida](../ab-testing.md))
 - **📈 Analytics Esterni** - Inietta Plausible, Umami, Matomo o Google Analytics con un semplice incolla
 - **🖼️ Immagini di Anteprima Social (OG)** - Card di condivisione generate automaticamente dal tema della tua pagina, oppure carica le tue con controllo di adattamento, posizione e zoom
 - **✏️ CSS Personalizzato** - Rifinisci la tua pagina con iniezione di CSS grezzo
@@ -188,6 +188,18 @@ I dati permangono nel volume durante gli aggiornamenti dell'immagine.
 </details>
 
 <details>
+<summary>🧰 &nbsp;Cataloghi di app</summary>
+
+Installazione con un clic dallo store di app della tua piattaforma. Gli aggiornamenti arrivano dallo stesso store.
+
+- **Runtipi** (v4+): Impostazioni → App Stores → aggiungi `https://github.com/OmniRise/LinkBreeze-Runtipi-Store`, poi installa **LinkBreeze**
+- **Unraid**: Scheda **Apps** → cerca **LinkBreeze** → **Installa**
+- **CasaOS / ZimaOS**: in revisione, PR App Store [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
+- **TrueNAS** (24.10+): in revisione nel catalogo ufficiale, PR [#6617](https://github.com/truenas/apps/pull/6617)
+
+</details>
+
+<details>
 <summary>🔧 &nbsp;Podman</summary>
 
 ```bash
@@ -237,7 +249,7 @@ Una volta fatto il deploy, la tua pagina è su `https://your-domain.com/your-slu
 2. Esponi la porta 3000 o metti davanti un reverse proxy
 3. Fatto
 
-**File compose pronti all'uso** si trovano in [`examples/`](examples/) - un file autonomo per ogni scenario:
+**File compose pronti all'uso** si trovano in [`examples/`](../../examples) - un file autonomo per ogni scenario:
 
 | Cosa vuoi fare | Usa questo file |
 |---------------|-----------------|
@@ -364,7 +376,7 @@ cloudflared tunnel --url http://localhost:3000
 
 ## ⚙️ Configurazione
 
-Tutta la configurazione avviene tramite variabili d'ambiente. **[`.env.example`](.env.example) è il riferimento ufficiale** - copialo e ogni variabile è documentata inline, inclusi i blocchi wallet.
+Tutta la configurazione avviene tramite variabili d'ambiente. **[`.env.example`](../../.env.example) è il riferimento ufficiale** - copialo e ogni variabile è documentata inline, inclusi i blocchi wallet.
 
 | Variabile | Predefinito | Descrizione |
 |----------|---------|-------------|
@@ -405,7 +417,7 @@ Le impostazioni runtime (slug della pagina, titolo, SEO, tema) si gestiscono dal
 
 Punta i tuoi domini alle pagine - un'istanza, tante identità. I visitatori arrivano su `https://jane.com/` e vedono direttamente la pagina di Jane, con reindirizzamenti canonici automatici, sitemap pronti per la SEO e un rigoroso blocco dell'host admin. I binding si attivano alla prima visita reale (DNS auto-verificante), e lo scope per pagina decide se un dominio È la pagina (esclusivo) o un hub per tutti gli slug.
 
-Setup completo - DNS, TLS wildcard e configurazioni reverse proxy copia-e-incolla per Caddy, nginx e Traefik - in **[docs/custom-domains.md](docs/custom-domains.md)**.
+Setup completo - DNS, TLS wildcard e configurazioni reverse proxy copia-e-incolla per Caddy, nginx e Traefik - in **[docs/custom-domains.md](../custom-domains.md)**.
 
 ## 🔌 API REST
 
@@ -543,7 +555,7 @@ Un traguardo scatta solo ai multipli esatti della soglia (100, 200, 300...), una
 </details>
 ## 📖 Documentazione e Link
 
-[Contribuire](CONTRIBUTING.md) · [Politica di Sicurezza](SECURITY.md) · [Changelog](CHANGELOG.md) · [Risoluzione dei Problemi](TROUBLESHOOTING.md) · [Domini Personalizzati](docs/custom-domains.md) · [Decisioni Architetturali](docs/adr/) · [Riferimento Configurazione](.env.example)
+[Contribuire](../../.github/CONTRIBUTING.md) · [Politica di Sicurezza](../../.github/SECURITY.md) · [Changelog](../../CHANGELOG.md) · [Risoluzione dei Problemi](../TROUBLESHOOTING.md) · [Domini Personalizzati](../custom-domains.md) · [Decisioni Architetturali](../adr) · [Riferimento Configurazione](../../.env.example)
 
 Sorgente: [GitHub](https://github.com/OmniRise/LinkBreeze) (canonico) · [GitLab](https://gitlab.com/omnirise00/linkbreeze) (mirror pubblico, sincronizzato automaticamente) · Immagine: [`docker.io/omnirise/linkbreeze`](https://hub.docker.com/r/omnirise/linkbreeze)
 
@@ -551,11 +563,11 @@ Issue e PR sono benvenute su entrambe le forge.
 
 ## 🤝 Contribuire
 
-I contributi sono benvenuti! Vedi [CONTRIBUTING.md](CONTRIBUTING.md) per le linee guida.
+I contributi sono benvenuti! Vedi [../../.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md) per le linee guida.
 
 ## 📜 Licenza
 
-MIT - fai quello che vuoi. Vedi [LICENSE](LICENSE).
+MIT - fai quello che vuoi. Vedi [LICENSE](../../LICENSE).
 
 ## 🏢 Informazioni
 

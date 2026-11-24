@@ -68,10 +68,14 @@ export function parseAppleCreds(env: NodeJS.ProcessEnv): AppleWalletCreds | null
   };
 }
 
-/** Parse the notAfter date from a PEM certificate (expiry indicator). */
+/** Parse the notAfter date from a PEM certificate (expiry indicator).
+ *  validToDate is Node 24+ only — fall back to the legacy `validTo` string
+ *  (same instant, string form) so Node 20/22 LTS keeps working. */
 export function certExpiry(pem: string): Date | null {
   try {
-    return new X509Certificate(pem).validToDate;
+    const cert = new X509Certificate(pem);
+    const date = cert.validToDate ?? new Date(cert.validTo);
+    return Number.isNaN(date.getTime()) ? null : date;
   } catch {
     return null;
   }

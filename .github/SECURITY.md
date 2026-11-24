@@ -60,7 +60,7 @@ The following are NOT yet implemented. If you need these, track the correspondin
 issue or contribute:
 
 - **Password recovery**: No self-service reset flow. If you lose your password,
-  see the [Troubleshooting guide](TROUBLESHOOTING.md#forgot-admin-password)
+  see the [Troubleshooting guide](../docs/TROUBLESHOOTING.md#forgot-admin-password)
   for three recovery methods (hash reset, full reset, or database deletion).
 - **2FA / MFA** (#5): **Available since the next release** (TOTP with recovery
   codes). Enable it in Settings → Security. Remaining limits: no WebAuthn /

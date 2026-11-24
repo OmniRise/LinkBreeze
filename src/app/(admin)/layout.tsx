@@ -1,16 +1,12 @@
 import * as React from "react";
-import {
-  LogOut,
-} from "lucide-react";
 import Image from "next/image";
 import { NextIntlClientProvider } from "next-intl";
 import { getSession } from "@/lib/auth";
 import { isDemoMode } from "@/lib/demo";
-import { logout } from "@/server/actions/auth";
 import { getAllPages } from "@/server/queries";
-import { Button } from "@/components/ui/button";
 import { AuroraBackground } from "@/components/aurora/AuroraBackground";
 import { MobileTabBar } from "@/components/admin/MobileTabBar";
+import { MobileHeaderActions } from "@/components/admin/MobileHeaderActions";
 import { PageSwitcher } from "@/components/admin/PageSwitcher";
 import { getCapabilitiesForUser } from "@/server/queries";
 import { filterVisiblePages } from "@/lib/ownership";
@@ -128,11 +124,12 @@ export default async function AdminLayout({
                 <React.Suspense fallback={null}>
                   <PageSwitcher pages={pageList} variant="compact" />
                 </React.Suspense>
-                <form action={logout}>
-                  <Button variant="ghost" size="icon-sm" type="submit">
-                    <LogOut className="size-4" />
-                  </Button>
-                </form>
+                <React.Suspense fallback={null}>
+                  <MobileHeaderActions
+                    canManageAccounts={capsForUser.caps.manageAccounts}
+                    canManageInstance={capsForUser.caps.manageInstance}
+                  />
+                </React.Suspense>
               </div>
             </header>
 
@@ -157,10 +154,7 @@ export default async function AdminLayout({
               </div>
             </main>
             <React.Suspense fallback={null}>
-              <MobileTabBar
-                canManageAccounts={capsForUser.caps.manageAccounts}
-                canManageInstance={capsForUser.caps.manageInstance}
-              />
+              <MobileTabBar />
             </React.Suspense>
           </div>
         </div>

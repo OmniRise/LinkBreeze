@@ -1,6 +1,6 @@
 {
-  "version": "1.5.1",
-  "releasedAt": "2026-10-27",
-  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.5.1",
-  "notes": "The admin and README now ship in eleven languages (Italian, Russian, Turkish, and Japanese join the lineup), LinkBreeze publishes first-party CasaOS, Runtipi, and Unraid app-store packaging, and Settings gains an update status card showing the installed version against the latest GitHub and website releases with a one-click Recheck. Importing a Linktree page no longer pulls Linktree's own affiliate links, dependency updates resolve the outstanding Dependabot alerts, and a security fix closes update-check server actions that skipped the demo guard on public demo instances."
+  "version": "1.6.2",
+  "releasedAt": "2026-11-24",
+  "url": "https://github.com/OmniRise/LinkBreeze/releases/tag/v1.6.2",
+  "notes": "A security release plus new embeds. Security: the OIDC callback now binds every SSO flow to the browser that started it (GHSA-5gx8-3hch-6m2f), closing an account-linking CSRF that could hand a logged-in victim's account, admin included, to an attacker through their own IdP identity; instances with SSO configured should update promptly. New embeds: Dailymotion, Twitch, Rumble and GitHub repo cards join YouTube, Spotify, Vimeo, SoundCloud and Bandcamp, and unknown embed URLs now render as clickable cards instead of disappearing. Also fixes Rich-preview Open Graph truncation at apostrophes and a dependency group bump."
 }

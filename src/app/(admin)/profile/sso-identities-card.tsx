@@ -95,13 +95,13 @@ export function SsoIdentitiesCard({
         {identities.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="flex flex-col gap-2">
             {identities.map((identity) => {
               const key = `${identity.issuer}|${identity.subject}`;
               return (
                 <li
                   key={key}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-border px-3 py-2"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
@@ -114,8 +114,10 @@ export function SsoIdentitiesCard({
                     )}
                   </div>
                   {confirming === key ? (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
+                    // Full row on phones (the confirm text + two buttons don't
+                    // fit beside the issuer on 390px); inline from sm up.
+                    <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground sm:flex-none">
                         {t("unlinkConfirm", { issuer: issuerHost(identity.issuer) })}
                       </span>
                       <Button
@@ -154,10 +156,12 @@ export function SsoIdentitiesCard({
         )}
 
         {linkingSupported && (
-          <Button variant="outline" size="sm" disabled={pending} onClick={handleConnect}>
-            <Link2 className="size-4" />
-            {pending ? t("connecting") : t("connect")}
-          </Button>
+          <div>
+            <Button variant="outline" size="sm" disabled={pending} onClick={handleConnect}>
+              <Link2 className="size-4" />
+              {pending ? t("connecting") : t("connect")}
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

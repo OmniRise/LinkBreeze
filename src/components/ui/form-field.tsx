@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
  *   label → control: 8px (mb-2)
  *   control → hint:  6px (mt-1.5)
  *
- * See DESIGN.md §Spacing for the full scale.
+ * See ../../../docs/DESIGN.md §Spacing for the full scale.
  */
 export function FormField({
   label,

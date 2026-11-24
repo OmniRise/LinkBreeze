@@ -368,7 +368,7 @@ a.lb-share-link:hover { color: var(--lb-text); }
 .lb-popup-close:hover { color: var(--lb-text); background: color-mix(in srgb, var(--lb-text) 10%, transparent); }
 
 /* Markdown body (subset renderer — see markdown-lite-string.ts) */
-.lb-popup-body { font-size: var(--lb-font-size); line-height: 1.55; }
+.lb-popup-body { font-size: var(--lb-font-size); line-height: 1.55; max-height: 60vh; overflow-y: auto; }
 .lb-popup-body .lb-md-p { margin: 0 0 10px; color: var(--lb-text); }
 .lb-popup-body .lb-md-h1, .lb-popup-body .lb-md-h2 {
   margin: 14px 0 8px;
@@ -379,6 +379,14 @@ a.lb-share-link:hover { color: var(--lb-text); }
 .lb-popup-body .lb-md-h2 { font-size: calc(var(--lb-font-size) + 1px); }
 .lb-popup-body .lb-md-list { margin: 4px 0 10px; padding-left: 20px; color: var(--lb-text); }
 .lb-popup-body .lb-md-list li { margin: 3px 0; }
+.lb-popup-body ol.lb-md-ol { list-style: decimal; }
+.lb-popup-body .lb-md-hr { border: none; border-top: 1px solid var(--lb-card-border); margin: 14px 0; }
+.lb-popup-body .lb-md-link {
+  color: var(--lb-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.lb-popup-body .lb-md-link:hover { opacity: 0.8; }
 .lb-popup-body code {
   border-radius: 4px;
   padding: 1px 5px;

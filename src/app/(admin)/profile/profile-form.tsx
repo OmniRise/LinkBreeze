@@ -243,7 +243,7 @@ export function ProfileForm({ profile, pageId }: ProfileFormProps) {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-sm text-muted-foreground">{t("thisInformationAppearsOnYourPublicPage")}</p>
@@ -251,7 +251,12 @@ export function ProfileForm({ profile, pageId }: ProfileFormProps) {
 
       <form
         ref={formRef}
-        action={handleSubmit}
+        onSubmit={(e) => {
+          // Opt out of React 19's post-action auto-reset of uncontrolled
+          // inputs: a failed profile save must keep the typed values.
+          e.preventDefault();
+          handleSubmit(new FormData(e.currentTarget));
+        }}
         onBlurCapture={() => flushNow()}
         className="flex flex-col gap-6"
       >

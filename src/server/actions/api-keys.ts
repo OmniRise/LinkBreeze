@@ -1,15 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth";
 import { demoGuard } from "@/lib/demo-guard";
 import {
   type ActionResult,
-  unauthorizedError,
   logError,
   ErrorCode,
 } from "@/lib/errors";
 import { createApiKey, revokeApiKey } from "@/server/api-keys";
+import { requireInstanceAdmin } from "@/server/access";
 
 /**
  * Generate (or rotate) the API key (#4). The plaintext is returned EXACTLY
@@ -23,7 +22,11 @@ export async function generateApiKeyAction(opts?: {
 }): Promise<ActionResult<{ key: string; prefix: string; createdAt: string }>> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  // GHSA-954q-vph2-prc8: the key is instance-wide — it reads/writes every
+  // account's links and sections through /api/v1/* — so minting it is an
+  // instance-level action. A Member's own Settings tab must not mint it.
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   try {
     const created = await createApiKey({
@@ -45,7 +48,8 @@ export async function generateApiKeyAction(opts?: {
 export async function revokeApiKeyAction(): Promise<ActionResult> {
   const blocked = demoGuard();
   if (blocked) return blocked;
-  if (!(await getSession())) return unauthorizedError();
+  const denied = await requireInstanceAdmin();
+  if (denied) return denied;
 
   try {
     await revokeApiKey();

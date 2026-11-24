@@ -29,6 +29,7 @@ export const AUDIT_ACTIONS = [
   "sso.login",
   "sso.refused",
   "sso.unlinked",
+  "sso.flow_mismatch",
   "settings.updated",
 ] as const;
 
