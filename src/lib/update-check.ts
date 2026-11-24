@@ -2,6 +2,26 @@ import "server-only";
 
 import { version as currentVersion } from "@/lib/version";
 import { getSetting, updateSetting } from "@/server/queries";
+import { emitUpdatePing } from "@/server/notifications/instance-events";
+
+/**
+ * #13: opt-in update ping — fire-and-forget, deduped per version by the
+ * claim layer, and a no-op unless an instance-wide webhook config subscribes
+ * to "updates". Never let notification plumbing affect the check result.
+ */
+async function pingUpdateWebhook(result: UpdateCheckResult): Promise<void> {
+  if (!result.hasUpdate || !result.latestVersion) return;
+  try {
+    await emitUpdatePing(
+      result.latestVersion,
+      result.currentVersion,
+      result.notes,
+      result.releaseUrl,
+    );
+  } catch {
+    // swallow — the update check must not fail because the webhook did
+  }
+}
 
 /**
  * Update checker — polls a static JSON file for the latest release version.
@@ -95,7 +115,7 @@ export async function checkForUpdates(
       if (age < CACHE_TTL_MS) {
         try {
           const data = JSON.parse(cached) as RemoteVersionFile;
-          return {
+          const result = {
             hasUpdate: isNewerVersion(currentVersion, data.version),
             latestVersion: data.version,
             currentVersion,
@@ -103,6 +123,8 @@ export async function checkForUpdates(
             notes: data.notes ?? null,
             checkedAt,
           };
+          await pingUpdateWebhook(result);
+          return result;
         } catch {
           // Stale/corrupt cache — fall through to live fetch
         }
@@ -132,7 +154,7 @@ export async function checkForUpdates(
     await updateSetting("lastUpdateCheckResult", JSON.stringify(data));
     await updateSetting("lastUpdateCheckAt", checkedAt);
 
-    return {
+    const result = {
       hasUpdate: isNewerVersion(currentVersion, data.version),
       latestVersion: data.version,
       currentVersion,
@@ -140,6 +162,8 @@ export async function checkForUpdates(
       notes: data.notes ?? null,
       checkedAt,
     };
+    await pingUpdateWebhook(result);
+    return result;
   } catch {
     // Network error, timeout, parse error — fail silently.
     // Return cached data if we have it, otherwise "no update".

@@ -1,7 +1,7 @@
 /**
  * Italiano — locale admin UI.
  *
- * lastSyncedHash: 16617103e472 ← rigenerato da `npm run i18n:check -- --update`
+ * lastSyncedHash: b0d010594e3a ← rigenerato da `npm run i18n:check -- --update`
  * (mismatch = source inglese modificato, risincronizzare questo file)
  */
 import type { Messages } from "./en";
@@ -692,6 +692,16 @@ const it: Messages = {
       providerSlack: "Slack",
       providerTelegram: "Telegram",
       providerNtfy: "ntfy",
+      providerGeneric: "Webhook (Zapier, Make, n8n)",
+      eventsLabel: "Notifica su",
+      eventsHint: "Non viene inviato nulla finché non selezioni almeno un tipo e salvi.",
+      event_milestones: "Traguardi di clic e visualizzazioni",
+      event_subscribers: "Nuovi iscritti",
+      event_admin: "Eventi di amministrazione e sicurezza",
+      event_updates: "Nuove versioni",
+      event_digest: "Riepilogo settimanale",
+      instanceTitle: "Webhook dell'istanza",
+      instanceDescription: "Ricevi notifiche quando succede qualcosa su tutta l'istanza: nuovi iscritti, eventi di sicurezza, nuove versioni con il loro changelog o un riepilogo statistico settimanale. Tutto spento finché non selezioni almeno un tipo.",
       enabled: "Attivato",
       clicksThreshold: "Soglia clic",
       viewsThreshold: "Soglia visualizzazioni",

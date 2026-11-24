@@ -8,6 +8,7 @@
 
 import {
   eventSummary,
+  eventTitle,
   type NotificationEvent,
   type NotificationProvider,
 } from "./events";
@@ -29,17 +30,30 @@ interface DiscordPayload {
   embeds?: DiscordEmbed[];
 }
 
-function discordBody(event: NotificationEvent): DiscordPayload {
-  const embed: DiscordEmbed = {
-    title: "LinkBreeze milestone",
-    description: eventSummary(event),
-    color: 0xa78bfa,
-  };
-  if (event.type === "test") {
-    embed.title = "LinkBreeze test notification";
-    embed.color = 0x22c55e;
+/** Per-type embed accent colors (Discord). */
+function discordColor(event: NotificationEvent): number {
+  switch (event.type) {
+    case "test":
+      return 0x22c55e; // green
+    case "admin":
+      return 0xf59e0b; // amber — attention without alarm
+    case "update":
+      return 0x38bdf8; // sky
+    default:
+      return 0xa78bfa; // brand violet
   }
-  return { embeds: [embed] };
+}
+
+function discordBody(event: NotificationEvent): DiscordPayload {
+  return {
+    embeds: [
+      {
+        title: eventTitle(event),
+        description: eventSummary(event),
+        color: discordColor(event),
+      },
+    ],
+  };
 }
 
 /** Escape HTML special chars for Telegram parse_mode=HTML. */
@@ -48,6 +62,32 @@ function escapeHtml(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+/** Slack/Telegram multi-line message: headline + body. */
+function flatMessage(event: NotificationEvent): string {
+  return `${eventTitle(event)}\n${eventSummary(event)}`;
+}
+
+/**
+ * The provider-agnostic payload (`generic` provider): the canonical event as
+ * plain JSON. This is what Zapier, Make and n8n parse — field names are the
+ * stable contract documented in the webhook recipes.
+ */
+function genericBody(event: NotificationEvent): string {
+  return JSON.stringify({
+    type: event.type,
+    pageId: event.pageId,
+    pageTitle: event.pageTitle || null,
+    slug: event.slug,
+    metric: event.metric ?? null,
+    level: event.level ?? null,
+    total: event.total ?? null,
+    title: eventTitle(event),
+    message: eventSummary(event),
+    dedupeKey: event.dedupeKey,
+    occurredAt: new Date().toISOString(),
+  });
 }
 
 export function formatWebhookRequest(
@@ -67,14 +107,14 @@ export function formatWebhookRequest(
       return {
         url,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: summary }),
+        body: JSON.stringify({ text: flatMessage(event) }),
       };
     case "telegram":
       return {
         url,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: `<b>LinkBreeze</b>\n${escapeHtml(summary)}`,
+          text: `<b>LinkBreeze</b>\n${escapeHtml(flatMessage(event))}`,
           parse_mode: "HTML",
         }),
       };
@@ -84,9 +124,15 @@ export function formatWebhookRequest(
         url,
         headers: {
           "Content-Type": "text/plain",
-          Title: event.type === "test" ? "LinkBreeze test notification" : "LinkBreeze milestone",
+          Title: eventTitle(event),
         },
         body: summary,
+      };
+    case "generic":
+      return {
+        url,
+        headers: { "Content-Type": "application/json" },
+        body: genericBody(event),
       };
   }
 }

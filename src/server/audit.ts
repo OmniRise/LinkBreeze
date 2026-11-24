@@ -7,6 +7,11 @@ import { db } from "@/db";
 import { auditLog } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { getSetting } from "@/server/queries";
+import {
+  AUDIT_EVENT_LABELS,
+  emitAdminEvent,
+  shouldNotifyAuditScope,
+} from "@/server/notifications/instance-events";
 
 /**
  * Fixed event vocabulary (#124 follow-up audit log). The /audit filter lists
@@ -91,14 +96,34 @@ export async function recordAudit(
         ip = null; // not in a request scope
       }
     }
-    await db.insert(auditLog).values({
-      actorUserId: actor?.userId ?? null,
-      actorUsername: actor?.username ?? null,
-      action,
-      target: target ?? null,
-      detail: detail ? JSON.stringify(detail) : null,
-      ip,
-    });
+    const insertedAudit = await db
+      .insert(auditLog)
+      .values({
+        actorUserId: actor?.userId ?? null,
+        actorUsername: actor?.username ?? null,
+        action,
+        target: target ?? null,
+        detail: detail ? JSON.stringify(detail) : null,
+        ip,
+      })
+      .returning({ id: auditLog.id });
+
+    // #13: opt-in admin/security webhook feed. Only security-relevant scopes
+    // notify; a no-op unless an instance-wide config subscribes to "admin".
+    if (insertedAudit[0] && shouldNotifyAuditScope(action)) {
+      const label = AUDIT_EVENT_LABELS[action] ?? action;
+      void emitAdminEvent(
+        insertedAudit[0].id,
+        label,
+        [
+          label,
+          actor?.username ? `by ${actor.username}` : null,
+          target ? `target: ${target}` : null,
+        ]
+          .filter(Boolean)
+          .join(" - "),
+      );
+    }
 
     // Lazy retention: default 90 days, admin-configurable via KV.
     const now = Date.now();

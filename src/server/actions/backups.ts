@@ -9,6 +9,7 @@ import {
   ErrorCode,
 } from "@/lib/errors";
 import { requireInstanceAdmin, requireInstanceAdminOrThrow } from "@/server/access";
+import { emitAdminEvent } from "@/server/notifications/instance-events";
 import { updateSetting } from "@/server/queries";
 import { applyBackupPayload } from "@/server/backup-restore";
 import {
@@ -103,6 +104,12 @@ export async function runBackupNow(): Promise<ActionResult> {
       errorCode: ErrorCode.INTERNAL,
     };
   }
+  // #13: opt-in admin webhook feed (no-op without a subscribed config).
+  void emitAdminEvent(
+    `backup:${Date.now()}`,
+    "Backup completed",
+    "A manual instance backup was created and stored.",
+  );
   return { success: true };
 }
 
@@ -139,7 +146,16 @@ export async function restoreScheduledBackup(
     return conflictError("A backup or restore is already in progress");
   }
   try {
-    return await applyBackupPayload(parsed);
+    const result = await applyBackupPayload(parsed);
+    if (result.success) {
+      // #13: opt-in admin webhook feed (no-op without a subscribed config).
+      void emitAdminEvent(
+        `restore:${Date.now()}`,
+        "Backup restored",
+        `The stored backup ${filename} was restored.`,
+      );
+    }
+    return result;
   } finally {
     releaseBackupLock();
   }

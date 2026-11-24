@@ -17,8 +17,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { NotificationConfigRow, NotificationDeliveryRow } from "@/server/queries/notifications";
+import {
+  INSTANCE_EVENT_KINDS,
+  type InstanceEventKind,
+} from "@/lib/notifications/events";
 
-const PROVIDERS = ["discord", "slack", "telegram", "ntfy"] as const;
+const PROVIDERS = ["discord", "slack", "telegram", "ntfy", "generic"] as const;
+
+/** Checkbox contract per mode. Order fixes the settings-card layout. */
+const PAGE_EVENT_KINDS = ["milestones"] as const;
+const INSTANCE_EVENT_KINDS_UI: readonly InstanceEventKind[] = INSTANCE_EVENT_KINDS;
 
 // Scoped color-scheme + token styling: the app sets no global color-scheme,
 // so a bare <select> renders UA-white in BOTH themes (see backups-card).
@@ -29,17 +37,20 @@ const inputClasses =
   "h-9 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 export interface NotificationsCardProps {
-  pageId: number;
+  /** null = instance-wide webhook card (subscribers/admin/updates/digest). */
+  pageId: number | null;
   initialConfig: NotificationConfigRow | null;
   initialDeliveries: NotificationDeliveryRow[];
 }
 
 /**
- * Webhook notifications card (Settings - Integration, per page).
- * One config per page, autosaved (useAutosavedForm: every input schedules,
- * the flush submits the form's live DOM values). The test button fires a
- * sample event through the real delivery pipeline; the delivery log is
- * server-fetched and refreshed by the actions' revalidatePath.
+ * Webhook notifications card (Settings - Integration).
+ * pageId set: per-page milestone webhooks. pageId null: the instance-wide
+ * webhook (subscriber pings, admin/security feed, update ping, weekly
+ * digest). Autosaved (useAutosavedForm: every input schedules, the flush
+ * submits the form's live DOM values). The test button fires a sample event
+ * through the real delivery pipeline; the delivery log is server-fetched
+ * and refreshed by the actions' revalidatePath.
  */
 export function NotificationsCard({
   pageId,
@@ -49,6 +60,9 @@ export function NotificationsCard({
   const t = useTranslations("settings.notifications");
   const tErr = useTranslations("errors");
   const savedAction = useSavedAction();
+  const isInstance = pageId === null;
+  const subscribed = (kind: string): boolean =>
+    initialConfig ? initialConfig.events.split(",").includes(kind) : false;
 
   const [testState, setTestState] = React.useState<
     { kind: "idle" } | { kind: "sending" } | { kind: "ok" } | { kind: "failed"; detail: string }
@@ -74,7 +88,7 @@ export function NotificationsCard({
     formRef.current?.requestSubmit();
     setTestState({ kind: "sending" });
     const fd = new FormData();
-    fd.set("pageId", String(pageId));
+    fd.set("pageId", pageId === null ? "" : String(pageId));
     const res = await savedAction.run(sendTestNotificationAction, fd);
     if (!res.success) {
       setTestState({ kind: "failed", detail: localizeActionError(tErr, res.error) });
@@ -88,7 +102,7 @@ export function NotificationsCard({
   const handleDelete = async () => {
     setDeleteError(null);
     const fd = new FormData();
-    fd.set("pageId", String(pageId));
+    fd.set("pageId", pageId === null ? "" : String(pageId));
     const res = await savedAction.run(deleteNotificationConfigAction, fd);
     if (!res.success) setDeleteError(localizeActionError(tErr, res.error));
   };
@@ -96,8 +110,10 @@ export function NotificationsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("title")}</CardTitle>
-        <CardDescription>{t("description")}</CardDescription>
+        <CardTitle>{t(isInstance ? "instanceTitle" : "title")}</CardTitle>
+        <CardDescription>
+          {t(isInstance ? "instanceDescription" : "description")}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <form
@@ -108,7 +124,7 @@ export function NotificationsCard({
           }}
           className="flex flex-col gap-4"
         >
-          <input type="hidden" name="pageId" value={pageId} />
+          <input type="hidden" name="pageId" value={pageId ?? ""} />
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="lb-webhook-url" className="text-sm font-medium">
@@ -146,7 +162,9 @@ export function NotificationsCard({
                         ? t("providerSlack")
                         : p === "telegram"
                           ? t("providerTelegram")
-                          : t("providerNtfy")}
+                          : p === "ntfy"
+                            ? t("providerNtfy")
+                            : t("providerGeneric")}
                   </option>
                 ))}
               </select>
@@ -168,6 +186,33 @@ export function NotificationsCard({
             </div>
           </div>
 
+          {/* Event subscription: strictly opt-in per kind. */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">{t("eventsLabel")}</span>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {(isInstance ? INSTANCE_EVENT_KINDS_UI : PAGE_EVENT_KINDS).map(
+                (kind) => (
+                  <label
+                    key={kind}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      name="event"
+                      value={kind}
+                      defaultChecked={subscribed(kind)}
+                      className="size-4 accent-[var(--primary,theme(colors.violet.500))]"
+                      onChange={() => schedule()}
+                    />
+                    {t(`event_${kind}`)}
+                  </label>
+                ),
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{t("eventsHint")}</p>
+          </div>
+
+          {!isInstance ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="lb-webhook-clicks" className="text-sm font-medium">
@@ -202,7 +247,10 @@ export function NotificationsCard({
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">{t("thresholdHint")}</p>
+          ) : null}
+          {!isInstance ? (
+            <p className="text-xs text-muted-foreground">{t("thresholdHint")}</p>
+          ) : null}
 
           {saveError ? (
             <span className="text-xs text-destructive" role="alert">

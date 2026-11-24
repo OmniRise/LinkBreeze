@@ -4,6 +4,8 @@ import { notificationConfigs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   milestoneDedupeKey,
+  parseEventSubscription,
+  type InstanceEventKind,
   type NotificationEvent,
   type NotificationProvider,
 } from "@/lib/notifications/events";
@@ -27,6 +29,8 @@ export type NotificationConfigLike = {
   id: number;
   url: string;
   provider: NotificationProvider;
+  events: string;
+  pageId: number | null;
   clicksThreshold: number | null;
   viewsThreshold: number | null;
 };
@@ -36,6 +40,8 @@ function toConfigLike(row: {
   id: number;
   url: string;
   provider: string;
+  events: string;
+  pageId: number | null;
   clicksThreshold: number | null;
   viewsThreshold: number | null;
 }): NotificationConfigLike {
@@ -43,6 +49,8 @@ function toConfigLike(row: {
     id: row.id,
     url: row.url,
     provider: row.provider as NotificationProvider,
+    events: row.events,
+    pageId: row.pageId,
     clicksThreshold: row.clicksThreshold,
     viewsThreshold: row.viewsThreshold,
   };
@@ -91,16 +99,44 @@ export async function emitNotification(
       .from(notificationConfigs)
       .where(eq(notificationConfigs.enabled, true));
 
+    // Instance events (subscriber/admin/update/digest) route to
+    // instance-wide configs (pageId NULL) subscribed to their kind via the
+    // events CSV; page events keep the per-page threshold path.
+    const instanceKind: Record<string, InstanceEventKind> = {
+      subscriber: "subscribers",
+      admin: "admin",
+      update: "updates",
+      digest: "digest",
+    };
+    const isInstanceEvent = event.type in instanceKind;
+
     for (const row of configs) {
-      if (event.pageId !== null && row.pageId !== event.pageId) continue;
-      if (event.metric !== "clicks" && event.metric !== "views") continue;
+      if (isInstanceEvent) {
+        if (row.pageId !== null) continue;
+        if (!parseEventSubscription(row.events).has(instanceKind[event.type]))
+          continue;
+      } else {
+        if (event.pageId !== null && row.pageId !== event.pageId) continue;
+        if (event.metric !== "clicks" && event.metric !== "views") continue;
+      }
 
       const config = toConfigLike(row);
-      const threshold = thresholdFor(config, event.metric);
-      const level = threshold === null ? 0 : crossedLevel(event.total, threshold);
-      if (level <= 0) continue;
+      let dedupeKey: string;
+      let resolved: NotificationEvent;
 
-      const dedupeKey = milestoneDedupeKey(config.id, event.metric, level);
+      if (isInstanceEvent) {
+        // The event carries its pre-built occurrence-unique key; no
+        // threshold math applies to instance events.
+        dedupeKey = event.dedupeKey;
+        resolved = { ...event, dedupeKey };
+      } else {
+        const threshold = thresholdFor(config, event.metric!);
+        const level = threshold === null ? 0 : crossedLevel(event.total!, threshold);
+        if (level <= 0) continue;
+        dedupeKey = milestoneDedupeKey(config.id, event.metric!, level);
+        resolved = { ...event, level, dedupeKey };
+      }
+
       if (await deliveryAlreadyFired(config.id, dedupeKey)) continue;
 
       const claim = await claimDelivery({
@@ -108,7 +144,6 @@ export async function emitNotification(
         dedupeKey,
         provider: config.provider,
       });
-      const resolved: NotificationEvent = { ...event, level, dedupeKey };
 
       if (deps.deliverImpl) {
         // Test seam — awaited so assertions stay deterministic.

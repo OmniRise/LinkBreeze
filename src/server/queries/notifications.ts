@@ -8,16 +8,19 @@ import {
   notificationDeliveries,
   pages,
 } from "@/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { NotificationProvider } from "@/lib/notifications/events";
 
 export type NotificationConfigRow = typeof notificationConfigs.$inferSelect;
 export type NotificationDeliveryRow = typeof notificationDeliveries.$inferSelect;
 
 export interface NotificationConfigInput {
-  pageId: number;
+  /** NULL = instance-wide config (subscribers/admin/updates/digest). */
+  pageId: number | null;
   url: string;
   provider: NotificationProvider;
+  /** CSV of subscribed event kinds (milestones,subscribers,admin,updates,digest). */
+  events: string;
   enabled: boolean;
   clicksThreshold: number | null;
   viewsThreshold: number | null;
@@ -46,6 +49,16 @@ export async function getNotificationConfigByPage(
     .select()
     .from(notificationConfigs)
     .where(eq(notificationConfigs.pageId, pageId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** The (single) instance-wide webhook config (pageId NULL), settings UI. */
+export async function getInstanceNotificationConfig(): Promise<NotificationConfigRow | null> {
+  const rows = await db
+    .select()
+    .from(notificationConfigs)
+    .where(isNull(notificationConfigs.pageId))
     .limit(1);
   return rows[0] ?? null;
 }

@@ -20,10 +20,16 @@ import { isValidWebhookUrl } from "@/lib/notifications/url";
 import {
   createNotificationConfig,
   deleteNotificationConfigForPage,
+  getInstanceNotificationConfig,
   getNotificationConfigByPage,
   updateNotificationConfig,
+  deleteNotificationConfig,
 } from "@/server/queries/notifications";
 import { deliverToWebhook } from "@/server/notifications/emit";
+import {
+  INSTANCE_EVENT_KINDS,
+  serializeEventSubscription,
+} from "@/lib/notifications/events";
 
 /** Tri-state FormData contract: "" (present but empty) = metric off (null). */
 function optionalThreshold(raw: FormDataEntryValue | null): number | null {
@@ -54,16 +60,37 @@ async function requireInstanceAdmin(
 }
 
 const saveSchema = z.object({
-  pageId: z.coerce.number().int().positive(),
+  /** Absent = instance-wide config (subscribers/admin/updates/digest). */
+  pageId: z.coerce.number().int().positive().optional(),
   url: z
     .string()
     .max(2048)
     .refine(isValidWebhookUrl, "Webhook URL must be a valid http(s) URL"),
-  provider: z.enum(["discord", "slack", "telegram", "ntfy"]),
+  provider: z.enum(["discord", "slack", "telegram", "ntfy", "generic"]),
   enabled: z.enum(["true", "false"]),
+  /** Checked event kinds ride as repeated `event` fields. */
 });
 
-/** Upsert the (single) webhook config for a page. Autosaved from the card. */
+/** Collect + validate the checked `event` checkboxes into a canonical CSV.
+ * Page configs default to "milestones" (the checkbox contract predates
+ * instance events); instance configs must select at least one kind. */
+function eventsCsv(formData: FormData, isInstance: boolean): string | null {
+  const kinds = formData
+    .getAll("event")
+    .map((v) => v.toString().trim())
+    .filter(Boolean);
+  if (kinds.length === 0) {
+    return isInstance ? null : "milestones";
+  }
+  for (const k of kinds) {
+    if (k !== "milestones" && !(INSTANCE_EVENT_KINDS as readonly string[]).includes(k)) {
+      return null;
+    }
+  }
+  return serializeEventSubscription(kinds);
+}
+
+/** Upsert the (single) webhook config for a page or the instance. Autosaved. */
 export async function saveNotificationConfigAction(
   formData: FormData,
 ): Promise<ActionResult> {
@@ -74,8 +101,9 @@ export async function saveNotificationConfigAction(
   const gated = await requireInstanceAdmin(session);
   if (gated) return gated;
 
+  const rawPageId = formData.get("pageId");
   const parsed = saveSchema.safeParse({
-    pageId: formData.get("pageId"),
+    pageId: rawPageId === null || rawPageId === "" ? undefined : rawPageId,
     url: (formData.get("url") ?? "").toString().trim(),
     provider: formData.get("provider") ?? "discord",
     enabled: formData.get("enabled") === "true" ? "true" : "false",
@@ -85,16 +113,24 @@ export async function saveNotificationConfigAction(
   }
 
   const d = parsed.data;
+  const events = eventsCsv(formData, !d.pageId);
+  if (events === null) {
+    return validationError("Select at least one notification type");
+  }
+
   const input = {
-    pageId: d.pageId,
+    pageId: d.pageId ?? null,
     url: d.url,
     provider: d.provider as NotificationProvider,
+    events,
     enabled: d.enabled === "true",
     clicksThreshold: optionalThreshold(formData.get("clicksThreshold")),
     viewsThreshold: optionalThreshold(formData.get("viewsThreshold")),
   };
 
-  const existing = await getNotificationConfigByPage(d.pageId);
+  const existing = d.pageId
+    ? await getNotificationConfigByPage(d.pageId)
+    : await getInstanceNotificationConfig();
   if (existing) {
     await updateNotificationConfig(existing.id, input);
   } else {
@@ -119,11 +155,15 @@ export async function sendTestNotificationAction(
   const gated = await requireInstanceAdmin(session);
   if (gated) return gated;
 
-  const pageId = Number(formData.get("pageId"));
-  if (!Number.isInteger(pageId) || pageId <= 0) {
+  const pageIdRaw = formData.get("pageId");
+  const pageId =
+    pageIdRaw === null || pageIdRaw === "" ? null : Number(pageIdRaw);
+  if (pageId !== null && (!Number.isInteger(pageId) || pageId <= 0)) {
     return validationError("Invalid page");
   }
-  const config = await getNotificationConfigByPage(pageId);
+  const config = pageId
+    ? await getNotificationConfigByPage(pageId)
+    : await getInstanceNotificationConfig();
   if (!config) return validationError("Save the webhook configuration first");
 
   const outcome = await deliverToWebhook(
@@ -131,6 +171,8 @@ export async function sendTestNotificationAction(
       id: config.id,
       url: config.url,
       provider: config.provider as NotificationProvider,
+      events: config.events,
+      pageId: config.pageId,
       clicksThreshold: config.clicksThreshold,
       viewsThreshold: config.viewsThreshold,
     },
@@ -162,7 +204,16 @@ export async function deleteNotificationConfigAction(
   const gated = await requireInstanceAdmin(session);
   if (gated) return gated;
 
-  const pageId = Number(formData.get("pageId"));
+  const pageIdRaw = formData.get("pageId");
+  if (pageIdRaw === null || pageIdRaw === "") {
+    // Instance-wide config (pageId NULL). Delivery log cascades via FK.
+    const existing = await getInstanceNotificationConfig();
+    if (!existing) return validationError("No instance webhook to remove");
+    await deleteNotificationConfig(existing.id);
+    revalidatePath("/settings");
+    return { success: true };
+  }
+  const pageId = Number(pageIdRaw);
   if (!Number.isInteger(pageId) || pageId <= 0) {
     return validationError("Invalid page");
   }

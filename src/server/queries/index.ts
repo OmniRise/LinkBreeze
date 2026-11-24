@@ -21,6 +21,10 @@ import { resolveCapabilities, type RoleCapabilities } from "@/lib/ownership";
 import { PRESETS } from "@/lib/theme-presets";
 import { emitPageMilestones } from "@/server/notifications/emit";
 import {
+  emitSubscriberPing,
+  maybeEmitWeeklyDigest,
+} from "@/server/notifications/instance-events";
+import {
   eq,
   and,
   or,
@@ -1341,6 +1345,8 @@ export async function recordPageview(
   // #13: milestone webhooks — emit is throw-safe and delivery is
   // fire-and-forget, so the page render never waits on the network.
   if (pageId !== undefined) await emitPageMilestones(pageId);
+  // #13: weekly digest gate — throttled, opt-in, no-op without subscribers.
+  void maybeEmitWeeklyDigest();
 }
 
 export async function recordClick(
@@ -1379,6 +1385,8 @@ export async function recordClick(
     .where(eq(links.id, linkId))
     .limit(1);
   if (linkRows[0]) await emitPageMilestones(linkRows[0].pageId);
+  // #13: weekly digest gate — throttled, opt-in, no-op without subscribers.
+  void maybeEmitWeeklyDigest();
 }
 
 // AnalyticsRange is re-exported from the shared analytics-range module so there
@@ -1726,11 +1734,18 @@ export async function addSubscriber(
   consentText?: string,
 ): Promise<void> {
   const consentAt = new Date().toISOString();
-  await db.insert(subscribers).values({
-    email,
-    consentAt: consentText ? consentAt : null,
-    consentText: consentText ?? null,
-  });
+  const rows = await db
+    .insert(subscribers)
+    .values({
+      email,
+      consentAt: consentText ? consentAt : null,
+      consentText: consentText ?? null,
+    })
+    .returning({ id: subscribers.id });
+  // #13: opt-in subscriber ping — no-op unless an instance-wide webhook
+  // config subscribes to it. Throw-safe and fire-and-forget by design.
+  const inserted = rows[0];
+  if (inserted) void emitSubscriberPing(inserted.id, email);
 }
 
 export async function getSubscriberCount(): Promise<number> {

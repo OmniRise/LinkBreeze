@@ -430,11 +430,13 @@ export const subscribers = sqliteTable("subscribers", {
 // (config_id, dedupe_key).
 export const notificationConfigs = sqliteTable("notification_configs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  pageId: integer("page_id")
-    .notNull()
-    .references(() => pages.id, { onDelete: "cascade" }),
+  // NULL = instance-wide config (subscribers, admin feed, update ping,
+  // weekly digest). Non-NULL = page milestone config.
+  pageId: integer("page_id").references(() => pages.id, { onDelete: "cascade" }),
   url: text("url").notNull(),
-  provider: text("provider").notNull().default("discord"), // discord | slack | telegram | ntfy
+  provider: text("provider").notNull().default("discord"), // discord | slack | telegram | ntfy | generic
+  /** CSV of subscribed event types (see NOTIFICATION_EVENT_KINDS). */
+  events: text("events").notNull().default("milestones"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   clicksThreshold: integer("clicks_threshold"),
   viewsThreshold: integer("views_threshold"),

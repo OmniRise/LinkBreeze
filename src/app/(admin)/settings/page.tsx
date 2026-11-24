@@ -23,9 +23,11 @@ import { getUserById } from "@/server/queries";
 import { getApiKeyRecord } from "@/server/api-keys";
 import { getApiUsage } from "@/lib/api-usage";
 import {
+  getInstanceNotificationConfig,
   getNotificationConfigByPage,
   getRecentDeliveries,
 } from "@/server/queries/notifications";
+import { maybeEmitWeeklyDigest } from "@/server/notifications/instance-events";
 import { QrCard } from "./qr-card";
 import { ApiKeyCard } from "./api-key-card";
 import { GeneralTab, IntegrationTab, AppearanceTab, CustomCssCard } from "./settings-tab-forms";
@@ -119,13 +121,20 @@ export default async function SettingsPage({
       }
     : null;
 
-  // Webhook notifications (#13): the active page's config + recent deliveries.
+  // Webhook notifications (#13): the active page's config + recent deliveries,
+  // plus the instance-wide config (subscribers/admin/updates/digest).
   const notificationConfig = activePage
     ? await getNotificationConfigByPage(activePage.id)
     : null;
   const notificationDeliveries = notificationConfig
     ? await getRecentDeliveries(notificationConfig.id, 10)
     : [];
+  const instanceConfig = await getInstanceNotificationConfig();
+  const instanceDeliveries = instanceConfig
+    ? await getRecentDeliveries(instanceConfig.id, 10)
+    : [];
+  // #13: weekly digest gate — throttled, opt-in, no-op without subscribers.
+  maybeEmitWeeklyDigest();
 
   // #83: opportunistic scheduled-backup trigger on admin loads (quiet
   // instances whose owners log in but get no public traffic still back up).
@@ -217,6 +226,12 @@ export default async function SettingsPage({
                   initialDeliveries={notificationDeliveries}
                 />
               ) : null}
+              {/* Webhook notifications (#13) — instance-wide (opt-in kinds) */}
+              <NotificationsCard
+                pageId={null}
+                initialConfig={instanceConfig}
+                initialDeliveries={instanceDeliveries}
+              />
             </div>
           ),
           appearance: (

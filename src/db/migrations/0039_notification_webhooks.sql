@@ -1,11 +1,16 @@
--- 0029: Webhook notification layer (#13). Per-page webhook configs plus a
+-- Webhook notification layer (#13). Per-page webhook configs plus a
 -- delivery log. Tables start empty: the layer is opt-in and existing
 -- installs boot unchanged (emit is a no-op until a config exists).
+-- page_id is NULLABLE: NULL = an instance-wide config (subscribers, admin
+-- security feed, update ping, weekly digest) instead of a page milestone
+-- config. `events` is a CSV of subscribed event types; page configs default
+-- to 'milestones', instance configs list their own set.
 CREATE TABLE `notification_configs` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`page_id` integer NOT NULL,
+	`page_id` integer,
 	`url` text NOT NULL,
 	`provider` text DEFAULT 'discord' NOT NULL,
+	`events` text DEFAULT 'milestones' NOT NULL,
 	`enabled` integer DEFAULT 1 NOT NULL,
 	`clicks_threshold` integer,
 	`views_threshold` integer,
