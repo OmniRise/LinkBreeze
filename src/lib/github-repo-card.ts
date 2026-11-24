@@ -69,16 +69,28 @@ export async function fetchGithubRepoInfo(
       return null;
     }
     const j = (await res.json()) as Record<string, unknown>;
+    const ownerLogin = String((j.owner as Record<string, unknown> | undefined)?.login ?? owner);
+    const avatarRaw = String((j.owner as Record<string, unknown> | undefined)?.avatar_url ?? "");
+    // The API response is trusted for data but not for link/img targets: a
+    // compromised or tampered payload must not turn the card into a link to
+    // (or an image loaded from) an arbitrary URL. Non-https avatar → no
+    // avatar; non-github html_url → the canonical constructed URL.
+    const avatar = avatarRaw.startsWith("https://") ? avatarRaw : "";
+    const rawHtmlUrl = typeof j.html_url === "string" ? j.html_url : "";
+    const htmlUrl =
+      rawHtmlUrl.startsWith("https://github.com/") && !/[\s"'<>]/.test(rawHtmlUrl)
+        ? rawHtmlUrl
+        : `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
     const info: GithubRepoInfo = {
       fullName: String(j.full_name ?? `${owner}/${repo}`),
-      owner: String((j.owner as Record<string, unknown> | undefined)?.login ?? owner),
-      ownerAvatarUrl: String((j.owner as Record<string, unknown> | undefined)?.avatar_url ?? ""),
+      owner: ownerLogin,
+      ownerAvatarUrl: avatar,
       description: typeof j.description === "string" && j.description ? j.description : null,
       stars: typeof j.stargazers_count === "number" ? j.stargazers_count : 0,
       forks: typeof j.forks_count === "number" ? j.forks_count : 0,
       language: typeof j.language === "string" && j.language ? j.language : null,
       homepage: typeof j.homepage === "string" && j.homepage ? j.homepage : null,
-      htmlUrl: String(j.html_url ?? `https://github.com/${owner}/${repo}`),
+      htmlUrl,
     };
     cache.set(key, { info, expires: Date.now() + POSITIVE_TTL_MS });
     return info;

@@ -14,8 +14,8 @@ describe("resolveEmbedFrame — existing providers (regression)", () => {
   });
 
   it("youtube shorts and /embed/ paths", () => {
-    expect(resolveEmbedFrame("https://youtube.com/shorts/xyz?feature=share")?.src).toContain("/embed/xyz");
-    expect(resolveEmbedFrame("https://youtube-nocookie.com/embed/xyz")?.src).toContain("/embed/xyz");
+    expect(resolveEmbedFrame("https://youtube.com/shorts/dQw4w9WgXcQ?feature=share")?.src).toContain("/embed/dQw4w9WgXcQ");
+    expect(resolveEmbedFrame("https://youtube-nocookie.com/embed/dQw4w9WgXcQ")?.src).toContain("/embed/dQw4w9WgXcQ");
   });
 
   it("spotify strips a pasted /embed/ prefix", () => {
@@ -43,6 +43,18 @@ describe("resolveEmbedFrame — existing providers (regression)", () => {
   it("unknown providers and malformed URLs return null", () => {
     expect(resolveEmbedFrame("https://example.com/video/1")).toBeNull();
     expect(resolveEmbedFrame("not a url")).toBeNull();
+  });
+
+  it("non-https URLs never produce a frame (legacy/restored rows)", () => {
+    expect(resolveEmbedFrame("http://youtube.com/watch?v=dQw4w9WgXcQ")).toBeNull();
+    expect(resolveEmbedFrame("javascript:alert(1)")).toBeNull();
+  });
+
+  it("youtube/vimeo ids with non-token characters are rejected (src-template injection)", () => {
+    expect(resolveEmbedFrame("https://youtube.com/watch?v=x?<script>")).toBeNull();
+    expect(resolveEmbedFrame("https://youtube.com/watch?v=..%2F..%2F")).toBeNull();
+    expect(resolveEmbedFrame("https://vimeo.com/<script>alert</script>")).toBeNull();
+    expect(resolveEmbedFrame("https://vimeo.com/12345678")).not.toBeNull();
   });
 });
 

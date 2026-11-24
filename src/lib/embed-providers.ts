@@ -83,21 +83,28 @@ export function resolveEmbedFrame(
 ): EmbedFrame | null {
   try {
     const u = new URL(url);
+    // Defense-in-depth at render: the write boundary (linkSchema →
+    // isAllowedLinkUrl) already restricts embed links to https:, but restored
+    // backups or legacy rows never re-validate. An http/javascript src in an
+    // iframe is never acceptable.
+    if (u.protocol !== "https:") return null;
     const host = u.hostname.replace(/^www\./, "");
 
-    // YouTube — watch?v=, youtu.be/, /embed/, /shorts/
+    // YouTube — watch?v=, youtu.be/, /embed/, /shorts/. The id lands inside
+    // the iframe src template, so it must be plain token characters.
+    const VIDEO_ID_SAFE = /^[A-Za-z0-9_-]{6,}$/;
     if (host === "youtube.com" || host === "m.youtube.com" || host === "youtube-nocookie.com") {
       const videoId =
         u.searchParams.get("v") ||
         u.pathname.split("/").filter(Boolean).slice(-1)[0];
-      if (videoId) {
+      if (videoId && VIDEO_ID_SAFE.test(videoId)) {
         return frame(`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1`, "youtube");
       }
       return null;
     }
     if (host === "youtu.be") {
       const videoId = firstSegment(u);
-      if (videoId) {
+      if (videoId && VIDEO_ID_SAFE.test(videoId)) {
         return frame(`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1`, "youtube");
       }
       return null;
@@ -113,10 +120,10 @@ export function resolveEmbedFrame(
       });
     }
 
-    // Vimeo
+    // Vimeo — numeric ids only (the id lands in the iframe src template).
     if (host === "vimeo.com") {
       const videoId = firstSegment(u);
-      if (videoId) {
+      if (videoId && /^\d{5,12}$/.test(videoId)) {
         return frame(`https://player.vimeo.com/video/${videoId}`, "vimeo");
       }
       return null;

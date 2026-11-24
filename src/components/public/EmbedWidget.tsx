@@ -255,16 +255,26 @@ function GithubRepoCardContent({ info, title }: { info: GithubRepoInfo; title: s
   );
 }
 
-/** Plain clickable card — unknown embed URLs degrade to this, never vanish. */
+/** Plain clickable card — unknown embed URLs degrade to this, never vanish.
+ *  The href is a stored value: only https survives into an anchor (the write
+ *  boundary enforces this for embed links; this guards legacy/restored rows). */
 function FallbackCardContent({ url, title }: { url: string; title: string }) {
   let host = url;
+  let clickable = false;
   try {
-    host = new URL(url).hostname.replace(/^www\./, "");
+    const u = new URL(url);
+    clickable = u.protocol === "https:";
+    host = u.hostname.replace(/^www\./, "");
   } catch {
     /* stored URLs are validated at save time; keep the raw string */
   }
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer nofollow" style={CARD_LINK_STYLE}>
+    <a
+      href={clickable ? url : undefined}
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+      style={{ ...CARD_LINK_STYLE, cursor: clickable ? "pointer" : "default" }}
+    >
       <span style={{ fontWeight: 600, color: "var(--lb-text)" }}>{title}</span>
       <span
         style={{

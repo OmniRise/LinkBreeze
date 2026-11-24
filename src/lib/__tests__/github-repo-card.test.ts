@@ -93,4 +93,18 @@ describe("fetchGithubRepoInfo", () => {
     expect(info?.language).toBeNull();
     expect(info?.homepage).toBeNull();
   });
+
+  it("a tampered html_url never becomes the card href", async () => {
+    const body = { ...API_REPO_JSON, html_url: "https://evil.example/phish" };
+    const f = mockFetchOnce(200, body);
+    const info = await fetchGithubRepoInfo("vercel", "next.js", f as unknown as typeof fetch);
+    expect(info?.htmlUrl).toBe("https://github.com/vercel/next.js");
+  });
+
+  it("a non-https avatar url is dropped", async () => {
+    const body = { ...API_REPO_JSON, owner: { login: "vercel", avatar_url: "http://evil.example/a.png" } };
+    const f = mockFetchOnce(200, body);
+    const info = await fetchGithubRepoInfo("vercel", "next.js", f as unknown as typeof fetch);
+    expect(info?.ownerAvatarUrl).toBe("");
+  });
 });
