@@ -11,6 +11,8 @@
  * parseGithubRepoUrl() + the server-side repo card (see github-repo-card.ts).
  */
 
+import { mapEmbedSrc } from "@/lib/link-url";
+
 export interface EmbedFrame {
   src: string;
   /** CSS aspect-ratio value, or "auto" for fixed-height players. */
@@ -20,6 +22,19 @@ export interface EmbedFrame {
   height: number;
   /** Players without their own title UI get a caption under the frame. */
   caption: boolean;
+  /**
+   * "inline" (default): iframe renders directly in the page card.
+   * "modal": the card shows a themed preview tile; tapping opens a native
+   * <dialog> with the iframe — for providers whose content is tall
+   * (booking calendars, forms) or portrait (TikTok 9:16), where an inline
+   * frame would break the page rhythm. Lazy: no third-party contact until
+   * the visitor taps.
+   */
+  mode?: "inline" | "modal";
+  /** Human provider name shown on modal preview tiles ("Cal.com booking"). */
+  label?: string;
+  /** Lucide icon name for the modal preview tile ("calendar"). */
+  icon?: string;
 }
 
 /** Twitch player/clips embeds refuse to run unless `parent` is the page host. */
@@ -207,6 +222,114 @@ export function resolveEmbedFrame(
       if (u.pathname.startsWith("/embed/")) {
         return frame(u.toString(), "rumble");
       }
+      return null;
+    }
+
+    // Odysee — /@channel/video-slug (claim ids add ":<number>" suffixes).
+    // Pasted /$/embed/ links normalize to the canonical path. 16:9 inline.
+    if (host === "odysee.com") {
+      const path = u.pathname
+        .replace(/^\/\$\/embed\/?/, "")
+        .replace(/^\//, "");
+      if (/^@[A-Za-z0-9][A-Za-z0-9._:-]*(\/[A-Za-z0-9][A-Za-z0-9._:-]*)*$/.test(path)) {
+        return frame(`https://odysee.com/$/embed/${path}`, "odysee");
+      }
+      return null;
+    }
+
+    // Google Forms — published forms only (viewform URLs). The legacy
+    // /forms/d/<ID>/ shape normalizes to the /d/e/ embed form. Modal: forms
+    // are long scrollable documents, not 16:9 media.
+    if (host === "docs.google.com") {
+      const m = u.pathname.match(/^\/forms\/(?:d\/e\/|d\/)([A-Za-z0-9_-]{10,})\/viewform$/);
+      if (m) {
+        return frame(
+          `https://docs.google.com/forms/d/e/${m[1]}/viewform?embedded=true`,
+          "gforms",
+          { mode: "modal", label: "Google Form", icon: "clipboard-list", aspect: "auto", height: 0 },
+        );
+      }
+      return null;
+    }
+
+    // Tally — published forms: /r/<id> (share) or /forms/<id>. Modal, same
+    // rationale as Google Forms.
+    if (host === "tally.so") {
+      const m = u.pathname.match(/^\/(?:r|forms)\/([A-Za-z0-9_-]{3,})$/);
+      if (m) {
+        return frame(
+          `https://tally.so/embed/${m[1]}?alignLeft=1&hideTitle=1&transparentBackground=1`,
+          "tally",
+          { mode: "modal", label: "Tally form", icon: "list-checks", aspect: "auto", height: 0 },
+        );
+      }
+      return null;
+    }
+
+    // Cal.com — booking pages: /<user> or /<user>/<event-type>. Modal (the
+    // booking calendar is a tall interactive document). Reserved roots are
+    // site pages, never booking users.
+    if (host === "cal.com") {
+      const segs = u.pathname.split("/").filter(Boolean);
+      const CAL_RESERVED = new Set([
+        "signup", "login", "logout", "api", "auth", "settings", "docs", "blog",
+        "about", "pricing", "privacy", "terms", "teams", "enterprise", "apps",
+        "downloads", "help", "security", "careers", "press", "brand", "gifting",
+        "booking", "bookings", "availability", "embed", "store",
+      ]);
+      if (
+        segs.length >= 1 &&
+        segs.length <= 2 &&
+        segs.every((s) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(s)) &&
+        !CAL_RESERVED.has(segs[0].toLowerCase())
+      ) {
+        return frame(`https://cal.com/${segs.join("/")}?embed=true`, "calcom", {
+          mode: "modal",
+          label: "Cal.com booking",
+          icon: "calendar",
+          aspect: "auto",
+          height: 0,
+        });
+      }
+      return null;
+    }
+
+    // TikTok — /@user/video/<id> (numeric id only). Portrait 9:16 media:
+    // modal, so the dialog can size itself to the viewport without forcing
+    // a portrait frame into the page's inline rhythm.
+    if (host === "tiktok.com" || host === "m.tiktok.com") {
+      const m = u.pathname.match(/^\/@[A-Za-z0-9._]+\/video\/(\d{10,20})$/);
+      if (m) {
+        return frame(`https://www.tiktok.com/embed/v2/${m[1]}`, "tiktok", {
+          mode: "modal",
+          label: "TikTok",
+          icon: "music-2",
+          aspect: "9 / 16",
+          height: 0,
+        });
+      }
+      return null;
+    }
+
+    // Google Maps — two keyless shapes, both inline 16:9:
+    // 1. /maps/embed?pb=<blob> — the blob from Google's "Share → Embed a
+    //    map" dialog (charset-checked; it lands inside an iframe src).
+    // 2. every other public Maps URL shape (/maps/place/, /@lat,lng/,
+    //    /maps/search/, ?q=) delegates to the #93 keyless builder, which
+    //    converts them to a q= pin without an API key. Short links
+    //    (maps.app.goo.gl) are expanded to their target URL at save time —
+    //    the registry only sees resolved URLs.
+    if (host === "google.com" || host === "maps.google.com") {
+      if (!u.pathname.startsWith("/maps") && !(host === "maps.google.com")) return null;
+      if (u.pathname === "/maps/embed") {
+        const pb = u.searchParams.get("pb") ?? "";
+        if (pb.length >= 50 && /^[A-Za-z0-9!;_.$,%+:@/?=&-]+$/.test(pb)) {
+          return frame(`https://www.google.com/maps/embed?pb=${pb}`, "gmaps");
+        }
+        return null;
+      }
+      const src = mapEmbedSrc(url);
+      if (src) return frame(src, "gmaps");
       return null;
     }
 

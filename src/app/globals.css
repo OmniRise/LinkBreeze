@@ -378,6 +378,55 @@ a.lb-share-link:hover { color: var(--lb-text); }
 .lb-popup-body .lb-md-h1 { font-size: calc(var(--lb-font-size) + 3px); }
 .lb-popup-body .lb-md-h2 { font-size: calc(var(--lb-font-size) + 1px); }
 .lb-popup-body .lb-md-list { margin: 4px 0 10px; padding-left: 20px; color: var(--lb-text); }
+
+/* Embed click-to-open tiles (#13 follow-up): TikTok / Cal.com / Forms /
+   Tally render a themed preview tile; tapping opens a native dialog whose
+   iframe attaches lazily. Tokens only — inherits every theme. */
+.lb-embed-open {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--lb-btn-padding-x) / 1.5);
+  width: 100%;
+  padding: calc(var(--lb-btn-padding-y) * 1.4) var(--lb-btn-padding-x);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--lb-text);
+  font-family: var(--lb-font);
+}
+.lb-embed-open:hover .lb-embed-open-title { color: var(--lb-accent); }
+.lb-embed-open-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--lb-card-radius);
+  background: color-mix(in srgb, var(--lb-accent) 14%, transparent);
+  color: var(--lb-accent);
+}
+.lb-embed-open-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lb-embed-open-title {
+  font-weight: calc(var(--lb-font-weight) + 100);
+  font-size: var(--lb-font-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color .15s ease;
+}
+.lb-embed-open-label {
+  font-size: calc(var(--lb-font-size) - 2px);
+  opacity: 0.65;
+  color: var(--lb-text);
+}
+.lb-embed-dialog-body {
+  padding: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.lb-embed-frame { border-radius: min(var(--lb-card-radius), 12px); }
 .lb-popup-body .lb-md-list li { margin: 3px 0; }
 .lb-popup-body ol.lb-md-ol { list-style: decimal; }
 .lb-popup-body .lb-md-hr { border: none; border-top: 1px solid var(--lb-card-border); margin: 14px 0; }

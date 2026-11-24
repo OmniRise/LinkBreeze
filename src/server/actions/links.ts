@@ -196,6 +196,13 @@ async function expandMapsShortLink(url: string): Promise<string> {
 async function resolvePopupFields(
   d: { type: string; url: string; ctaLabel?: string | null },
 ): Promise<{ url: string; ctaLabel: string | null }> {
+  if (d.type === "embed" && isMapsShortLink(d.url)) {
+    // Embed links with Maps short links expand exactly like location cards:
+    // the stored URL becomes the resolved google.com/maps page, which the
+    // embed registry renders keylessly (mapEmbedSrc). Failures keep the
+    // short link — the widget degrades to the plain card, never a dead link.
+    return { url: await expandMapsShortLink(d.url), ctaLabel: d.ctaLabel?.trim() || null };
+  }
   if (d.type === "location") {
     // Bake the admin-locale default label at save time so the public page
     // renders pure data (no locale lookup at request time).

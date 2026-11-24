@@ -424,6 +424,7 @@ export default async function PublicPage({ params }: PageProps) {
                       key={link.id}
                       url={link.url}
                       title={link.title}
+                      linkId={link.id}
                       index={0}
                       baseDelayMs={delays[gi]?.links[li] ?? 0}
                       animationType={theme?.animationType || "lift"}

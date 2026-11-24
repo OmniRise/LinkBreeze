@@ -29,7 +29,7 @@ function svgAttrs(attrs: Record<string, string>): string {
     .join(" ");
 }
 
-function lucideIconSvg(name: string, size = 20): string | null {
+export function lucideIconSvg(name: string, size = 20): string | null {
   const Component = resolveIcon(name);
   if (!Component) return null;
   // forwardRef.render(props, ref) → element whose props carry the raw icon

@@ -1,10 +1,13 @@
 import { revealAnimationStyle, type ThemeInput } from "@/lib/theme-tokens";
 import { parseGithubRepoUrl, resolveEmbedFrame, type EmbedFrame } from "@/lib/embed-providers";
 import { fetchGithubRepoInfo, type GithubRepoInfo } from "@/lib/github-repo-card";
+import { buildEmbedModalHtml } from "@/components/public/build-embed-modal";
 
 interface EmbedWidgetProps {
   url: string;
   title: string;
+  /** Unique link id — names the modal <dialog> and keys the open beacon. */
+  linkId: number;
   index: number;
   animationType: string;
   theme?: ThemeInput;
@@ -81,6 +84,7 @@ function PixelFrame({
 export async function EmbedWidget({
   url,
   title,
+  linkId,
   index,
   animationType,
   theme,
@@ -103,6 +107,17 @@ export async function EmbedWidget({
 
   if (repo) {
     content = <GithubRepoCardContent info={repo} title={title} />;
+  } else if (embed && embed.mode === "modal") {
+    // Click-to-open providers (TikTok portrait, Cal.com, Forms, Tally):
+    // themed preview tile + native <dialog>, iframe attached lazily on
+    // open — the same zero-JS pattern as the #93 location popups.
+    content = (
+      <div
+        // The tile + dialog carry inline onclick handlers (the popup-card
+        // contract); React server components cannot express them as props.
+        dangerouslySetInnerHTML={{ __html: buildEmbedModalHtml(embed, title, linkId) }}
+      />
+    );
   } else if (embed) {
     content = <EmbedFrameContent embed={embed} title={title} />;
   } else {
