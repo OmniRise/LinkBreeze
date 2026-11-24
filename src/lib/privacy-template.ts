@@ -93,7 +93,7 @@ export function generatePrivacyPolicy(input: PrivacyTemplateInput): string {
     sections.push(
       `## Embedded Content`,
       ``,
-      `This page contains embedded content from third-party platforms (such as YouTube, Spotify, Vimeo, SoundCloud, or Bandcamp). When you view or interact with an embed, the platform may collect data according to their own privacy policies. YouTube uses youtube-nocookie.com which limits but does not fully prevent tracking.`,
+      `This page contains embedded content from third-party platforms (such as YouTube, Spotify, Vimeo, SoundCloud, Bandcamp, Twitch, Dailymotion, Rumble, or GitHub). When you view or interact with an embed, the platform may collect data according to their own privacy policies. YouTube uses youtube-nocookie.com which limits but does not fully prevent tracking.`,
       ``,
     );
   }

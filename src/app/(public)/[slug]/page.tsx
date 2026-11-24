@@ -238,6 +238,13 @@ export default async function PublicPage({ params }: PageProps) {
 
   const themeInput: ThemeInput = theme ?? {};
 
+  // Twitch embeds require parent=<visitor-visible host>, which varies per
+  // page (custom domains) — resolve once per request, pass down to widgets.
+  const requestHost =
+    normalizeHost(
+      (await headers()).get("x-forwarded-host") || (await headers()).get("host"),
+    ) || undefined;
+
   // Uploaded fonts (#82): resolve "custom:<id>" refs to @font-face rules +
   // a lookup map so the token resolver emits the right family stacks.
   // Both the site font AND the card font may reference uploaded fonts.
@@ -421,6 +428,7 @@ export default async function PublicPage({ params }: PageProps) {
                       baseDelayMs={delays[gi]?.links[li] ?? 0}
                       animationType={theme?.animationType || "lift"}
                       theme={themeInput}
+                      requestHost={requestHost}
                     />
                   ) : link.type === "divider" ? (
                     <DividerElement
