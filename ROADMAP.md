@@ -8,9 +8,9 @@ Feature requests are welcome - open an issue or join the [Discord](https://disco
 
 ## Now
 
-- **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord-style and Telegram-compatible payloads.
+- **Shared notification layer** (#13) - webhook notifications that any feature can plug into (analytics milestones today, more tomorrow), with Discord, Slack, Telegram and ntfy payloads. Code-complete on develop, shipping in v1.7.
 
-- **More embed providers** - grow the embed widget beyond YouTube, Spotify, Vimeo, SoundCloud and Bandcamp: TikTok, Twitch, Dailymotion, Odysee, Rumble, GitHub repo cards, Google Forms, Tally, Cal.com, Google Maps, and generic Open Graph previews for any other URL. Discord and Slack integrations ride the shared notification layer (#13).
+- **More embed providers** - grow the embed widget beyond YouTube, Spotify, Vimeo, SoundCloud and Bandcamp: TikTok, Odysee, Google Forms, Tally, Cal.com, Google Maps, and generic Open Graph previews for any other URL. Dailymotion, Twitch, Rumble and GitHub repo cards shipped in v1.6.2. Discord and Slack integrations ride the shared notification layer (#13).
 
 - **Link tags and saved filters** - tag links by campaign, product, client or lifecycle stage, save filter queries to the dashboard, and use tags as the foundation for bulk operations, conversion goals and smart ordering.
 
