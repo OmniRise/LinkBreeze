@@ -193,7 +193,7 @@ jobs:
             latest-version.json > website/public/latest-version.json
           cat website/public/latest-version.json
 
-      - name: Open PR on the website repo
+      - name: Open or update PR on the website repo
         env:
           GH_TOKEN: ${{ secrets.WEBSITE_SYNC_TOKEN }}
           TAG: ${{ github.ref_name }}
@@ -202,10 +202,19 @@ jobs:
           git config user.name "linkbreeze-release-bot"
           git config user.email "bot@users.noreply.github.com"
           BRANCH="release-sync/${TAG}"
-          git checkout -b "$BRANCH"
-          git commit -am "chore(release): sync latest-version.json for ${TAG}"
-          git push origin "$BRANCH"
-          gh pr create -R OmniRise/LinkBreeze-Website \
-            --base main --head "$BRANCH" \
-            --title "Release sync: ${TAG}" \
-            --body "Automated sync of \`public/latest-version.json\` for ${TAG} (source: LinkBreeze release workflow). Merge to deploy the new update-banner data."
+          # -B resets stale local state; --force overwrites the remote branch.
+          # The branch is bot-owned per tag, so re-cutting a release replaces
+          # the previous attempt instead of failing the job on a
+          # non-fast-forward (the branch already exists from the first cut).
+          git checkout -B "$BRANCH"
+          git commit -m "chore(release): sync latest-version.json for ${TAG}" -- public/latest-version.json
+          git push --force origin "$BRANCH"
+          if gh pr view "$BRANCH" -R OmniRise/LinkBreeze-Website --json state --jq .state >/dev/null 2>&1; then
+            gh pr comment "$BRANCH" -R OmniRise/LinkBreeze-Website \
+              --body "Re-synced for the re-cut ${TAG}: the branch was force-updated with the final latest-version.json."
+          else
+            gh pr create -R OmniRise/LinkBreeze-Website \
+              --base main --head "$BRANCH" \
+              --title "Release sync: ${TAG}" \
+              --body "Automated sync of \`public/latest-version.json\` for ${TAG} (source: LinkBreeze release workflow). Merge to deploy the new update-banner data."
+          fi
