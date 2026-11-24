@@ -194,7 +194,7 @@ Installation mit einem Klick aus dem App-Store deiner Plattform. Updates kommen 
 - **Runtipi** (v4+): Einstellungen → App Stores → `https://github.com/OmniRise/LinkBreeze-Runtipi-Store` hinzufügen, dann **LinkBreeze** installieren
 - **Unraid**: Reiter **Apps** → nach **LinkBreeze** suchen → **Installieren**
 - **CasaOS / ZimaOS**: in Prüfung, App-Store-PR [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
-- **TrueNAS** (24.10+): in Prüfung im offiziellen Katalog, PR [#6617](https://github.com/truenas/apps/pull/6617)
+- **TrueNAS** (24.10+): Reiter **Apps** → **Discover Apps** → nach **LinkBreeze** suchen → **Installieren**
 
 </details>
 

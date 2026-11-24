@@ -194,7 +194,7 @@ Container Manager (DSM 7.2+):
 - **Runtipi** (v4+): Настройки → App Stores → добавьте `https://github.com/OmniRise/LinkBreeze-Runtipi-Store`, затем установите **LinkBreeze**
 - **Unraid**: Вкладка **Apps** → найдите **LinkBreeze** → **Установить**
 - **CasaOS / ZimaOS**: на рассмотрении, PR App Store [#1112](https://github.com/IceWhaleTech/CasaOS-AppStore/pull/1112)
-- **TrueNAS** (24.10+): на рассмотрении в официальном каталоге, PR [#6617](https://github.com/truenas/apps/pull/6617)
+- **TrueNAS** (24.10+): Вкладка **Apps** → **Discover Apps** → найдите **LinkBreeze** → **Установить**
 
 </details>
 
