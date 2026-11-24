@@ -72,9 +72,12 @@ function buildCsp(): { key: string; value: string } {
       "media-src 'self' https: blob:",
       "font-src 'self' data:",
       "connect-src 'self'",
+      // Embed iframes (#13 registry): players inline + click-to-open dialogs.
       // Location popup maps (#93): the keyless embed lives on maps.google.com
       // but redirects to www.google.com to serve tiles — both must be allowed.
-      "frame-src 'self' https://www.youtube-nocookie.com https://open.spotify.com https://player.vimeo.com https://w.soundcloud.com https://bandcamp.com https://maps.google.com https://www.google.com",
+      // New providers (embed follow-up): odysee.com (inline), www.tiktok.com,
+      // cal.com, docs.google.com (Forms) and tally.so (click-to-open modals).
+      "frame-src 'self' https://www.youtube-nocookie.com https://open.spotify.com https://player.vimeo.com https://w.soundcloud.com https://bandcamp.com https://maps.google.com https://www.google.com https://odysee.com https://www.tiktok.com https://cal.com https://docs.google.com https://tally.so",
       frameAncestors,
       "base-uri 'self'",
       "form-action 'self'",
