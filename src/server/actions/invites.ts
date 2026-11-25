@@ -40,6 +40,7 @@ export interface InviteToken {
 }
 
 import { hashInviteToken, INVITE_TTL_DAYS } from "@/lib/invite-token";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 /** Mint an invitation: 32 random bytes, stored hashed, valid 7 days. */
 export async function createInviteAction(formData: FormData): Promise<ActionResult<{ token: string; expiresAt: string }>> {
@@ -134,10 +135,7 @@ const acceptSchema = z.object({
  */
 export async function acceptInviteAction(formData: FormData): Promise<ActionResult> {
   const h = await headers();
-  const ip =
-    (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-    (h.get("x-real-ip") || "").toString() ||
-    "0.0.0.0";
+  const ip = clientIp(h);
   const rl = rateLimit(`invite:${ip}`, 5, 60_000);
   if (!rl.ok) {
     return {

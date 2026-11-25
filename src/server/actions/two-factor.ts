@@ -31,6 +31,7 @@ import {
   ErrorCode,
   logError,
 } from "@/lib/errors";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 /**
  * #5 TOTP two-factor authentication — server actions.
@@ -104,10 +105,7 @@ const totpStepSchema = z.object({
  */
 export async function verifyLoginTotp(formData: FormData): Promise<ActionResult> {
   const h = await headers();
-  const ip =
-    (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-    (h.get("x-real-ip") || "").toString() ||
-    "0.0.0.0";
+  const ip = clientIp(h);
   const limited = await totpRateLimit(ip);
   if (limited) return limited;
 
@@ -260,10 +258,7 @@ export async function confirmTotpSetup(formData: FormData): Promise<
   // Confirm is authenticated-only but still a 6-digit guessing surface —
   // same throttle as the login TOTP step.
   const h = await headers();
-  const ip =
-    (h.get("x-forwarded-for")?.split(",").pop() || "").trim() ||
-    (h.get("x-real-ip") || "").toString() ||
-    "0.0.0.0";
+  const ip = clientIp(h);
   const limited = await totpRateLimit(ip);
   if (limited && !limited.success) {
     return {

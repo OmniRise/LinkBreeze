@@ -6,6 +6,7 @@ import { isBot } from "@/lib/bot-detect";
 import { getSession } from "@/lib/auth";
 import { recordClick } from "@/server/queries";
 import { maybeRunScheduledBackup } from "@/server/backup-scheduler";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,10 +42,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const h = await headers();
-    const ip =
-      (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-      (h.get("x-real-ip") || "").toString() ||
-      "0.0.0.0";
+    const ip = clientIp(h);
 
     // Per-IP throttle: a genuine visitor won't approach 60 events/min.
     const rl = rateLimit(`track:${ip}`, 60, 60_000);

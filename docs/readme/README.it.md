@@ -384,6 +384,7 @@ Tutta la configurazione avviene tramite variabili d'ambiente. **[`.env.example`]
 | `BACKUP_DIR` | `./data/backups` | Directory di archiviazione dei backup pianificati (tienila dentro il volume persistente `./data`) |
 | `BACKUP_MIN_FREE_MB` | `50` | Salta la scrittura dei backup quando lo spazio libero scende sotto questo valore |
 | `SECRET_KEY` | Auto-generata | Chiave di firma HMAC per le sessioni |
+| `LINKBREEZE_TRUST_X_FORWARDED_FOR` | `false` | Identità client per limiti di frequenza e audit: considera attendibile l'ULTIMO hop di `X-Forwarded-For` - attivalo solo dietro un proxy che controlli che sovrascrive o aggiunge l'IP reale del client (nginx, Caddy); in accesso diretto l'header è controllato dall'attaccante e non è affidabile |
 | `EXTRA_SCRIPT_SRC` | _(vuoto)_ | Domini di analytics separati da spazi per la CSP (ad es. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(vuoto)_ | Host primario su cui vive l'admin; il blocco admin dei domini personalizzati restituisce 404 su ogni altro host (la variabile env ha la precedenza sull'impostazione admin) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Considera affidabile `X-Forwarded-Host` per il routing dei domini - abilitalo solo dietro un proxy che lo SOVRASCRIVE (nginx, Caddy); l'header `Host` predefinito non può essere falsificato |

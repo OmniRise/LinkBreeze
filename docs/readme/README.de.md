@@ -384,6 +384,7 @@ Die gesamte Konfiguration erfolgt über Umgebungsvariablen. **[`.env.example`](.
 | `BACKUP_DIR` | `./data/backups` | Speicherverzeichnis für geplante Backups (innerhalb des dauerhaften `./data`-Volumes lassen) |
 | `BACKUP_MIN_FREE_MB` | `50` | Keine Backups schreiben, wenn der freie Speicherplatz darunter fällt |
 | `SECRET_KEY` | Automatisch generiert | HMAC-Signaturschlüssel für Sessions |
+| `LINKBREEZE_TRUST_X_FORWARDED_FOR` | `false` | Client-Identität für Ratenlimits und Audit: vertraut dem LETZTEN `X-Forwarded-For`-Hop – nur hinter einem selbst kontrollierten Proxy aktivieren, der die echte Client-IP überschreibt oder anhängt (nginx, Caddy); bei direktem Zugriff ist der Header angreiferkontrolliert und wird nicht vertraut |
 | `EXTRA_SCRIPT_SRC` | _(leer)_ | Durch Leerzeichen getrennte Analyse-Domains für die CSP (z. B. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(leer)_ | Primärer Host der Verwaltung; die Admin-Host-Sperre eigener Domains liefert 404 auf allen anderen Hosts (Umgebungsvariable schlägt die Admin-Einstellung) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | `X-Forwarded-Host` für das Domain-Routing vertrauen - nur aktivieren, wenn ein Proxy die Kopfzeile ÜBERSCHREIBT (nginx, Caddy); der Standard-`Host`-Header lässt sich nicht fälschen |

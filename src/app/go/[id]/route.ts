@@ -14,6 +14,7 @@ import {
   resolveVariantUrl,
   type AbVariant,
 } from "@/lib/ab-test";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,10 +74,7 @@ export async function GET(
   if (abActive && abConfig) {
     try {
       const h0 = await headers();
-      const ip0 =
-        (h0.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-        (h0.get("x-real-ip") || "").toString() ||
-        "0.0.0.0";
+      const ip0 = clientIp(h0);
       variant = assignVariant(
         getVisitorHash(ip0, (h0.get("user-agent") || "").toString()),
         linkId,
@@ -111,10 +109,7 @@ export async function GET(
   // Matches the throttle on /api/track: 60 events/min/IP.
   try {
     const h = await headers();
-    const ip =
-      (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-      (h.get("x-real-ip") || "").toString() ||
-      "0.0.0.0";
+    const ip = clientIp(h);
 
     const rl = rateLimit(`go:${ip}`, 60, 60_000);
     if (rl.ok) {

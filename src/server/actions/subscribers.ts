@@ -8,6 +8,7 @@ import {
   validationError,
   rateLimitError,
 } from "@/lib/errors";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 const DEFAULT_CONSENT_TEXT =
   "I agree to receive emails and understand I can unsubscribe at any time.";
@@ -31,10 +32,7 @@ export async function subscribe(formData: FormData): Promise<ActionResult> {
   // Rate limit: 10 signups per minute per IP to prevent table-flooding.
   const { headers } = await import("next/headers");
   const h = await headers();
-  const ip =
-    (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-    (h.get("x-real-ip") || "").toString() ||
-    "0.0.0.0";
+  const ip = clientIp(h);
   const { rateLimit } = await import("@/lib/rate-limit");
   const rl = rateLimit(`subscribe:${ip}`, 10, 60_000);
   if (!rl.ok) {

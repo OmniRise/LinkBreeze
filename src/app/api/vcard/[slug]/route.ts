@@ -5,6 +5,7 @@ import { pickRequestHost } from "@/lib/host-routing";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildVCard, vcardFilename, pageToVCardInput } from "@/lib/wallet/vcard";
 import { parseVCardLinkConfig, buildCustomVCard } from "@/lib/vcard-link";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,8 +37,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(request.headers);
   const rl = rateLimit(`vcard:${ip}`, 10, 60_000);
   if (!rl.ok) {
     return NextResponse.json(

@@ -8,6 +8,7 @@ import {
 } from "@/lib/qr";
 import { getSetting, getPageBySlug } from "@/server/queries";
 import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +52,7 @@ function mergeStyle(saved: QrStyle, params: URLSearchParams): QrStyle {
 
 export async function GET(request: NextRequest) {
   // Rate limit: 30 QR generations per minute per IP
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(request.headers);
   const rl = rateLimit(`qr:${ip}`, 30, 60_000);
   if (!rl.ok) {
     return NextResponse.json(

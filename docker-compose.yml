@@ -19,6 +19,9 @@ services:
     environment:
       - DATABASE_PATH=/app/data/linkbreeze.db
       - SECRET_KEY=${SECRET_KEY:-}
+      # Trust the last X-Forwarded-For hop for rate limits/audit logs.
+      # Enable ONLY behind a proxy you control that rewrites the header (nginx, Caddy).
+      # - LINKBREEZE_TRUST_X_FORWARDED_FOR=true
     restart: unless-stopped
 
 volumes:

@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { auditLog } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { getSetting } from "@/server/queries";
+import { clientIp as clientIpOf } from "@/lib/rate-limit-ip";
 
 /**
  * Fixed event vocabulary (#124 follow-up audit log). The /audit filter lists
@@ -48,11 +49,9 @@ interface RecordAuditOptions {
 }
 
 function clientIp(h: Headers): string {
-  return (
-    (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-    (h.get("x-real-ip") || "").toString() ||
-    "0.0.0.0"
-  );
+  // Shared rate-limit/audit identity (security audit CD-5/PS-2) — see
+  // @/lib/rate-limit-ip for the TRUST_PROXY contract.
+  return clientIpOf(h);
 }
 
 /** Retention sweep runs at most once a minute per server process. */

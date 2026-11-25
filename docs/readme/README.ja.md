@@ -384,6 +384,7 @@ cloudflared tunnel --url http://localhost:3000
 | `BACKUP_DIR` | `./data/backups` | 定期バックアップの保存ディレクトリ(永続化した`./data`ボリューム内に置いてください) |
 | `BACKUP_MIN_FREE_MB` | `50` | 空き容量がこの値を下回るとバックアップの書き込みをスキップ |
 | `SECRET_KEY` | 自動生成 | セッション用のHMAC署名キー |
+| `LINKBREEZE_TRUST_X_FORWARDED_FOR` | `false` | レート制限と監査のクライアント識別: `X-Forwarded-For` の最終ホップを信頼します - 実際のクライアントIPを上書き・追記する自分が管理するプロキシ（nginx、Caddy）の背後でのみ有効化してください。直接接続ではこのヘッダーは攻撃者が制御するため信頼されません |
 | `EXTRA_SCRIPT_SRC` | _(空)_ | CSP用のアナリティクスドメイン(空白区切り、例:`plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(空)_ | 管理画面をホストするプライマリホスト。カスタムドメインの管理ロックが他のすべてのホストに404を返します(環境変数は管理画面の設定より優先) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | ドメインルーティングで`X-Forwarded-Host`を信頼 - このヘッダーを上書きするプロキシ(nginx、Caddy)の背後でのみ有効化してください。デフォルトの`Host`ヘッダーは偽装できません |

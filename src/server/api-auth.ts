@@ -26,6 +26,7 @@ import { recordApiUsage } from "@/lib/api-usage";
 import { etagFor, etagNotModified } from "@/lib/api-etag";
 import { demoBlock } from "@/lib/demo";
 import { ErrorCode } from "@/lib/errors";
+import { clientIp as clientIpOf } from "@/lib/rate-limit-ip";
 
 // ── Tunables (DESIGN-4.md) ─────────────────────────────────────────────
 
@@ -127,9 +128,9 @@ export type ApiGateResult =
   | { ok: true; ctx: ApiContext; rateHeaders: Record<string, string> }
   | { ok: false; response: NextResponse };
 
-/** First X-Forwarded-For hop, matching every existing route's convention. */
+/** Rate-limit identity for API routes — TRUST_PROXY contract in the lib module. */
 export function clientIp(request: NextRequest): string {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  return clientIpOf(request.headers);
 }
 
 function rateHeaders(rl: RateLimitResult, limit: number): Record<string, string> {

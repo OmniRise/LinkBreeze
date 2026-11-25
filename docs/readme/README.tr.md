@@ -384,6 +384,7 @@ Tüm yapılandırma ortam değişkenleri üzerinden yapılır. **[`.env.example`
 | `BACKUP_DIR` | `./data/backups` | Zamanlanmış yedek depolama dizini (kalıcı `./data` volume'unun içinde tut) |
 | `BACKUP_MIN_FREE_MB` | `50` | Boş alan bu değerin altına düşerse yedek yazmayı atla |
 | `SECRET_KEY` | Otomatik oluşturulur | Oturumlar için HMAC imzalama anahtarı |
+| `LINKBREEZE_TRUST_X_FORWARDED_FOR` | `false` | Hız sınırı ve denetim için istemci kimliği: `X-Forwarded-For`'ın SON atlmasına güvenir - yalnızca gerçek istemci IP'sini üzerine yazan veya ekleyen, kontrolünüzdeki bir proxy'nin (nginx, Caddy) arkasında etkinleştirin; doğrudan bağlantıda bu başlık saldırganın kontrolündedir ve güvenilmez |
 | `EXTRA_SCRIPT_SRC` | _(boş)_ | CSP için boşlukla ayrılmış analitik alan adları (örn. `plausible.io umami.is`) |
 | `LINKBREEZE_PRIMARY_HOST` | _(boş)_ | Yönetim panelinin barındığı birincil host; özel alan adı yönetici kilidi diğer tüm hostlara 404 döndürür (ortam değişkeni, panodaki ayarı geçersiz kılar) |
 | `LINKBREEZE_TRUST_X_FORWARDED_HOST` | `false` | Alan adı yönlendirmesi için `X-Forwarded-Host` başlığına güven - yalnızca bu başlığı ÜZERİNE YAZAN bir proxy arkasında etkinleştir (nginx, Caddy); varsayılan `Host` başlığı sahteciliğe açık değildir |

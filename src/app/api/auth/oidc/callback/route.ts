@@ -15,6 +15,7 @@ import {
   resolveOidcRole,
 } from "@/server/oidc-flow";
 import { pickRequestHost } from "@/lib/host-routing";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +40,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Rate limit: 30 callback hits/min/IP. States are high-entropy (brute-force
   // is hopeless), so this protects the DB writes and the discovery/token
   // fetches from hammering, not secret guessing.
-  const cbIp =
-    (request.headers.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-    (request.headers.get("x-real-ip") || "").toString() ||
-    "0.0.0.0";
+  const cbIp = clientIp(request.headers);
   const { rateLimit } = await import("@/lib/rate-limit");
   if (!rateLimit(`oidc-cb:${cbIp}`, 30, 60_000).ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });

@@ -22,6 +22,7 @@ import {
   stateExpiry,
 } from "@/server/oidc-flow";
 import { createPkce } from "@/lib/oidc";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 /** The instance origin the IdP must see as redirect_uri (same rules as QR/vCard). */
 async function instanceOrigin(): Promise<string> {
@@ -52,10 +53,7 @@ async function startOidcFlow(
   // a discovery fetch, so unbounded calls are a cheap DoS vector.
   const { headers } = await import("next/headers");
   const h = await headers();
-  const ip =
-    (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-    (h.get("x-real-ip") || "").toString() ||
-    "0.0.0.0";
+  const ip = clientIp(h);
   const { rateLimit } = await import("@/lib/rate-limit");
   const rl = rateLimit(`oidc-start:${ip}`, 10, 60_000);
   if (!rl.ok) {
