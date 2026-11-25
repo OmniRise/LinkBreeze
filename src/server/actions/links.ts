@@ -20,6 +20,7 @@ import {
   getAllLinks,
   getPageById,
   getLink,
+  getLinksByIds,
   reorderLinks as reorderLinksQuery,
   isSlugTaken,
   getCapabilitiesForUser,
@@ -571,9 +572,17 @@ export async function reorderLinks(orderedIds: number[]): Promise<ActionResult> 
   const session = await getSession();
   if (!session) return unauthorizedError();
   if (orderedIds.length > 0) {
-    // #124: reorder is a bulk write — gate on the first id's page. All ids in a
-    // single reorder gesture belong to one page's list in the UI.
-    const access = await assertLinkPageAccess(session, { linkId: orderedIds[0] });
+    // #124 + security-audit CT-2: reorder is a bulk write — the first-id gate
+    // left every other id unscoped. All ids in one reorder gesture belong to
+    // ONE page's list in the UI, so resolve the batch, refuse anything that is
+    // not exactly that shape (unknown id, mixed pages), then gate once.
+    const rows = await getLinksByIds(orderedIds);
+    const uniqueIds = new Set(orderedIds);
+    const pageIds = new Set(rows.map((r) => r.pageId));
+    if (rows.length !== uniqueIds.size || pageIds.size !== 1 || pageIds.has(null)) {
+      return validationError("Invalid order payload");
+    }
+    const access = await assertLinkPageAccess(session, { pageId: rows[0].pageId as number });
     if (access) return access;
   }
 

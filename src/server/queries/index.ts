@@ -29,6 +29,7 @@ import {
   desc,
   isNull,
   isNotNull,
+  inArray,
   sql,
 } from "drizzle-orm";
 
@@ -1689,6 +1690,20 @@ export async function getLinkStats(linkId: number, range: AnalyticsRange = "30d"
 export async function getLink(id: number): Promise<LinkRow | null> {
   const rows = await db.select().from(links).where(eq(links.id, id)).limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Batch id → pageId resolution for bulk actions (reorder gates). One query
+ * instead of N point selects. Rows for unknown ids are simply absent.
+ */
+export async function getLinksByIds(
+  ids: number[],
+): Promise<{ id: number; pageId: number | null }[]> {
+  if (ids.length === 0) return [];
+  return db
+    .select({ id: links.id, pageId: links.pageId })
+    .from(links)
+    .where(inArray(links.id, ids));
 }
 
 // #96 custom /go/ redirect slugs. A ref is numeric (id form — behavior

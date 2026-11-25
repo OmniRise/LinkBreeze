@@ -13,6 +13,7 @@ import {
   getCapabilitiesForUser,
   getSectionPageId,
   getLink,
+  getLinksByIds,
 } from "@/server/queries";
 import { sectionSchema } from "@/lib/validation/section";
 import {
@@ -159,12 +160,28 @@ export async function reorderContent(payload: {
     return validationError("Invalid order payload");
   }
 
-  // #124: gate on the page the reordered links belong to (first link derives it).
+  // #124 + security-audit CT-2: gate EVERY id in the payload, not just the
+  // first link — sectionOrder ids had no access check at all when linkOrder
+  // was empty. Links and sections in one reorder gesture belong to one page;
+  // resolve both lists to that page and refuse anything else.
   const session = await getSession();
   if (!session) return unauthorizedError();
-  const first = parsed.data.linkOrder[0];
-  if (first) {
-    const denied = await assertSectionPageAccess(session, { linkId: first.id });
+  const pageIds = new Set<number | null>();
+  const linkIds = parsed.data.linkOrder.map((l) => l.id);
+  if (linkIds.length > 0) {
+    const rows = await getLinksByIds(linkIds);
+    if (rows.length !== new Set(linkIds).size) return validationError("Invalid order payload");
+    rows.forEach((r) => pageIds.add(r.pageId));
+  }
+  for (const sectionId of parsed.data.sectionOrder) {
+    pageIds.add(await getSectionPageId(sectionId));
+  }
+  if (pageIds.size > 1 || (pageIds.size === 1 && pageIds.has(null))) {
+    return validationError("Invalid order payload");
+  }
+  const pageId = [...pageIds][0];
+  if (pageId != null) {
+    const denied = await assertSectionPageAccess(session, { pageId });
     if (denied) return denied;
   }
 

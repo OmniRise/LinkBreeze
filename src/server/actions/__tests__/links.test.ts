@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   updateLink: vi.fn(async () => undefined),
   deleteLink: vi.fn(async () => undefined),
   reorderLinks: vi.fn(async () => undefined),
+  getLinksByIds: vi.fn(async (): Promise<{ id: number; pageId: number | null }[]> => [
+    { id: 1, pageId: 1 },
+  ]),
   isSlugTaken: vi.fn(async () => false),
   fetchAndCacheFavicon: vi.fn(async (): Promise<string | null> => "/api/uploads/favicon-test.png"),
   extractDomain: vi.fn((url: string): string | null => {
@@ -51,6 +54,7 @@ vi.mock("@/server/queries", () => ({
   updateLink: mocks.updateLink,
   deleteLink: mocks.deleteLink,
   reorderLinks: mocks.reorderLinks,
+  getLinksByIds: mocks.getLinksByIds,
   getAllLinks: vi.fn(async () => []),
   isSlugTaken: mocks.isSlugTaken,
   // #124: the page-ownership gate (assertLinkPageAccess) resolves the target
@@ -67,7 +71,7 @@ vi.mock("@/server/queries", () => ({
   countPagesByOwner: vi.fn(async (): Promise<number> => 0),
 }));
 
-import { createLink, updateLink, deleteLink, createDivider } from "@/server/actions/links";
+import { createLink, updateLink, deleteLink, createDivider, reorderLinks } from "@/server/actions/links";
 
 function makeFormData(data: Record<string, string>): FormData {
   const fd = new FormData();
@@ -79,6 +83,43 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.demoBlock.mockReturnValue(null);
   mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1, role: "admin" });
+});
+
+describe("reorderLinks page-ownership gate (security-audit CT-2)", () => {
+  it("refuses a batch mixing ids from different pages", async () => {
+    mocks.getLinksByIds.mockResolvedValue([
+      { id: 1, pageId: 1 },
+      { id: 2, pageId: 2 },
+    ]);
+    const res = await reorderLinks([1, 2]);
+    expect(res.success).toBe(false);
+    expect(mocks.reorderLinks).not.toHaveBeenCalled();
+  });
+
+  it("refuses a batch with an unknown id (rows < ids)", async () => {
+    mocks.getLinksByIds.mockResolvedValue([{ id: 1, pageId: 1 }]);
+    const res = await reorderLinks([1, 999]);
+    expect(res.success).toBe(false);
+    expect(mocks.reorderLinks).not.toHaveBeenCalled();
+  });
+
+  it("refuses a batch resolving to a NULL-owner page (admin-only legacy rows)", async () => {
+    mocks.getLinksByIds.mockResolvedValue([{ id: 1, pageId: null }]);
+    const res = await reorderLinks([1]);
+    expect(res.success).toBe(false);
+    expect(mocks.reorderLinks).not.toHaveBeenCalled();
+  });
+
+  it("passes a single-page batch and writes the order once", async () => {
+    mocks.getLinksByIds.mockResolvedValue([
+      { id: 1, pageId: 1 },
+      { id: 2, pageId: 1 },
+    ]);
+    const res = await reorderLinks([1, 2]);
+    expect(res.success).toBe(true);
+    expect(mocks.reorderLinks).toHaveBeenCalledOnce();
+    expect(mocks.reorderLinks).toHaveBeenCalledWith([1, 2]);
+  });
 });
 
 describe("createLink", () => {
