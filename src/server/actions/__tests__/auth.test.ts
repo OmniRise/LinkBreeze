@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   isLegacyBcryptHash: vi.fn(() => false),
   getUserByUsername: vi.fn(async (): Promise<{ id: number; username: string; passwordHash: string; passwordVersion: number } | null> => ({ id: 1, username: "admin", passwordHash: "hashed:pword", passwordVersion: 1 })),
   getUserCount: vi.fn(async (): Promise<number> => 1),
-  createUser: vi.fn(async () => ({ id: 1, username: "newuser" })),
+  createFirstUser: vi.fn(async (): Promise<{ id: number; username: string } | null> => ({ id: 1, username: "newuser" })),
   updateUserPassword: vi.fn(async () => undefined),
   getSetting: vi.fn(async () => "1"),
   rateLimit: vi.fn(() => ({ ok: true, remaining: 4, resetAt: Date.now() + 60000 })),
@@ -31,7 +31,7 @@ vi.mock("@/server/queries", () => ({
   })),
   getUserByUsername: mocks.getUserByUsername,
   getUserCount: mocks.getUserCount,
-  createUser: mocks.createUser,
+  createFirstUser: mocks.createFirstUser,
   getSetting: mocks.getSetting,
   updateUserPassword: mocks.updateUserPassword,
 }));
@@ -147,8 +147,21 @@ describe("setup", () => {
     mocks.getUserByUsername.mockResolvedValue(null);
     const res = await setup(makeFormData({ username: "newuser", password: "Pass1234" }));
     expect(res.success).toBe(true);
-    expect(mocks.createUser).toHaveBeenCalledOnce();
+    expect(mocks.createFirstUser).toHaveBeenCalledOnce();
     expect(mocks.createSession).toHaveBeenCalledOnce();
+  });
+
+  it("lost setup race (another caller won the atomic insert) → conflict", async () => {
+    // Security-audit AB-1: the action must end in createFirstUser — the
+    // getUserCount() pre-check alone is a TOCTOU. When the atomic insert
+    // reports a user already exists, the loser gets the conflict, no session.
+    mocks.getUserCount.mockResolvedValue(0);
+    mocks.getUserByUsername.mockResolvedValue(null);
+    mocks.createFirstUser.mockResolvedValue(null);
+    const res = await setup(makeFormData({ username: "newuser", password: "Pass1234" }));
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toContain("already been completed");
+    expect(mocks.createSession).not.toHaveBeenCalled();
   });
 
   it("rejects short username (<3 chars)", async () => {

@@ -13,7 +13,7 @@ import {
 import {
   getUserByUsername,
   getUserCount,
-  createUser,
+  createFirstUser,
   getSetting,
 } from "@/server/queries";
 import { demoGuard } from "@/lib/demo-guard";
@@ -28,6 +28,7 @@ import {
   ErrorCode,
   logError,
 } from "@/lib/errors";
+import { clientIp } from "@/lib/rate-limit-ip";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required").max(64),
@@ -53,10 +54,7 @@ export async function login(formData: FormData): Promise<ActionResult> {
   // Rate limit: 5 login attempts per minute per IP to prevent brute-force.
   const { headers } = await import("next/headers");
   const h = await headers();
-  const ip =
-    (h.get("x-forwarded-for")?.split(",")[0] || "").trim() ||
-    (h.get("x-real-ip") || "").toString() ||
-    "0.0.0.0";
+  const ip = clientIp(h);
   const { rateLimit } = await import("@/lib/rate-limit");
   const rl = rateLimit(`login:${ip}`, 5, 60_000);
   if (!rl.ok) {
@@ -191,9 +189,13 @@ export async function setup(formData: FormData): Promise<ActionResult> {
 
   try {
     const passwordHash = await hashPassword(password);
-    // The bootstrap user is the instance's first admin — they must be able to
-    // manage accounts and global settings. createUser defaults to "owner".
-    const user = await createUser(username.trim(), passwordHash, { role: "admin" });
+    // Atomic first-user insert — closes the concurrent-setup race the
+    // getUserCount() guard above alone cannot (same shape as /api/setup).
+    // Exactly one caller wins; everyone else gets the conflict below.
+    const user = await createFirstUser(username.trim(), passwordHash);
+    if (!user) {
+      return conflictError("Setup has already been completed");
+    }
     await createSession(user.id, user.username);
     return { success: true };
   } catch (err) {
