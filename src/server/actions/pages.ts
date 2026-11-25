@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { requireInstanceAdmin } from "@/server/access";
 import { demoGuard } from "@/lib/demo-guard";
 import {
   type ActionResult,
@@ -375,6 +376,13 @@ export async function updatePageAction(formData: FormData): Promise<ActionResult
   // Save global consent text setting alongside page settings.
   const consentText = formData.get("consentText");
   if (consentText !== null) {
+    // Instance-wide setting — page ownership alone must not write it
+    // (security audit CT-3): a forged member payload could otherwise rewrite
+    // the consent banner every public page renders. The General settings tab
+    // that legitimately posts this field is instance-admin UI, so admins
+    // keep their flow; members' own page saves never carry the field.
+    const denied = await requireInstanceAdmin();
+    if (denied) return denied;
     const { updateSetting } = await import("@/server/queries");
     await updateSetting("consentText", (consentText as string) || "");
   }
