@@ -46,6 +46,7 @@ import {
 } from "@/lib/theme-tokens";
 import { parseCustomFontId, buildFontFaceCss } from "@/lib/custom-fonts";
 import { decodeSlugParam } from "@/lib/link-slug";
+import { trustedForwardedHost } from "@/lib/host-routing";
 
 export const revalidate = 60;
 
@@ -60,7 +61,7 @@ async function getOrigin(): Promise<string> {
   if (process.env.BASE_URL) return process.env.BASE_URL.replace(/\/$/, "");
   const h = await headers();
   const host =
-    (h.get("x-forwarded-host") || h.get("host") || "localhost").toString();
+    (trustedForwardedHost(h) || h.get("host") || "localhost").toString();
   const proto = (h.get("x-forwarded-proto") || "http").toString();
   return `${proto}://${host}`;
 }

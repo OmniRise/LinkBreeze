@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 import { getSetting } from "@/server/queries";
+import { trustedForwardedHost } from "@/lib/host-routing";
 
 /**
  * Dynamic robots.txt metadata route.
@@ -17,7 +18,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   const headerList = await headers();
   const origin = process.env.BASE_URL
     ? process.env.BASE_URL.replace(/\/$/, "")
-    : `${headerList.get("x-forwarded-proto") || "https"}://${headerList.get("x-forwarded-host") || headerList.get("host") || "localhost"}`;
+    : `${headerList.get("x-forwarded-proto") || "https"}://${trustedForwardedHost(headerList) || headerList.get("host") || "localhost"}`;
 
   // Search-engine visibility (#94): when the operator hides the page, it
   // must STAY crawlable so crawlers actually see the noindex directive —

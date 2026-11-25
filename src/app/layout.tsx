@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { trustedForwardedHost } from "@/lib/host-routing";
 
 const clashDisplay = localFont({
   src: [
@@ -492,7 +493,7 @@ export async function generateMetadata(): Promise<Metadata> {
       const { headers } = await import("next/headers");
       const h = await headers();
       const host = (
-        h.get("x-forwarded-host") ||
+        trustedForwardedHost(h) ||
         h.get("host") ||
         "localhost:3000"
       ).toString();

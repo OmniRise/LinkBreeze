@@ -14,6 +14,7 @@ import {
   selectOgLinks,
 } from "@/lib/og-theme";
 import { decodeSlugParam } from "@/lib/link-slug";
+import { trustedForwardedHost } from "@/lib/host-routing";
 
 export const runtime = "nodejs";
 
@@ -68,7 +69,7 @@ export async function GET(
   const origin = process.env.BASE_URL
     ? process.env.BASE_URL.replace(/\/$/, "")
     : `${(h.get("x-forwarded-proto") || "http").toString()}://${(
-        h.get("x-forwarded-host") ||
+        trustedForwardedHost(h) ||
         h.get("host") ||
         "localhost"
       ).toString()}`;

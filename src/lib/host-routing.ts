@@ -67,6 +67,21 @@ export type HostDecision =
 // ── Host normalization ───────────────────────────────────────────────────
 
 /**
+ * The `x-forwarded-host` value when it may be trusted (security audit PS-4).
+ * On a direct bind the header is client-controlled: reflecting it into
+ * metadata origins (canonical, og:image, robots, favicon redirects) lets one
+ * poisoned request — cached and shared — rewrite the absolute URLs every
+ * visitor sees. Returns null unless the operator explicitly enables the
+ * same proxy-trust contract as the rate-limit identity
+ * (LINKBREEZE_TRUST_X_FORWARDED_FOR=true, behind a proxy they control).
+ * Setting BASE_URL remains the strongest answer: it wins unconditionally.
+ */
+export function trustedForwardedHost(h: Headers): string | null {
+  if (process.env.LINKBREEZE_TRUST_X_FORWARDED_FOR !== "true") return null;
+  return h.get("x-forwarded-host");
+}
+
+/**
  * Normalize a Host/x-forwarded-host header value for comparisons and
  * storage: lowercase, strip port, strip trailing dot, convert IDN to
  * punycode. Returns "" for values that cannot be a routable hostname

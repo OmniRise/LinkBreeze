@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { getSetting } from "@/server/queries";
+import { trustedForwardedHost } from "@/lib/host-routing";
 
 /**
  * Handle /favicon.ico requests.
@@ -28,7 +29,7 @@ export async function GET() {
   // Use a relative redirect so it resolves against whatever hostname the
   // request came from (localhost, LAN IP, domain name, etc.).
   const h = await headers();
-  const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
+  const host = trustedForwardedHost(h) || h.get("host") || "localhost:3000";
   const proto = h.get("x-forwarded-proto") || "http";
 
   return NextResponse.redirect(new URL(faviconUrl, `${proto}://${host}`), {
