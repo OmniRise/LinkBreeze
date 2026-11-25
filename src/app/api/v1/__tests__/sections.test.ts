@@ -4,7 +4,7 @@
  * page-exists 404, mass-assignment stripping, partial PUT, 404s, demo mode,
  * and the delete → links-fall-back invariant.
  */
-import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import "../../../../server/queries/__tests__/integration-setup";
 import { seedPage, seedLink, db } from "../../../../server/queries/__tests__/integration-setup";
 import * as schema from "@/db/schema";
@@ -63,8 +63,15 @@ beforeAll(async () => {
   otherPageId = seedPage({ slug: "api-sections-other", title: "Other Page" }).id;
 });
 
+beforeEach(() => {
+  // The pre-key per-IP limiter needs the trusted-proxy contract (CD-5):
+  // these tests send distinct XFF values and expect distinct buckets.
+  process.env.LINKBREEZE_TRUST_X_FORWARDED_FOR = "true";
+});
+
 afterEach(() => {
   delete process.env.DEMO_MODE;
+  delete process.env.LINKBREEZE_TRUST_X_FORWARDED_FOR;
 });
 
 describe("GET /api/v1/sections", () => {

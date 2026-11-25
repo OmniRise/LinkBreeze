@@ -3,7 +3,7 @@
  * (case-insensitive), unknown ref 404, and a deactivated link WITH a slug
  * 302-redirecting to its public page instead of a bare 404.
  */
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getLinkByRef: vi.fn(),
@@ -326,9 +326,15 @@ describe("bot/crawler interaction (#41 x #81, E.31)", () => {
       abConfig: abConfigJson({ weightA: wForB, weightB: 100 - wForB }),
     });
 
+  beforeEach(() => {
+    // Per-IP rate-limit assertions need the trusted-proxy contract (CD-5).
+    process.env.LINKBREEZE_TRUST_X_FORWARDED_FOR = "true";
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.mocked(isBot).mockReturnValue(false);
+    delete process.env.LINKBREEZE_TRUST_X_FORWARDED_FOR;
   });
 
   it("a human click in production is recorded and attributed to its variant", async () => {
@@ -372,7 +378,7 @@ describe("bot/crawler interaction (#41 x #81, E.31)", () => {
     expect(res.headers.get("cache-control")).toBe("no-store"); // nothing cacheable
     expect(mocks.recordClick).not.toHaveBeenCalled(); // throttled write
     expect(maybeAutoPromoteAbTests).not.toHaveBeenCalled(); // triggers ride with recording
-    expect(rateLimit).toHaveBeenCalledWith("go:0.0.0.0", 60, 60_000); // the 60/min/IP bound
+    expect(vi.mocked(rateLimit)).toHaveBeenCalledWith("go:direct", 60, 60_000); // the 60/min identity bound
   });
 
   it("E.34: assignment ignores cookies entirely (nothing to clear or tamper with)", async () => {

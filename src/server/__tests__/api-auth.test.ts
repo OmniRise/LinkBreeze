@@ -50,10 +50,14 @@ function makeRequest(
 beforeEach(() => {
   mocks.getApiKeyRecord.mockResolvedValue({ ...RECORD });
   mocks.recordApiKeyUsed.mockClear();
+  // These tests assert per-IP bucket separation via distinct XFF values —
+  // only meaningful under the trusted-proxy contract (security audit CD-5).
+  process.env.LINKBREEZE_TRUST_X_FORWARDED_FOR = "true";
 });
 
 afterEach(() => {
   delete process.env.DEMO_MODE;
+  delete process.env.LINKBREEZE_TRUST_X_FORWARDED_FOR;
 });
 
 describe("apiGate — auth rejects (consistent 401 envelope)", () => {
