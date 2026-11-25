@@ -183,6 +183,16 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
+        // Authenticated admin + API responses must never be cached or
+        // indexed: they carry per-session state, and a shared cache storing
+        // them leaks session-scoped HTML to other visitors (security audit
+        // CD-4/PS-1). Sits AFTER the /:slug* catch-all — last matching rule
+        // wins — but BEFORE the /api/qr rule so QR's intentional public
+        // cache re-overrides this.
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
         // Uploaded icon/avatar/font files: served as attachments' sources,
         // never as documents. A strict CSP (no scripts, no frames, no
         // origins) means even a malicious SVG executes nothing if opened
@@ -210,8 +220,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Admin pages should not be cached / framed.
-        source: "/(dashboard|links|profile|theme|settings)(:path*)?",
+        // Admin pages should not be cached / framed. Covers every admin
+        // route-group section (security audit CD-4: pages, domains,
+        // accounts and audit were missing and inherited the public
+        // s-maxage from the catch-all above).
+        source: "/(dashboard|links|profile|theme|settings|pages|domains|accounts|audit)(:path*)?",
         headers: [
           ...securityHeaders,
           buildCsp(),
