@@ -18,7 +18,7 @@ services:
       - linkbreeze-data:/app/data
     environment:
       - DATABASE_PATH=/app/data/linkbreeze.db
-      - SECRET_KEY=${SECRET_KEY:-changeme-in-production}
+      - SECRET_KEY=${SECRET_KEY:-}
     restart: unless-stopped
 
 volumes:

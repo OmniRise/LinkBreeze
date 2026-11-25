@@ -24,15 +24,26 @@ export interface SessionPayload {
 
 const DEFAULT_SECRET = "linkbreeze-dev-secret-key-change-me-in-production-please";
 
+/**
+ * The docker-compose default this repo shipped before the security fix.
+ * Sessions are HMAC-signed with SECRET_KEY, so a key everyone can read in a
+ * public repo makes `lb_session` forgeable — production refuses it outright.
+ */
+const COMPOSE_DEFAULT_SECRET = "changeme-in-production";
+
 function getSecret(): string {
   const key = process.env.SECRET_KEY;
-  if (!key) {
+  if (!key || key === COMPOSE_DEFAULT_SECRET) {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "[LinkBreeze] FATAL: SECRET_KEY is not set. " +
-          "This should have been auto-generated on boot (check server logs for " +
-          "'[auth] No SECRET_KEY found'). If the data volume is read-only, set " +
-          "SECRET_KEY explicitly (e.g. `openssl rand -hex 32`).",
+        !key
+          ? "[LinkBreeze] FATAL: SECRET_KEY is not set. " +
+              "This should have been auto-generated on boot (check server logs for " +
+              "'[auth] No SECRET_KEY found'). If the data volume is read-only, set " +
+              "SECRET_KEY explicitly (e.g. `openssl rand -hex 32`)."
+          : "[LinkBreeze] FATAL: SECRET_KEY is still the old docker-compose default " +
+              "('changeme-in-production'). Sessions signed with a publicly-known key " +
+              "are forgeable — set SECRET_KEY explicitly (e.g. `openssl rand -hex 32`).",
       );
     }
     return DEFAULT_SECRET;
