@@ -679,6 +679,11 @@ export async function setAbTest(formData: FormData): Promise<ActionResult> {
 
   const link = await getLink(id);
   if (!link) return notFoundError("Link not found");
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only A/B-test links on their own page.
+  const access = await assertLinkPageAccess(session, { pageId: link.pageId });
+  if (access) return access;
   if (link.type !== "url") {
     return validationError("A/B tests are only available for URL links");
   }
@@ -772,6 +777,11 @@ export async function setAbTestStatus(formData: FormData): Promise<ActionResult>
 
   const link = await getLink(id);
   if (!link) return notFoundError("Link not found");
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only manage tests on their own page.
+  const access = await assertLinkPageAccess(session, { pageId: link.pageId });
+  if (access) return access;
   const existing = parseAbConfig(link.abConfig ?? null);
   if (!existing) return validationError("This link has no A/B test");
   if (existing.status === "archived") {
@@ -816,6 +826,11 @@ export async function promoteAbVariant(formData: FormData): Promise<ActionResult
 
   const link = await getLink(id);
   if (!link) return notFoundError("Link not found");
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only promote tests on their own page.
+  const access = await assertLinkPageAccess(session, { pageId: link.pageId });
+  if (access) return access;
   const existing = parseAbConfig(link.abConfig ?? null);
   if (!existing) return validationError("This link has no A/B test");
 
@@ -861,6 +876,11 @@ export async function removeAbTest(formData: FormData): Promise<ActionResult> {
 
   const link = await getLink(id);
   if (!link) return notFoundError("Link not found");
+  const session = await getSession();
+  if (!session) return unauthorizedError();
+  // #124: page-ownership gate — an owner may only remove tests on their own page.
+  const access = await assertLinkPageAccess(session, { pageId: link.pageId });
+  if (access) return access;
   if (!parseAbConfig(link.abConfig ?? null)) {
     return validationError("This link has no A/B test");
   }

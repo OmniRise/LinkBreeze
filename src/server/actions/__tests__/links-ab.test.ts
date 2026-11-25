@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   updateLink: vi.fn(async () => undefined),
   getLink: vi.fn(async () => null as null | Record<string, unknown>),
+  getPageById: vi.fn(async () => null as null | Record<string, unknown>),
+  getCapabilities: vi.fn(async () => ({
+    caps: { manageAccounts: true, manageInstance: true, visibility: "manage_all" },
+  })),
   updateSetting: vi.fn(async () => undefined),
 }));
 
@@ -32,9 +36,10 @@ vi.mock("@/server/queries", () => ({
   getSetting: vi.fn(async () => null),
   // setAbAutoPromote is instance-admin-gated (GHSA-954q-vph2-prc8
   // follow-up) — the access layer resolves caps through this query.
-  getCapabilitiesForUser: vi.fn(async () => ({
-    caps: { manageAccounts: true, manageInstance: true },
-  })),
+  // The page-ownership gate (assertLinkPageAccess) resolves caps through
+  // the same query; tests override via mocks.getCapabilities.
+  getCapabilitiesForUser: mocks.getCapabilities,
+  getPageById: mocks.getPageById,
 }));
 
 import {
@@ -52,6 +57,7 @@ function urlLink(abConfig: string | null = null): Record<string, unknown> {
     id: 7,
     type: "url",
     url: "https://example.com/a",
+    pageId: 5,
     abConfig,
   };
 }
@@ -78,6 +84,12 @@ beforeEach(() => {
   mocks.demoBlock.mockReturnValue(null);
   mocks.getSession.mockResolvedValue({ userId: 1, username: "admin", exp: Date.now() + 60000, pv: 1 });
   mocks.updateLink.mockResolvedValue(undefined);
+  // Page-ownership gate fixtures: page 5 belongs to user 1 (the default
+  // session), and the default caps are instance-admin (can edit everything).
+  mocks.getPageById.mockResolvedValue({ id: 5, userId: 1 });
+  mocks.getCapabilities.mockResolvedValue({
+    caps: { manageAccounts: true, manageInstance: true, visibility: "manage_all" },
+  });
 });
 
 describe("setAbTest", () => {
@@ -706,5 +718,65 @@ describe("E.122: demoGuard runs FIRST in every A/B action", () => {
     expect(mocks.getLink).not.toHaveBeenCalled();
     expect(mocks.updateLink).not.toHaveBeenCalled();
     expect(mocks.updateSetting).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Page-ownership gate on all four A/B actions (security-audit finding CT-1).
+ * Before the fix these actions only required a signed-in session — any member
+ * could target ANY link id via forged FormData and set/promote/remove another
+ * page's A/B test (promote permanently overwrites links.url). The gate is the
+ * same assertLinkPageAccess every other link mutation already runs.
+ */
+describe("A/B actions enforce page ownership", () => {
+  /** Foreign page 99 owned by user 2; actor is a plain member (user 1). */
+  function crossTenant(): void {
+    mocks.getLink.mockResolvedValue({ ...urlLink(), pageId: 99 });
+    mocks.getPageById.mockResolvedValue({ id: 99, userId: 2 });
+    mocks.getCapabilities.mockResolvedValue({
+      caps: { manageAccounts: false, manageInstance: false, visibility: "own" },
+    });
+  }
+
+  it("setAbTest refuses a link on another page", async () => {
+    crossTenant();
+    const res = await setAbTest(fd({ id: "7", urlB: "https://example.com/b", weightA: "50" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
+  it("setAbTestStatus refuses a link on another page", async () => {
+    crossTenant();
+    mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
+    const res = await setAbTestStatus(fd({ id: "7", status: "paused" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
+  it("promoteAbVariant refuses a link on another page", async () => {
+    crossTenant();
+    mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
+    const res = await promoteAbVariant(fd({ id: "7", winner: "B" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
+  it("removeAbTest refuses a link on another page", async () => {
+    crossTenant();
+    mocks.getLink.mockResolvedValue(urlLink(serializeAbConfig(runningConfig)));
+    const res = await removeAbTest(fd({ id: "7" }));
+    expect(res.success).toBe(false);
+    expect(mocks.updateLink).not.toHaveBeenCalled();
+  });
+
+  it("an owner still manages their own test (gate does not over-block)", async () => {
+    // Owner of page 5 (the default fixture), no manage caps — must pass.
+    mocks.getCapabilities.mockResolvedValue({
+      caps: { manageAccounts: false, manageInstance: false, visibility: "own" },
+    });
+    mocks.getLink.mockResolvedValue(urlLink(null));
+    const res = await setAbTest(fd({ id: "7", urlB: "https://example.com/b", weightA: "50" }));
+    expect(res.success).toBe(true);
+    expect(mocks.updateLink).toHaveBeenCalledTimes(1);
   });
 });
