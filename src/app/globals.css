@@ -423,10 +423,23 @@ a.lb-share-link:hover { color: var(--lb-text); }
 }
 .lb-embed-dialog-body {
   padding: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* Height chain for tall documents: the dialog carries the height inline,
+   the panel takes 100% of it, and the flex body fills the rest — without
+   this the iframe's height:100% resolves against an auto-height parent
+   and collapses to its 150px default (bit 2026-11-24, Cal.com). */
+.lb-embed-dialog .lb-popup-panel { height: 100%; }
 .lb-embed-frame { border-radius: min(var(--lb-card-radius), 12px); }
+/* Cal.com and other light-background embeds wash out the translucent close
+   button — give it a solid-ish themed backing inside embed dialogs. */
+.lb-embed-dialog .lb-popup-close {
+  background: color-mix(in srgb, var(--lb-card-bg) 92%, transparent);
+  border: var(--lb-border-width) solid var(--lb-card-border);
+}
 
 /* Social proof stats row (opt-in): numeric chips, icon + compact count.
    Token-driven like every other public surface; centered to match the

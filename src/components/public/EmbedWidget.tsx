@@ -104,6 +104,7 @@ export async function EmbedWidget({
   const embed = repo ? null : resolveEmbedFrame(url, { twitchParent: requestHost });
 
   let content: React.ReactNode;
+  let modalDialogHtml: string | null = null;
 
   if (repo) {
     content = <GithubRepoCardContent info={repo} title={title} />;
@@ -111,13 +112,12 @@ export async function EmbedWidget({
     // Click-to-open providers (TikTok portrait, Cal.com, Forms, Tally):
     // themed preview tile + native <dialog>, iframe attached lazily on
     // open — the same zero-JS pattern as the #93 location popups.
-    content = (
-      <div
-        // The tile + dialog carry inline onclick handlers (the popup-card
-        // contract); React server components cannot express them as props.
-        dangerouslySetInnerHTML={{ __html: buildEmbedModalHtml(embed, title, linkId) }}
-      />
-    );
+    const { tile, dialog } = buildEmbedModalHtml(embed, title, linkId);
+    content = <div dangerouslySetInnerHTML={{ __html: tile }} />;
+    // The dialog renders OUTSIDE the themed frame: the frame's
+    // backdrop-filter would trap position:fixed and break viewport
+    // centering (see build-embed-modal.ts).
+    modalDialogHtml = dialog;
   } else if (embed) {
     content = <EmbedFrameContent embed={embed} title={title} />;
   } else {
@@ -128,28 +128,34 @@ export async function EmbedWidget({
 
   if (isPixel) {
     return (
-      <PixelFrame reveal={reveal} delay={delay}>
-        {content}
-      </PixelFrame>
+      <>
+        <PixelFrame reveal={reveal} delay={delay}>
+          {content}
+        </PixelFrame>
+        {modalDialogHtml ? <div dangerouslySetInnerHTML={{ __html: modalDialogHtml }} /> : null}
+      </>
     );
   }
 
   return (
-    <div
-      className={`overflow-hidden${isGel ? " lb-gel-embed" : ""}`}
-      style={{
-        animation: reveal || undefined,
-        animationDelay: delay,
-        background: "var(--lb-card-bg)",
-        border: "var(--lb-border-width) solid var(--lb-card-border)",
-        borderRadius: "var(--lb-media-radius)",
-        backdropFilter: "blur(var(--lb-blur))",
-        WebkitBackdropFilter: "blur(var(--lb-blur))",
-        margin: "0 0 var(--lb-spacing)",
-      }}
-    >
-      {content}
-    </div>
+    <>
+      <div
+        className={`overflow-hidden${isGel ? " lb-gel-embed" : ""}`}
+        style={{
+          animation: reveal || undefined,
+          animationDelay: delay,
+          background: "var(--lb-card-bg)",
+          border: "var(--lb-border-width) solid var(--lb-card-border)",
+          borderRadius: "var(--lb-media-radius)",
+          backdropFilter: "blur(var(--lb-blur))",
+          WebkitBackdropFilter: "blur(var(--lb-blur))",
+          margin: "0 0 var(--lb-spacing)",
+        }}
+      >
+        {content}
+      </div>
+      {modalDialogHtml ? <div dangerouslySetInnerHTML={{ __html: modalDialogHtml }} /> : null}
+    </>
   );
 }
 
