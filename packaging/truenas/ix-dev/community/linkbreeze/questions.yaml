@@ -218,7 +218,7 @@ questions:
     schema:
       type: dict
       attrs:
-        - variable: config
+        - variable: data
           label: Data Storage
           description: Stores the LinkBreeze SQLite database and uploaded assets.
           schema:
