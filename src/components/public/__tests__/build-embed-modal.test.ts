@@ -15,60 +15,65 @@ const form =
 
 describe("buildEmbedModalHtml", () => {
   it("renders a preview tile button and a hidden dialog with a lazy iframe", () => {
-    const html = buildEmbedModalHtml(tiktok, "My TikTok", 42);
-    expect(html).toContain('id="lb-embed-42"');
-    expect(html).toContain('aria-haspopup="dialog"');
+    const { tile, dialog } = buildEmbedModalHtml(tiktok, "My TikTok", 42);
+    expect(tile).toContain('aria-haspopup="dialog"');
+    expect(tile).toContain('aria-controls="lb-embed-42"');
     // Lazy: the iframe carries data-src, never a live src.
-    expect(html).toContain(`data-src="${tiktok.src}"`);
-    expect(html).not.toContain("<iframe src=");
-    expect(html).toContain("d.showModal()");
-    expect(html).toContain("showModal()");
+    expect(dialog).toContain('id="lb-embed-42"');
+    expect(dialog).toContain(`data-src="${tiktok.src}"`);
+    expect(dialog).not.toContain("<iframe src=");
+    expect(tile).toContain("d.showModal()");
+    expect(tile).toContain("showModal()");
   });
 
   it("opens with the open beacon carrying the link id", () => {
-    const html = buildEmbedModalHtml(tiktok, "T", 42);
-    expect(html).toContain(`{type:'open',linkId:42}`);
+    const { tile } = buildEmbedModalHtml(tiktok, "T", 42);
+    expect(tile).toContain(`{type:'open',linkId:42}`);
   });
 
   it("escapes the title into attributes and text (output encoding)", () => {
-    const html = buildEmbedModalHtml(calcom, `Jane's "Book" <me>`, 7);
+    const { tile, dialog } = buildEmbedModalHtml(calcom, `Jane's "Book" <me>`, 7);
     // esc() leaves apostrophes literal (legal inside double-quoted attrs),
     // encodes double quotes, angle brackets and ampersands.
-    expect(html).toContain("Jane's &quot;Book&quot; &lt;me&gt;");
-    expect(html).not.toContain('<me>');
+    expect(tile).toContain("Jane's &quot;Book&quot; &lt;me&gt;");
+    expect(dialog).toContain("&quot;Book&quot;");
+    expect(dialog).not.toContain("<me>");
+    expect(dialog).toContain("&lt;me&gt;");
     // The raw double-quote must never break out of the double-quoted attr.
-    expect(html).not.toContain('aria-label="Cal.com booking: Jane\'s "');
+    expect(tile).not.toContain('aria-label="Cal.com booking: Jane\'s "');
   });
 
   it("dialog is hidden until open (native dialog semantics)", () => {
-    const html = buildEmbedModalHtml(tiktok, "T", 42);
-    expect(html).toContain("<dialog");
-    expect(html).toContain("lb-popup-dialog");
-    expect(html).toContain('type="button" class="lb-popup-close"');
-    expect(html).toContain("this.closest('dialog').close('x')");
-    expect(html).toContain("if(t===this)this.close('x')");
+    const { dialog } = buildEmbedModalHtml(tiktok, "T", 42);
+    expect(dialog).toContain("<dialog");
+    expect(dialog).toContain("lb-popup-dialog");
+    expect(dialog).toContain('type="button" class="lb-popup-close"');
+    expect(dialog).toContain("this.closest('dialog').close('x')");
+    expect(dialog).toContain("if(t===this)this.close('x')");
   });
 
   it("portrait providers get a 9/16 dialog frame; tall documents a capped panel", () => {
-    const tiktokHtml = buildEmbedModalHtml(tiktok, "T", 1);
-    expect(tiktokHtml).toContain("aspect-ratio:9/16");
-    expect(tiktokHtml).toContain("height:min(80vh,640px)");
+    const { dialog: tiktokDialog } = buildEmbedModalHtml(tiktok, "T", 1);
+    expect(tiktokDialog).toContain("aspect-ratio:9/16");
+    expect(tiktokDialog).toContain("height:min(80vh,640px)");
+    expect(tiktokDialog).toContain("width:auto");
 
-    const calHtml = buildEmbedModalHtml(calcom, "C", 2);
-    expect(calHtml).toContain("width:min(92vw,720px)");
-    expect(calHtml).toContain("height:min(80vh,900px)");
+    const { dialog: calDialog } = buildEmbedModalHtml(calcom, "C", 2);
+    // The dialog carries the size; the iframe fills the padded body.
+    expect(calDialog).toContain("width:min(92vw,720px);height:min(80vh,860px)");
+    expect(calDialog).toContain("width:100%;height:100%");
   });
 
   it("renders the provider label and lucide icon svg", () => {
-    const html = buildEmbedModalHtml(form, "Feedback form", 3);
-    expect(html).toContain("Google Form");
-    expect(html).toContain("<svg");
-    expect(html).toContain('aria-hidden="true"');
+    const { tile } = buildEmbedModalHtml(form, "Feedback form", 3);
+    expect(tile).toContain("Google Form");
+    expect(tile).toContain("<svg");
+    expect(tile).toContain('aria-hidden="true"');
   });
 
   it("embed src survives into the iframe data-src unmodified (validated upstream)", () => {
-    const html = buildEmbedModalHtml(form, "F", 4);
-    expect(html).toContain(
+    const { dialog } = buildEmbedModalHtml(form, "F", 4);
+    expect(dialog).toContain(
       `data-src="https://docs.google.com/forms/d/e/1FAIpQLSf9D3AhX0QviForm/viewform?embedded=true"`,
     );
   });

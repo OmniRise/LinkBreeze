@@ -1,6 +1,6 @@
-import type { EmbedFrame } from "@/lib/embed-providers";
-import { lucideIconSvg } from "@/components/public/build-link-card";
-import { POPUP_BACKDROP_CLOSE, POPUP_CLOSE } from "@/components/public/build-popup-card";
+import type { EmbedFrame} from "@/lib/embed-providers";
+import { lucideIconSvg} from "@/components/public/build-link-card";
+import { POPUP_BACKDROP_CLOSE, POPUP_CLOSE} from "@/components/public/build-popup-card";
 
 /**
  * Embed modal tiles (#13 follow-up — click-to-open embeds).
@@ -43,43 +43,50 @@ function openHandler(dialogId: string, linkId: number): string {
 }
 
 /**
- * Iframe sizing inside the dialog:
+/** Iframe sizing inside the dialog:
  * - portrait (TikTok 9:16): height capped to the viewport, width follows
- *   the ratio — never taller than 85vh, never wider than the screen.
- * - tall documents (Forms/Tally/Cal.com): fixed 85vh scrollable panel.
+  *   the ratio — never taller than 85vh, never wider than the screen.
+ * - tall documents (Forms/Tally/Cal.com): fill the padded body (100%/100%)
+  *   — an explicit width here would overflow the body's padding and pin the
+ *   iframe to the dialog edges (bit 2026-11-24 with Cal.com); the DIALOG
+ *   carries the size, the iframe fills whatever room the padding leaves.
  */
 function frameStyle(embed: EmbedFrame): string {
   if (embed.aspect === "9 / 16") {
     return "height:min(80vh,640px);aspect-ratio:9/16;width:auto;max-width:100%;border:0;display:block;margin:0 auto";
   }
-  return "width:min(92vw,720px);height:min(80vh,900px);border:0;display:block";
+  return "width:100%;height:100%;border:0;display:block";
 }
 
 /**
- * Build the preview tile + hidden <dialog> for a modal-mode embed.
- * Rendered inside EmbedWidget's themed frame (glass/gel/pixel wrapper),
- * which continues to own the outer card look — this module owns only the
- * tile and the dialog. `dialogId` must be unique per link (lb-embed-<id>).
+ * Build the preview tile + hidden <dialog> for a modal-mode embed, as TWO
+ * separate strings. The tile renders inside EmbedWidget's themed frame
+ * (glass/gel/pixel wrapper) while the <dialog> MUST render OUTSIDE it:
+ * the frame's backdrop-filter creates a containing block that traps
+ * position:fixed, so a dialog nested there would center in the frame
+ * instead of the viewport and overflow the screen (bit 2026-11-24).
+ * `dialogId` must be unique per link (lb-embed-<id>).
  */
 export function buildEmbedModalHtml(
   embed: EmbedFrame,
   title: string,
   linkId: number,
-): string {
+): { tile: string; dialog: string } {
   const dialogId = `lb-embed-${linkId}`;
   const icon = embed.icon ? lucideIconSvg(embed.icon, 22) : null;
   const label = embed.label ?? "Open";
   const skinStyle =
-    embed.aspect === "9 / 16" ? "width:auto" : "width:min(92vw,720px)";
+    embed.aspect === "9 / 16" ? "width:auto" : "width:min(92vw,720px);height:min(80vh,860px)";
 
-  return `<button type="button" class="lb-embed-open" onclick="${openHandler(dialogId, linkId)}" aria-haspopup="dialog" aria-label="${esc(label)}: ${esc(title)}">
+  const tile = `<button type="button" class="lb-embed-open" onclick="${openHandler(dialogId, linkId)}" aria-haspopup="dialog" aria-controls="${dialogId}" aria-label="${esc(label)}: ${esc(title)}">
   <span class="lb-embed-open-icon">${icon ?? "&#9654;"}</span>
   <span class="lb-embed-open-text">
     <span class="lb-embed-open-title">${esc(title)}</span>
     <span class="lb-embed-open-label">${esc(label)} &#8250;</span>
   </span>
-</button>
-<dialog id="${dialogId}" class="lb-popup-dialog lb-embed-dialog" style="${skinStyle}" onclick="${POPUP_BACKDROP_CLOSE}">
+</button>`;
+
+  const dialog = `<dialog id="${dialogId}" class="lb-popup-dialog lb-embed-dialog" style="${skinStyle}" onclick="${POPUP_BACKDROP_CLOSE}">
   <div class="lb-popup-panel">
     <button type="button" class="lb-popup-close" onclick="${POPUP_CLOSE}" aria-label="Close">&#215;</button>
     <div class="lb-embed-dialog-body">
@@ -96,4 +103,6 @@ export function buildEmbedModalHtml(
     </div>
   </div>
 </dialog>`;
+
+  return { tile, dialog };
 }
