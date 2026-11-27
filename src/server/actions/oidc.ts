@@ -59,6 +59,12 @@ async function startOidcFlow(
   if (!rl.ok) {
     return rateLimitError(Math.ceil((rl.resetAt - Date.now()) / 1000));
   }
+  // AB-4: global ceiling — the per-IP identity is shared in untrusted mode,
+  // but keep an explicit instance-wide budget for trusted-proxy deployments.
+  const globalRl = rateLimit("oidc-start:global", 30, 60_000);
+  if (!globalRl.ok) {
+    return rateLimitError(Math.ceil((globalRl.resetAt - Date.now()) / 1000));
+  }
 
   const config = await getOidcConfig();
   if (!config) return notFoundError("SSO is not configured on this instance");

@@ -1795,6 +1795,27 @@ export async function markInviteUsed(inviteId: number, userId: number): Promise<
     .where(eq(invites.id, inviteId));
 }
 
+/**
+ * Atomically claim a pending, unexpired invite (security audit AB-3): a
+ * single conditional UPDATE — SQLite serializes writes, so of N concurrent
+ * acceptances exactly one row update wins and everyone else gets null.
+ * usedBy is stamped afterwards by markInviteUsed once the account exists.
+ */
+export async function claimInvite(tokenHash: string): Promise<InviteRow | null> {
+  const rows = await db
+    .update(invites)
+    .set({ usedAt: sql`(datetime('now'))` })
+    .where(
+      and(
+        eq(invites.tokenHash, tokenHash),
+        isNull(invites.usedAt),
+        sql`datetime(${invites.expiresAt}) > datetime('now')`,
+      ),
+    )
+    .returning();
+  return rows[0] ?? null;
+}
+
 export async function listInvites(): Promise<InviteRow[]> {
   return db.select().from(invites).orderBy(desc(invites.id)).limit(200);
 }

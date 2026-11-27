@@ -1,5 +1,5 @@
 # ─── Build Stage ───────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22.23.0-alpine AS builder
 
 # Native build tools for better-sqlite3 (compiles from source on Alpine/musl)
 RUN apk add --no-cache python3 make g++
@@ -10,7 +10,9 @@ COPY package*.json ./
 # Generous npm fetch timeouts/retries: under QEMU emulation (local arm64
 # verification) tarball downloads are slow enough to trip npm's 30s default
 # fetch timeout, aborting the whole install on a random package.
-RUN npm install --fetch-timeout=600000 --fetch-retries=5 --fetch-retry-maxtimeout=120000
+# npm ci = the lockfile is the build input (CD-6): no silent drift between
+# what CI tested and what ships. Same generous QEMU timeouts as before.
+RUN npm ci --fetch-timeout=600000 --fetch-retries=5 --fetch-retry-maxtimeout=120000
 
 COPY . .
 
@@ -31,7 +33,7 @@ ENV DATABASE_PATH=/tmp/build-dummy.db
 RUN npx next build
 
 # ─── Runner Stage ──────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:22.23.0-alpine AS runner
 
 WORKDIR /app
 

@@ -15,6 +15,8 @@ import {
 } from "@/lib/og-theme";
 import { decodeSlugParam } from "@/lib/link-slug";
 import { trustedForwardedHost } from "@/lib/host-routing";
+import { clientIp } from "@/lib/rate-limit-ip";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -65,6 +67,19 @@ export async function GET(
 ) {
   const { slug: rawSlug } = await params;
   const slug = decodeSlugParam(rawSlug);
+  // PS-3: satori renders per request — CPU-heavy with no cache to absorb
+  // floods. 30 generations/min per identity, same bound as the QR route.
+  const ip = clientIp(await headers());
+  const rl = rateLimit(`ogimage:${ip}`, 30, 60_000);
+  if (!rl.ok) {
+    return new Response(JSON.stringify({ error: "Too many requests." }), {
+      status: 429,
+      headers: {
+        "content-type": "application/json",
+        "retry-after": String(Math.max(1, Math.ceil((rl.resetAt - Date.now()) / 1000))),
+      },
+    });
+  }
   const h = await headers();
   const origin = process.env.BASE_URL
     ? process.env.BASE_URL.replace(/\/$/, "")

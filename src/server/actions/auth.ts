@@ -50,6 +50,14 @@ const setupSchema = z.object({
     .refine((v) => /[0-9]/.test(v), "Password must contain at least one number"),
 });
 
+// AB-2: a lazily-created throwaway hash so unknown-username logins perform
+// the same Argon2id derivation as real ones — constant-ish response time.
+let dummyHash: string | null = null;
+async function dummyVerify(password: string): Promise<boolean> {
+  dummyHash ??= await hashPassword("linkbreeze-timing-equalizer");
+  return verifyPassword(password, dummyHash);
+}
+
 export async function login(formData: FormData): Promise<ActionResult> {
   // Rate limit: 5 login attempts per minute per IP to prevent brute-force.
   const { headers } = await import("next/headers");
@@ -82,6 +90,9 @@ export async function login(formData: FormData): Promise<ActionResult> {
   const { username, password } = parsed.data;
   const user = await getUserByUsername(username.trim());
   if (!user) {
+    // AB-2: run the same password-derivation work as the real path, or
+    // response timing enumerates which usernames exist.
+    await dummyVerify(password);
     await recordAudit("login.failed", username.trim(), undefined, { ip });
     return { success: false, error: "Invalid username or password", errorCode: ErrorCode.UNAUTHORIZED };
   }

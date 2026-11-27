@@ -26,6 +26,7 @@ import {
   createUser,
   getRoleById,
   getValidInvite,
+  claimInvite,
   getUserByUsername,
   markInviteUsed,
   purgeExpiredInvites,
@@ -145,6 +146,17 @@ export async function acceptInviteAction(formData: FormData): Promise<ActionResu
     };
   }
 
+  // AB-4: a global ceiling too — XFF rotation can no longer mint per-IP
+  // buckets, but a shared key must still not accept unbounded attempts.
+  const globalRl = rateLimit("invite-accept:global", 10, 60_000);
+  if (!globalRl.ok) {
+    return {
+      success: false,
+      error: "Too many attempts — try again in a minute.",
+      errorCode: ErrorCode.RATE_LIMIT,
+    };
+  }
+
   const parsed = acceptSchema.safeParse({
     token: formData.get("token"),
     username: formData.get("username"),
@@ -164,6 +176,13 @@ export async function acceptInviteAction(formData: FormData): Promise<ActionResu
   if (invite.roleId && !(await getRoleById(invite.roleId))) {
     return notFoundError("The invited role no longer exists");
   }
+
+  // Atomic claim (security audit AB-3): getValidInvite above is only a
+  // read — two concurrent acceptances could both pass it. The conditional
+  // UPDATE serializes them: the winner proceeds, a loser (or an expired
+  // token) is turned away here.
+  const claimed = await claimInvite(hashInviteToken(token));
+  if (!claimed) return notFoundError("This invitation is invalid, expired, or already used");
 
   const user = await createUser(username, await hashPassword(password), invite.roleId ? { roleId: invite.roleId } : {});
   if (await accountPagePolicy() !== "manual") {
